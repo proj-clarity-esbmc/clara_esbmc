@@ -62,6 +62,24 @@ const struct group_opt_templ all_cmd_options[] = {
      "force to verify every function, even it's an unreachable "
      "internal/private function"}}},
 #endif
+#ifdef ENABLE_CLARITY_FRONTEND
+  {"Clarity frontend",
+   {{"clar",
+     boost::program_options::value<std::string>()->value_name("path"),
+     ".clarast file name"},
+    {"contract",
+     boost::program_options::value<std::string>()->value_name("cname"),
+     "set contract name"},
+#if 0
+    TODO
+
+    {"no-visibility",
+     NULL,
+     "force to verify every function, even it's an unreachable "
+     "internal/private function"}
+#endif
+    }},
+#endif
   {"Frontend",
    {{"include,I",
      boost::program_options::value<std::vector<std::string>>()->value_name(

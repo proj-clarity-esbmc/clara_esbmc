@@ -10,6 +10,10 @@ if(ENABLE_PYTHON_FRONTEND)
   set(PYTHON_FRONTEND_TARGETS pythonfrontend)
 endif()
 
+if(ENABLE_CLARITY_FRONTEND)
+  set(CLARITY_FRONTEND_TARGETS clarityfrontend)
+endif()
+
 if(ENABLE_GOTO_CONTRACTOR)
   set(GOTO_CONTRACTOR_TARGETS gotocontractor)
 endif()
@@ -44,6 +48,7 @@ cmake_path(ABSOLUTE_PATH MY_MAGIC_PATH OUTPUT_VARIABLE CVC_LINK_DIR)
 message("Looking at ${CVC_LINK_DIR}")
 target_link_libraries(esbmc ${OLD_FRONTEND_TARGETS} ${SOLIDITY_FRONTEND_TARGETS} ${PYTHON_FRONTEND_TARGETS}
                             ${GOTO_CONTRACTOR_TARGETS} ${JIMPLE_FRONTEND_TARGETS} ${JIMPLE_FRONTEND_TARGETS}
+                            ${CLARITY_FRONTEND_TARGETS}
                             clangcfrontend clangcppfrontend filesystem symex pointeranalysis langapi util_esbmc bigint
                             solvers clibs gotoalgorithms cache ${Boost_LIBRARIES} goto2c)
 target_link_directories(esbmc PUBLIC "${CVC_LINK_DIR}")

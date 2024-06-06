@@ -25,6 +25,10 @@ if(ENABLE_PYTHON_FRONTEND)
   add_subdirectory(python-frontend)
 endif()
 
+if(ENABLE_CLARITY_FRONTEND)
+  add_subdirectory(clarity-frontend)
+endif()
+
 add_subdirectory (clang-c-frontend)
 add_subdirectory (pointer-analysis)
 add_subdirectory (langapi)

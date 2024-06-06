@@ -26,6 +26,7 @@ static const char *const extensions_cpp[] =
 static const char *const extensions_sol_ast[] = {"solast", nullptr};
 static const char *const extensions_jimple[] = {"jimple", nullptr};
 static const char *const extensions_python[] = {"py", nullptr};
+static const char *const extensions_clarity[] = {"clar", nullptr};
 
 static const language_desct language_desc_C = {"C", extensions_ansi_c};
 static const language_desct language_desc_CPP = {"C++", extensions_cpp};
@@ -39,6 +40,10 @@ static const language_desct language_desc_Jimple = {
 static const language_desct language_desc_python = {
   "Python",
   extensions_python};
+
+static const language_desct language_desc_clarity = {
+  "Clarity",
+  extensions_clarity};
 
 static const language_desct *language_desc(language_idt id)
 {
@@ -56,6 +61,8 @@ static const language_desct *language_desc(language_idt id)
     return &language_desc_Jimple;
   case language_idt::PYTHON:
     return &language_desc_python;
+  case language_idt::CLARITY:
+    return &language_desc_clarity;
   }
   return nullptr;
 }
