@@ -2,6 +2,8 @@
   The template/library for Clarity built-in variables, function and data structure
 */
 
+/* NOT SURE HOW THIS FILE IS CONSUMED */
+
 #include <nlohmann/json.hpp>
 #include <unordered_set>
 
