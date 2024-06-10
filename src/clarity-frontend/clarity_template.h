@@ -6,7 +6,7 @@
 #include <unordered_set>
 
 #ifndef clarity_TEMPLATE_H_
-#define clarity_TEMPLATE_H_
+#  define clarity_TEMPLATE_H_
 
 namespace ClarityTemplate
 {
@@ -20,30 +20,50 @@ const std::string clar_header = R"(
 )";
 
 /*
-  uint == uint256_t
-  bytes == uint256_t
-  bytes32 == uint256_t
-  address == address_t
+  int = int128_t
+  uint == uint128_t
+
+	address has two types, standard and contract
+	standard can be decomposed to 1 byte version, 20 bytes public key hash
+	contract is standard + 1-40 ascii characters
+	see https://docs.stacks.co/clarity/functions#principal-destruct
 */
 const std::string clar_typedef = R"(
-typedef unsigned _ExtInt(256) uint256_t;
-typedef unsigned _ExtInt(160) address_t;
+typedef signed _ExtInt(128) int128_t;
+typedef unsigned _ExtInt(128) uint128_t;
+
+#define CLARITY_ADDRESS_TYPE_STANDARD 1
+#define CLARITY_ADDRESS_TYPE_CONTRACT 2
+
+typedef struct {
+  int address_type;
+	int address_version;
+	char pubkey_hash[20];
+	char contract_name[40];
+} address_t;
 )";
 
 /// Variables
 // the value of these variables need to be set to rand afterwards
 
+#  if 0
+TODO: not used
 const std::string clar_msg = R"(
 uint256_t msg_data;
 address_t msg_address;
 __uint32_t msg_sig;
 uint256_t msg_value;
 )";
+#  endif
 
 const std::string clar_tx = R"(
-uint256_t tx_gasprice;
-address_t tx_origin;
+address_t tx_sender;
+address_t contract_caller;
+address_t tx_sponsorM;
 )";
+
+#  if 0
+TODO: some of this is in https://docs.stacks.co/clarity/functions#get-block-info
 
 const std::string clar_block = R"(
 uint256_t block_basefee;
@@ -55,12 +75,16 @@ uint256_t block_number;
 uint256_t block_prevrandao;
 uint256_t block_timestamp;
 )";
+#  endif
 
-const std::string clar_vars = clar_msg + clar_tx + clar_block;
+// const std::string clar_vars = clar_msg + clar_tx + clar_block;
+const std::string clar_vars = clar_tx;
 
 /// functions
 // if the function does not currently have an actual implement,
 // leave the params empty.
+
+// https://docs.soliditylang.org/en/latest/units-and-global-variables.html#special-variables-and-functions
 
 const std::string blockhash = R"(
 uint256_t blockhash();

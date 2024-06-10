@@ -25,13 +25,13 @@ clarity_languaget::clarity_languaget()
   if (!fun.empty())
     func_name = fun;
 
-  std::string sol = config.options.get_option("sol");
-  if (sol.empty())
+  std::string clar = config.options.get_option("clar");
+  if (clar.empty())
   {
-    log_error("Please set the smart contract source file via --sol");
+    log_error("Please set the smart contract source file via --clar");
     abort();
   }
-  smart_contract = sol;
+  smart_contract = clar;
 }
 
 std::string clarity_languaget::get_temp_file()
@@ -80,6 +80,8 @@ bool clarity_languaget::parse(const std::string &path)
   std::ifstream ast_json_file_stream(path);
   std::string new_line, ast_json_content;
 
+#if 0
+  TODO
   while (getline(ast_json_file_stream, new_line))
   {
     if (new_line.find(".sol =======") != std::string::npos)
@@ -99,7 +101,7 @@ bool clarity_languaget::parse(const std::string &path)
       assert(!"Unsupported feature: found multiple contracts defined in a single .sol file");
     }
   }
-
+#endif
   // parse explicitly
   src_ast_json = nlohmann::json::parse(ast_json_content);
 
