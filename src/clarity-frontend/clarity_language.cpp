@@ -6,7 +6,7 @@ CC_DIAGNOSTIC_IGNORE_LLVM_CHECKS()
 CC_DIAGNOSTIC_POP()
 
 #include <clarity-frontend/clarity_language.h>
-// TODO #include <clarity-frontend/clarity_convert.h>
+#include <clarity-frontend/clarity_convert.h>
 #include <clarity-frontend/clarity_template.h>
 #include <clang-c-frontend/clang_c_main.h>
 #include <clang-cpp-frontend/clang_cpp_adjust.h>
@@ -92,6 +92,7 @@ bool clarity_languaget::parse(const std::string &path)
       break;
     }
   }
+#endif
   while (getline(ast_json_file_stream, new_line))
   {
     // file pointer continues from "=== *.clar ==="
@@ -106,7 +107,7 @@ bool clarity_languaget::parse(const std::string &path)
       assert(!"Unsupported feature: found multiple contracts defined in a single .clar file");
     }
   }
-#endif
+
   // parse explicitly
   src_ast_json = nlohmann::json::parse(ast_json_content);
 
@@ -130,14 +131,12 @@ bool clarity_languaget::typecheck(contextt &context, const std::string &module)
   convert_intrinsics(
     new_context); // Add ESBMC and TACAS intrinsic symbols to the context
 
-#if 0
-  TODO
 
   clarity_convertert converter(
     new_context, src_ast_json, func_name, smart_contract);
   if (converter.convert()) // Add Clarity symbols to the context
     return true;
-#endif
+
 
   // migrate from clang_c_adjust to clang_cpp_adjust
   // for the reason that we need clang_cpp_adjust::adjust_side_effect
