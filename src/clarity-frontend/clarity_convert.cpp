@@ -45,22 +45,47 @@ bool clarity_convertert::convert()
   //  2. Then we populate the context with symbols annotated based on the each AST node, and hence prepare for the GOTO conversion.
 
   if (!src_ast_json.contains(
-        "nodes")) // check json file contains AST nodes as Clarity might change
-    assert(!"JSON file does not contain any AST nodes");
+        "contract_identifier")) // check json file contains expression AST nodes as Clarity might change
+    assert(!"JSON file does not contain any expression AST nodes");
 
+#if 0
+  FIXME : we need to iterate over nodes to find absolute path
   if (
     !src_ast_json.contains(
       "absolutePath")) // check json file contains AST nodes as Clarity might change
     assert(!"JSON file does not contain absolutePath");
-
-  absolute_path = src_ast_json["absolutePath"].get<std::string>();
+    absolute_path = src_ast_json["absolutePath"].get<std::string>();
+#endif
+  
+  
 
   // By now the context should have the symbols of all ESBMC's intrinsics and the dummy main
   // We need to convert Clarity AST nodes to the equivalent symbols and add them to the context
+  nlohmann::json &master_node = src_ast_json;
   nlohmann::json &nodes = src_ast_json["nodes"];
-
-  bool found_contract_def = false;
   size_t index = 0;
+  
+  bool found_contract_def = false;
+
+  if(master_node["contract_identifier"].contains("name"))
+  {  
+    std::string contract_name = master_node["contract_identifier"]["name"];
+    found_contract_def = true;
+     log_debug(
+    "clarity",
+    "@@ Contract : name={},  ...",contract_name
+    );
+  }
+  else
+  {
+    assert (!"AST JSON does not have contract name");
+  }
+
+
+      
+ 
+
+  
   for (nlohmann::json::iterator itr = nodes.begin(); itr != nodes.end();
        ++itr, ++index)
   {

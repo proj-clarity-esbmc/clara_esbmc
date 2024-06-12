@@ -6,7 +6,7 @@ CC_DIAGNOSTIC_IGNORE_LLVM_CHECKS()
 CC_DIAGNOSTIC_POP()
 
 #include <clarity-frontend/clarity_language.h>
-// TODO #include <clarity-frontend/clarity_convert.h>
+#include <clarity-frontend/clarity_convert.h>
 #include <clarity-frontend/clarity_template.h>
 #include <clang-c-frontend/clang_c_main.h>
 #include <clang-cpp-frontend/clang_cpp_adjust.h>
@@ -25,8 +25,10 @@ clarity_languaget::clarity_languaget()
   if (!fun.empty())
     func_name = fun;
 
+
   std::string clar = config.options.get_option("clar");
   if (clar.empty())
+
   {
     log_error("Please set the smart contract source file via --clar");
     abort();
@@ -84,30 +86,36 @@ bool clarity_languaget::parse(const std::string &path)
   TODO
   while (getline(ast_json_file_stream, new_line))
   {
-    if (new_line.find(".sol =======") != std::string::npos)
+    // find first instance of ast header
+    if (new_line.find(".clar =======") != std::string::npos)
     {
       break;
     }
   }
+#endif
   while (getline(ast_json_file_stream, new_line))
   {
-    // file pointer continues from "=== *.sol ==="
-    if (new_line.find(".sol =======") == std::string::npos)
+    // file pointer continues from "=== *.clar ==="
+    // carry on until the end of file, we shouldn't see any other instance of the ast header
+    if (new_line.find(".clar =======") == std::string::npos)
     {
       ast_json_content = ast_json_content + new_line + "\n";
     }
     else
     {
-      assert(!"Unsupported feature: found multiple contracts defined in a single .sol file");
+      // found multiple ast headers
+      assert(!"Unsupported feature: found multiple contracts defined in a single .clar file");
     }
   }
-#endif
+
   // parse explicitly
   src_ast_json = nlohmann::json::parse(ast_json_content);
 
   return false;
 }
 
+
+// ToDo : to review this function 
 bool clarity_languaget::convert_intrinsics(contextt &context)
 {
   clang_c_convertert converter(context, ASTs, "C++");
@@ -123,14 +131,12 @@ bool clarity_languaget::typecheck(contextt &context, const std::string &module)
   convert_intrinsics(
     new_context); // Add ESBMC and TACAS intrinsic symbols to the context
 
-#if 0
-  TODO
 
   clarity_convertert converter(
     new_context, src_ast_json, func_name, smart_contract);
   if (converter.convert()) // Add Clarity symbols to the context
     return true;
-#endif
+
 
   // migrate from clang_c_adjust to clang_cpp_adjust
   // for the reason that we need clang_cpp_adjust::adjust_side_effect
