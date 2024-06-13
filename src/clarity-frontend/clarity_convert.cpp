@@ -12,6 +12,7 @@
 #include <regex>
 
 #include <fstream>
+#include <iostream>
 
 clarity_convertert::clarity_convertert(
   contextt &_context,
@@ -38,6 +39,74 @@ clarity_convertert::clarity_convertert(
     (std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
 }
 
+bool clarity_convertert::process_expr_node(nlohmann::json & ast_node)
+{
+  auto expr = ast_node;
+  // process expr node;
+            if (expr["expr"].contains("List"))
+            {
+              // process expression
+              auto vec_expr_list = expr["expr"]["List"];
+
+              // process list
+              for (auto &list_expr: vec_expr_list)
+              {
+                // process each list item 
+                if (list_expr.contains("expr"))
+                {
+                  auto t_expr = list_expr["expr"];
+                  
+                  if (t_expr.contains("Atom"))
+                  {
+                      // id will always be an integer.
+                    int node_id = list_expr["id"];  
+                    int start_line = list_expr["span"]["start_line"];
+                    int start_column = list_expr["span"]["start_column"];
+                    std::string t_expr_type = t_expr["Atom"];
+                    std::cout <<"Expression of type : " <<t_expr_type<< " found @ "<<start_line<< ":" <<start_column <<"\n";
+                    
+                  }
+                  else if (t_expr.contains("LiteralValue"))
+                  {
+                    auto t_expr_literalValue = t_expr["LiteralValue"];
+                    std::string t_expr_d_type; // = t_expr_literalValue.first;
+                    std::string t_expr_d_value; // = t_expr_literalValue.second;
+                    for (auto & [key, value]: t_expr_literalValue.items())
+                    {
+                      
+                      if (key == "Principal")
+                      {
+                        t_expr_d_type = "Principal_";
+                        auto t_principal = t_expr_literalValue["Principal"];
+                        for (auto & [principal_key,principal_value]: t_principal.items())
+                        {
+                          t_expr_d_type += principal_key;
+                          t_expr_d_value = "STN" + principal_key;
+                        }
+
+                      }
+                      else
+                      {
+                        t_expr_d_type = key;
+                        t_expr_d_value = value;
+                        
+                      }
+                      std::cout <<"Literal Value : Type " <<key<< " Value "<<value <<"\n";
+
+                    }
+                  }
+                  
+                }
+              }
+              std::cout <<"\n--------- \n";
+            }
+            else
+            {
+              std::cout <<"Incomplete expression \n";
+            }
+            return false;
+}
+
 bool clarity_convertert::convert()
 {
   // This function consists of two parts:
@@ -62,33 +131,43 @@ bool clarity_convertert::convert()
   // By now the context should have the symbols of all ESBMC's intrinsics and the dummy main
   // We need to convert Clarity AST nodes to the equivalent symbols and add them to the context
   nlohmann::json &master_node = src_ast_json;
-  nlohmann::json &nodes = src_ast_json["nodes"];
+  nlohmann::json &nodes = src_ast_json["expressions"];
+
+  
   size_t index = 0;
   
   bool found_contract_def = false;
 
+  // find contract_identifier to verify if the ast is valid
+
   if(master_node["contract_identifier"].contains("name"))
   {  
     std::string contract_name = master_node["contract_identifier"]["name"];
+    current_contractName = contract_name;
+    std::string issuer = "";
     found_contract_def = true;
-     log_debug(
-    "clarity",
-    "@@ Contract : name={},  ...",contract_name
-    );
+
+    std::cout <<" If we need to get Contract issuer > then we need to fix this below " <<"\n";
+ 
   }
   else
   {
     assert (!"AST JSON does not have contract name");
   }
 
-
-      
- 
-
+// Pattern based checking e-g Solidity checks for SWC-115
   
+  log_status("Pattern based checking goes here . Solidity frontend had SWC-115 tested here.\nSkipping for Clarity for now. ");
+  #if 0
+  FIXME : (m-ali) we need to add pattern checking logic here e-g solidity checks for SVC 115
   for (nlohmann::json::iterator itr = nodes.begin(); itr != nodes.end();
        ++itr, ++index)
   {
+    ;
+
+  
+
+
     // ignore the meta information and locate nodes in ContractDefinition
     std::string node_type = (*itr)["nodeType"].get<std::string>();
     if (node_type == "ContractDefinition") // contains AST nodes we need
@@ -102,21 +181,23 @@ bool clarity_convertert::convert()
       if (pattern_check->do_pattern_check())
         return true; // 'true' indicates something goes wrong.
     }
+
+    
   }
+  #endif
   assert(found_contract_def && "No contracts were found in the program.");
 
-  // reasoning-based verification
+  log_status("Contract : {} found.",current_contractName);
 
-  // populate exportedSymbolsList
-  // e..g
-  //  "exportedSymbols": {
-  //       "Base": [      --> Contract Name
-  //           8
-  //       ],
-  //       "tt": [        --> Error Name
-  //           7
-  //       ]
-  //   }
+  
+  // Exported symbols need to be checked here 
+  //
+  // FIXME :  (m-ali) @Faried bhai, does Clarity have exported Symbols.
+  log_status("What are exported symbols in Clarity ?\nSkipping for now ");
+
+  #if 0
+  FIXME: how does it map to clarity?
+
   for (const auto &itr : src_ast_json["exportedSymbols"].items())
   {
     //! Assume it has only one id
@@ -125,19 +206,33 @@ bool clarity_convertert::convert()
     exportedSymbolsList.insert(std::pair<int, std::string>(c_id, c_name));
   }
 
+  #endif
+
   // first round: handle definitions that can be outside of the contract
   // including struct, enum, interface, event, error, library...
   // noted that some can also be inside the contract, e.g. struct, enum...
   index = 0;
+
+  log_status("What are nonContract definitions , definitions outside of the contract in terms of clarity.\nSkipping for now.");
   for (nlohmann::json::iterator itr = nodes.begin(); itr != nodes.end();
        ++itr, ++index)
   {
+    #if 0
+    
     if (get_noncontract_defition(*itr))
       return true;
+    
+    #endif
   }
 
   // second round: populate linearizedBaseList
   // this is to obtain the contract name list
+  // seems like this is something needed for inheritance in contracts.
+  // does that apply to Clarity ? I don't think so.
+  // just using current_contractName should work fine.
+  #if 0
+  FIXME : (m-ali) Do we need this for clarity ?
+
   index = 0;
   for (nlohmann::json::iterator itr = nodes.begin(); itr != nodes.end();
        ++itr, ++index)
@@ -156,14 +251,104 @@ bool clarity_convertert::convert()
       assert(!linearizedBaseList[current_contractName].empty());
     }
   }
+  #endif
 
   // third round: handle contract definition
   // single contract verification: where the option "--contract" is set.
   // multiple contracts verification: essentially verify the whole file.
   index = 0;
+  nodes = master_node;
   for (nlohmann::json::iterator itr = nodes.begin(); itr != nodes.end();
        ++itr, ++index)
   {
+    log_status("Node type {}",itr->type_name());
+
+    // we got to skip contract_identifier as we have already read that part.
+    if (std::string(itr->type_name()) == "object")
+    {
+      
+      std::cout <<"Key "<< itr.key()<<"\n";
+
+      if (itr.key() == "contract_identifier")
+      {
+        log_status("Skipping contract-identifier as we have already processed it");
+        continue;
+      } 
+      else
+        //log_status("Object not contract_identifier\n{}", itr->flatten());
+        std::cout <<"Object not contract_identifier\n"<< itr->flatten();
+    }
+    else if (std::string(itr->type_name()) == "array")
+    {
+      std::cout <<"Key "<<itr.key()<<"\n";
+      if (itr.key() == "expressions")
+      {
+        auto vec_expressions = itr.value();  
+        // handle expressions here.
+        log_status("Found expressions array ...");
+        std::cout <<"Number of expressions in contract " <<current_contractName <<"  : " << vec_expressions.size()<<"\n";
+        
+        //process expression array
+        for (auto &expr : vec_expressions)
+        {
+           // for each element in expressions array
+           // check if valid expression array
+          if (expr.contains("expr"))
+          {
+           
+            // process expr node;
+            process_expr_node(expr);
+            
+            
+          }
+          else
+          {
+            std::cout <<"Invalid expression"<<"\n";
+          }
+        }
+
+
+
+      }
+    }
+    else
+    {
+      log_status("Unsupported type ...");
+      continue;
+    }
+
+
+    continue;
+
+    /* 
+      [expressions] -> [id: 1] ,[id: 2] ... [id: n]
+                      ( Can be several ID nodes)
+                      Each id is a new line item'
+      
+      LOOPER:
+      [id: 1] -> [expr] ->[list]
+              -> [span] -> ["start_line", "start_column", "end_line", "end_column"]
+              (each expr is a list)
+              (and id node will have only one expr node)
+              (a list node may have one or more id nodes)
+      
+      if expr has a list, then iterate over that list to find other id nodes. and continue from LOOPER
+      else if expr has [Atom] node.
+        check for possible values of Atom node.
+        if "Atom" is any of the below, then parse accordingly.
+          ["define-constant", "define-data-var", "define-data-read-only", "define-public", "define_map"]
+
+        "define-constant":
+          go to next "id" node and look for another atom that will be an identifier name e-g "a"
+          go to next "id" node and look for "LiteralValue" node, then follow through to get the value node of literalValue.
+          example:
+            (define-constant a u10)
+              a <-- is "atom"
+              u10 <-- is literal value ["LiteralValue"]->[Uint:"10"]
+              
+    */
+   
+
     std::string node_type = (*itr)["nodeType"].get<std::string>();
 
     if (node_type == "ContractDefinition") // rule source-unit
@@ -252,6 +437,7 @@ bool clarity_convertert::get_decl(
 {
   new_expr = code_skipt();
 
+  // we dont need to look for nodeType in Clarity
   if (!ast_node.contains("nodeType"))
     assert(!"Missing \'nodeType\' filed in ast_node");
 
@@ -5113,6 +5299,9 @@ bool clarity_convertert::get_default_function(
   const std::string id)
 {
   nlohmann::json ast_node;
+
+  // (mango) : will need to populate this as a dummy function.
+  // i am not quite sure as to why but let's discuss this
   auto j2 = R"(
               {
                 "nodeType": "ParameterList",

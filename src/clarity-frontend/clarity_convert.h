@@ -24,9 +24,11 @@ public:
     const std::string &_contract_path);
   virtual ~clarity_convertert() = default;
 
+
   bool convert();
 
 protected:
+  bool process_expr_node(nlohmann::json & ast_node); // m-ali
   bool convert_ast_nodes(const nlohmann::json &contract_def);
 
   // conversion functions
