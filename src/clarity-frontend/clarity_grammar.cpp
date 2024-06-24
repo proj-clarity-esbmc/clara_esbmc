@@ -559,7 +559,7 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
   {
     log_error(
       "Got expression nodeType={}. Unsupported expression type",
-      nodeType.get<std::string>());
+      nodeType);
     abort();
   }
   return ExpressionTError;
