@@ -36,7 +36,7 @@ const std::map<ElementaryTypeNameT, unsigned int> bytesn_size_map = {
 // rule contract-body-element
 ContractBodyElementT get_contract_body_element_t(const nlohmann::json &element)
 {
-  if (element["nodeType"] == "VariableDeclaration")
+  if (element[0] == "constant") //"data-var" | "map" | "trait" |  "def-ft" | "def-nft" (m-ali) ToDo
   {
     return VarDecl;
   }
@@ -75,15 +75,15 @@ const char *contract_body_element_to_str(ContractBodyElementT type)
 // rule type-name
 TypeNameT get_type_name_t(const nlohmann::json &type_name)
 {
-  // Clarity AST node has duplicate descrptions: ["typeName"]["typeDescriptions"] and ["typeDescriptions"]
+  // Clarity AST node has type stored in ast_node[1]["objtype"] as [ "typeName","typeIdentifier" , "size"]
   //! Order matters
 
-  if (type_name.contains("typeString"))
+  if (true) // if (type_name.contains("typeString"))
   {
     // for AST node that contains ["typeName"]["typeDescriptions"]
-    const std::string typeString = type_name["typeString"].get<std::string>();
-    const std::string typeIdentifier =
-      type_name["typeIdentifier"].get<std::string>();
+    const std::string typeString = type_name[0]; // type_name["typeString"].get<std::string>();
+    const std::string typeIdentifier = type_name[1];
+      //type_name["typeIdentifier"].get<std::string>();
 
     // we must first handle tuple
     // otherwise we might parse tuple(literal_string, literal_string)
@@ -124,7 +124,7 @@ TypeNameT get_type_name_t(const nlohmann::json &type_name)
     else if (
       uint_string_to_type_map.count(typeString) ||
       int_string_to_type_map.count(typeString) || typeString == "bool" ||
-      typeString == "string" || typeString.find("literal_string") == 0 ||
+      typeString == "string" || typeString.find("string-ascii") == 0 ||
       typeString == "string storage ref" || typeString == "string memory" ||
       typeString == "address payable" || typeString == "address" ||
       typeString.compare(0, 5, "bytes") == 0)
@@ -219,7 +219,7 @@ const char *type_name_to_str(TypeNameT type)
 // return the type of expression
 ElementaryTypeNameT get_elementary_type_name_t(const nlohmann::json &type_name)
 {
-  std::string typeString = type_name["typeString"].get<std::string>();
+  std::string typeString =  type_name[0]; //type_name["typeString"].get<std::string>();
   // rule unsigned-integer-type
 
   if (uint_string_to_type_map.count(typeString))
@@ -252,7 +252,7 @@ ElementaryTypeNameT get_elementary_type_name_t(const nlohmann::json &type_name)
   {
     return STRING_UTF8_LITERAL;
   }
-  if (typeString == "string_ascii")
+  if (typeString == "string-ascii")
   {
     // TODO
     return STRING_ASCII;
@@ -487,40 +487,44 @@ const char *statement_to_str(StatementT type)
 // rule expression
 ExpressionT get_expression_t(const nlohmann::json &expr)
 {
+  
   if (expr.is_null())
   {
     return NullExpr;
   }
-  if (expr["nodeType"] == "Assignment" || expr["nodeType"] == "BinaryOperation")
+  
+  std::string nodeType = expr[0];
+
+  if (nodeType == "Assignment" || nodeType == "BinaryOperation" || (nodeType == "constant"))
   {
     return BinaryOperatorClass;
   }
-  else if (expr["nodeType"] == "UnaryOperation")
+  else if (nodeType == "UnaryOperation")
   {
     return UnaryOperatorClass;
   }
-  else if (expr["nodeType"] == "Conditional")
+  else if (nodeType == "Conditional")
   {
     return ConditionalOperatorClass;
   }
   else if (
-    expr["nodeType"] == "Identifier" && expr.contains("referencedDeclaration"))
+    nodeType == "Identifier" && expr.contains("referencedDeclaration"))
   {
     return DeclRefExprClass;
   }
-  else if (expr["nodeType"] == "Literal")
+  else if (nodeType == "Literal")
   {
     return Literal;
   }
-  else if (expr["nodeType"] == "TupleExpression")
+  else if (nodeType == "TupleExpression")
   {
     return Tuple;
   }
-  else if (expr["nodeType"] == "Mapping")
+  else if (nodeType == "Mapping")
   {
     return Mapping;
   }
-  else if (expr["nodeType"] == "FunctionCall")
+  else if (nodeType == "FunctionCall")
   {
     if (expr["expression"]["nodeType"] == "NewExpression")
       return NewExpression;
@@ -530,7 +534,7 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
       return ElementaryTypeNameExpression;
     return CallExprClass;
   }
-  else if (expr["nodeType"] == "MemberAccess")
+  else if (nodeType == "MemberAccess")
   {
     assert(expr.contains("expression"));
     ClarityGrammar::TypeNameT type_name =
@@ -543,11 +547,11 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
       // e.g. string.concat ==> TypeConversionName
       return BuiltinMemberCall;
   }
-  else if (expr["nodeType"] == "ImplicitCastExprClass")
+  else if (nodeType == "ImplicitCastExprClass")
   {
     return ImplicitCastExprClass;
   }
-  else if (expr["nodeType"] == "IndexAccess")
+  else if (nodeType == "IndexAccess")
   {
     return IndexAccess;
   }
@@ -555,7 +559,7 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
   {
     log_error(
       "Got expression nodeType={}. Unsupported expression type",
-      expr["nodeType"].get<std::string>());
+      nodeType.get<std::string>());
     abort();
   }
   return ExpressionTError;

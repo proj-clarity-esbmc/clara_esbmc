@@ -39,6 +39,114 @@ clarity_convertert::clarity_convertert(
     (std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
 }
 
+bool clarity_convertert::is_state_variable(const nlohmann::json & ast_node)
+{
+  const std::vector<std::string> state_node_types {"data-var" , "map" , "trait" , "constant" , "def-ft" , "def-nft"};
+  
+  if (std::find(state_node_types.begin(), state_node_types.end(), ast_node[0]) != state_node_types.end())
+    return true;
+  else
+    return false;
+}
+
+bool clarity_convertert::is_variable_declaration(const nlohmann::json & ast_node)
+{
+  
+  return is_state_variable(ast_node);
+}
+
+void clarity_convertert::insert_dummy_objType(nlohmann::json & ast_node, std::string type_name, int type_size)
+{
+
+  //FIXME this needs to be made generic. too sleepy to do it right now. just need to verify conversion
+  // objtype : ['type name', 'type identifier', 'type size']
+  // example 1 : ['string-ascii','string-ascii','string.length()']
+  // exmaple 2:  ['uint', 'uint_128', '128 ]
+  // m-ali
+   auto dummyObjType =  R"(
+           {"objtype": [ 
+                
+                "string-ascii",
+                "string-ascii", 
+                "16" 
+              ]}
+        )"_json;
+  // auto dummyObjType = R"(
+  //             {
+  //               "objtype": "ParameterList",
+  //               "parameters": []
+  //             }
+  //           )"_json;
+    
+    ast_node[1].insert(dummyObjType.begin(), dummyObjType.end());
+
+}
+bool clarity_convertert::process_define_data_var(nlohmann::json & ast_node)
+{
+  return false;
+
+}
+
+bool clarity_convertert::process_define_constant(nlohmann::json & ast_node)
+{
+  /* CASE 1 : 
+   {    "identifier": "fixed",
+        "id": 250,
+        "span": {
+          "start_line": 38,
+          "start_column": 18,
+          "end_line": 38,
+          "end_column": 22
+        },
+        "value": "fixed constant value"
+      }*/
+
+    std::string identifier_name = ast_node[1]["identifier"];
+    int id = ast_node[1]["id"];
+    int start_line = ast_node[1]["span"]["start_line"];
+    int start_column = ast_node[1]["span"]["start_column"];
+    std::string identifier_value = "";
+    std::string type_name = std::string(ast_node[1]["value"].type_name());
+
+   
+
+    if ( type_name == "string")
+    {
+      identifier_value = ast_node[1]["value"];
+      //this is a dummy call. fix this plz.
+      // FIXME
+      insert_dummy_objType(ast_node, "string-ascii" , identifier_value.length());
+      
+    }
+    else if ( type_name == "number")
+    {
+      identifier_value = std::to_string(ast_node[1]["value"].get<double>());
+      // the type could be uint , int , double, float.
+      // 128 represents 128-bit
+      insert_dummy_objType(ast_node, "uint" , 128);
+    }
+    else
+    {
+      identifier_value = "invalid value";
+    }
+    
+    std::cout <<"Constant Definition" <<" of : " <<identifier_name<< "value : " <<identifier_value<<" found @ "<<start_line<< ":" <<start_column <<"\n";
+
+    if (convert_ast_nodes(ast_node))
+        return true;
+    
+                    
+
+  return false;
+
+}
+
+bool clarity_convertert::process_define_map(nlohmann::json & ast_node)
+{
+  return false;
+
+}
+
 bool clarity_convertert::process_expr_node(nlohmann::json & ast_node)
 {
   auto expr = ast_node;
@@ -114,7 +222,7 @@ bool clarity_convertert::convert()
   //  2. Then we populate the context with symbols annotated based on the each AST node, and hence prepare for the GOTO conversion.
 
   if (!src_ast_json.contains(
-        "contract_identifier")) // check json file contains expression AST nodes as Clarity might change
+        "identifier")) // check json file contains expression AST nodes as Clarity might change
     assert(!"JSON file does not contain any expression AST nodes");
 
 #if 0
@@ -131,23 +239,26 @@ bool clarity_convertert::convert()
   // By now the context should have the symbols of all ESBMC's intrinsics and the dummy main
   // We need to convert Clarity AST nodes to the equivalent symbols and add them to the context
   nlohmann::json &master_node = src_ast_json;
-  nlohmann::json &nodes = src_ast_json["expressions"];
-
+  nlohmann::json &nodes = src_ast_json; //src_ast_json["expressions"];
   
+
   size_t index = 0;
   
   bool found_contract_def = false;
 
   // find contract_identifier to verify if the ast is valid
 
-  if(master_node["contract_identifier"].contains("name"))
-  {  
-    std::string contract_name = master_node["contract_identifier"]["name"];
-    current_contractName = contract_name;
-    std::string issuer = "";
-    found_contract_def = true;
 
-    std::cout <<" If we need to get Contract issuer > then we need to fix this below " <<"\n";
+  if( master_node.contains("identifier") )
+  {  
+    //nodes = master_node["identifier"];
+    std::string contract_name = master_node["identifier"]["contract_name"];
+    current_contractName = contract_name;
+    std::string issuer = master_node["identifier"]["issuer_principal"];
+    found_contract_def = true;
+    current_contract_issuer = issuer;
+
+    std::cout <<" Contract : "<< current_contractName <<"\nIssuer :" <<current_contract_issuer <<" found." <<"\n";
  
   }
   else
@@ -155,6 +266,7 @@ bool clarity_convertert::convert()
     assert (!"AST JSON does not have contract name");
   }
 
+  assert(found_contract_def && "No contracts were found in the program.");
 // Pattern based checking e-g Solidity checks for SWC-115
   
   log_status("Pattern based checking goes here . Solidity frontend had SWC-115 tested here.\nSkipping for Clarity for now. ");
@@ -185,7 +297,7 @@ bool clarity_convertert::convert()
     
   }
   #endif
-  assert(found_contract_def && "No contracts were found in the program.");
+  
 
   log_status("Contract : {} found.",current_contractName);
 
@@ -257,8 +369,9 @@ bool clarity_convertert::convert()
   // single contract verification: where the option "--contract" is set.
   // multiple contracts verification: essentially verify the whole file.
   index = 0;
-  nodes = master_node;
-  for (nlohmann::json::iterator itr = nodes.begin(); itr != nodes.end();
+  
+
+  for (nlohmann::json::iterator itr = src_ast_json.begin(); itr != src_ast_json.end();
        ++itr, ++index)
   {
     log_status("Node type {}",itr->type_name());
@@ -269,7 +382,7 @@ bool clarity_convertert::convert()
       
       std::cout <<"Key "<< itr.key()<<"\n";
 
-      if (itr.key() == "contract_identifier")
+      if (itr.key() == "indentifier")
       {
         log_status("Skipping contract-identifier as we have already processed it");
         continue;
@@ -281,6 +394,11 @@ bool clarity_convertert::convert()
     else if (std::string(itr->type_name()) == "array")
     {
       std::cout <<"Key "<<itr.key()<<"\n";
+
+      /* Expressions Array is an array of Arrays.
+        Each array element is an array. Each nested array is a mixed element array 
+      */
+
       if (itr.key() == "expressions")
       {
         auto vec_expressions = itr.value();  
@@ -293,26 +411,36 @@ bool clarity_convertert::convert()
         {
            // for each element in expressions array
            // check if valid expression array
-          if (expr.contains("expr"))
+          if (expr[0] == "constant")
           {
            
             // process expr node;
-            process_expr_node(expr);
+            process_define_constant(expr);
             
             
           }
+          else if (expr[0] == "data_var")
+          {
+            std::cout <<" define-data-var Not handled yet \n";
+          }
           else
           {
-            std::cout <<"Invalid expression"<<"\n";
+            std::cout <<"Invalid expression type : "<< expr[0]<<"\n";
           }
         }
 
 
 
       }
+      else if (itr.key() == "exported_functions")
+      {
+        std::cout <<" Exported functions not handled yet"<<"\n";
+        continue;
+      }
     }
     else
     {
+      std::cout <<"Key "<< itr.key()<<"\n";
       log_status("Unsupported type ...");
       continue;
     }
@@ -407,24 +535,41 @@ bool clarity_convertert::convert()
 bool clarity_convertert::convert_ast_nodes(const nlohmann::json &contract_def)
 {
   size_t index = 0;
-  nlohmann::json ast_nodes = contract_def["nodes"];
-  for (nlohmann::json::iterator itr = ast_nodes.begin(); itr != ast_nodes.end();
-       ++itr, ++index)
-  {
-    nlohmann::json ast_node = *itr;
-    std::string node_name = ast_node["name"].get<std::string>();
-    std::string node_type = ast_node["nodeType"].get<std::string>();
+  // nlohmann::json ast_nodes = contract_def["nodes"];
+  // for (nlohmann::json::iterator itr = ast_nodes.begin(); itr != ast_nodes.end();
+  //      ++itr, ++index)
+  // {
+  //   nlohmann::json ast_node = *itr;
+  //   std::string node_name = ast_node["name"].get<std::string>();
+  //   std::string node_type = ast_node["nodeType"].get<std::string>();
+  //   log_debug(
+  //     "clarity",
+  //     "@@ Converting node[{}]: name={}, nodeType={} ...",
+  //     index,
+  //     node_name.c_str(),
+  //     node_type.c_str());
+  //   exprt dummy_decl;
+  //   if (get_decl(ast_node, dummy_decl))
+  //     return true;
+  // }
+
+ 
+
+  
+    nlohmann::json ast_node = contract_def;
+    std::string identifier_name = ast_node[1]["identifier"].get<std::string>();
+    std::string identifier_type = std::string(ast_node[1]["value"].type_name());
     log_debug(
       "clarity",
       "@@ Converting node[{}]: name={}, nodeType={} ...",
       index,
-      node_name.c_str(),
-      node_type.c_str());
+      identifier_name.c_str(),
+      identifier_type.c_str());
     exprt dummy_decl;
     if (get_decl(ast_node, dummy_decl))
       return true;
-  }
-
+ 
+  
   // After converting all AST nodes, current_functionDecl should be restored to nullptr.
   assert(current_functionDecl == nullptr);
 
@@ -438,8 +583,8 @@ bool clarity_convertert::get_decl(
   new_expr = code_skipt();
 
   // we dont need to look for nodeType in Clarity
-  if (!ast_node.contains("nodeType"))
-    assert(!"Missing \'nodeType\' filed in ast_node");
+  if (!ast_node[1].contains("identifier"))
+    assert(!"Missing \'identifer\' filed in ast_node");
 
   ClarityGrammar::ContractBodyElementT type =
     ClarityGrammar::get_contract_body_element_t(ast_node);
@@ -514,8 +659,8 @@ bool clarity_convertert::get_var_decl(
   // to improve the re-usability of get_type* function, when dealing with non-array var decls.
   // For array, do NOT use ["typeName"]. Otherwise, it will cause problem
   // when populating typet in get_cast
-  bool dyn_array = is_dyn_array(ast_node["typeDescriptions"]);
-  bool mapping = is_child_mapping(ast_node);
+  bool dyn_array = false ; //is_dyn_array(ast_node["typeDescriptions"]);
+  bool mapping = false ; //is_child_mapping(ast_node);
   if (dyn_array)
   {
     if (ast_node.contains("initialValue"))
@@ -574,21 +719,17 @@ bool clarity_convertert::get_var_decl(
   }
   else
   {
-    if (get_type_description(ast_node["typeName"]["typeDescriptions"], t))
+    // requires type name as first param. but we don't have type inferred here. We got to add that to the node info
+    if (get_type_description(ast_node[1]["objtype"], t))
       return true;
   }
 
-  bool is_state_var = ast_node["stateVariable"] == true;
+  //bool is_state_var = ast_node["stateVariable"] == true;
+  bool is_state_var = is_state_variable(ast_node);
 
   // 2. populate id and name
   std::string name, id;
 
-  //TODO: Omitted variable
-  if (ast_node["name"].get<std::string>().empty())
-  {
-    log_error("Omitted names are not supported.");
-    return true;
-  }
 
   if (is_state_var)
     get_state_var_decl_name(ast_node, name, id);
@@ -623,7 +764,7 @@ bool clarity_convertert::get_var_decl(
   // For state var decl, we look for "value".
   // For local var decl, we look for "initialValue"
   bool has_init =
-    (ast_node.contains("value") || ast_node.contains("initialValue"));
+    (ast_node[1].contains("value") || ast_node[1].contains("initialValue"));
   if (symbol.static_lifetime && !symbol.is_extern && !has_init)
   {
     // set default value as zero
@@ -640,13 +781,18 @@ bool clarity_convertert::get_var_decl(
 
   if (has_init)
   {
-    nlohmann::json init_value =
-      is_state_var ? ast_node["value"] : ast_node["initialValue"];
-    nlohmann::json literal_type = ast_node["typeDescriptions"];
+    nlohmann::json init_value =  ast_node[1]["value"];
+      
+    // nlohmann::json init_value =
+    //   is_state_var ? ast_node[1]["value"] : ast_node[1]["initialValue"];
+    nlohmann::json literal_type = ast_node[1]["objtype"][1];
 
     assert(literal_type != nullptr);
     exprt val;
-    if (get_expr(init_value, literal_type, val))
+    // we will pass the whole ast node everywhere.
+    // we can then parse inside the sub-functions accordingly.
+    // for initial value : consider looking into ast_node[1]["value"]
+    if (get_expr(ast_node, literal_type, val))
       return true;
 
     clarity_gen_typecast(ns, val, t);
@@ -2598,6 +2744,11 @@ bool clarity_convertert::get_current_contract_name(
   const nlohmann::json &ast_node,
   std::string &contract_name)
 {
+
+  contract_name = current_contractName;
+  return false;
+
+
   // check if it is recorded in the scope_map
   if (ast_node.contains("scope"))
   {
@@ -4391,18 +4542,18 @@ void clarity_convertert::get_state_var_decl_name(
     abort();
   }
   name =
-    ast_node["name"]
+    ast_node[1]["identifier"]
       .get<
         std::
-          string>(); // assume Clarity AST json object has "name" field, otherwise throws an exception in nlohmann::json
+          string>(); // assume Clarity AST json object has "identifier" field, otherwise throws an exception in nlohmann::json
 
   // e.g. sol:@C@Base@x#11
   // The prefix is used to avoid duplicate names
   if (!contract_name.empty())
     id = "clar:@C@" + contract_name + "@" + name + "#" +
-         i2string(ast_node["id"].get<std::int16_t>());
+         i2string(ast_node[1]["id"].get<std::int16_t>());
   else
-    id = "clar:@" + name + "#" + i2string(ast_node["id"].get<std::int16_t>());
+    id = "clar:@" + name + "#" + i2string(ast_node[1]["id"].get<std::int16_t>());
 }
 
 // parse the non-state variable
@@ -4541,23 +4692,27 @@ unsigned int clarity_convertert::get_line_number(
   const nlohmann::json &ast_node,
   bool final_position)
 {
-  // Clarity src means "start:length:index", where "start" represents the position of the first char byte of the identifier.
-  std::string src = ast_node.contains("src")
-                      ? ast_node["src"].get<std::string>()
-                      : get_src_from_json(ast_node);
-
-  std::string position = src.substr(0, src.find(":"));
-  unsigned int byte_position = std::stoul(position) + 1;
-
-  if (final_position)
-    byte_position = add_offset(src, byte_position);
-
-  // the line number can be calculated by counting the number of line breaks prior to the identifier.
-  unsigned int loc = std::count(
-                       contract_contents.begin(),
-                       (contract_contents.begin() + byte_position),
-                       '\n') +
-                     1;
+ /*
+ [
+      "data-var",
+      {
+        "identifier": "barf",
+        "id": 3,
+        "span": {
+          "start_line": 3,
+          "start_column": 18,
+          "end_line": 3,
+          "end_column": 21
+        },
+        "objtype": [
+          "string-ascii",
+          "16"
+        ],
+        "value": "abc"
+      }
+    ]
+    */
+  unsigned int loc = ast_node[1]["span"]["start_line"].get<int>();
   return loc;
 }
 
@@ -4571,8 +4726,8 @@ void clarity_convertert::get_location_from_decl(
 
   // To annotate local declaration within a function
   if (
-    ast_node["nodeType"] == "VariableDeclaration" &&
-    ast_node["stateVariable"] == false)
+    is_variable_declaration(ast_node)  &&
+     is_state_variable(ast_node) == false)
   {
     assert(
       current_functionDecl); // must have a valid current function declaration

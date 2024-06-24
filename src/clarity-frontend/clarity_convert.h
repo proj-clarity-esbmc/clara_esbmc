@@ -28,7 +28,19 @@ public:
   bool convert();
 
 protected:
-  bool process_expr_node(nlohmann::json & ast_node); // m-ali
+
+  //m-ali
+  bool process_expr_node(nlohmann::json & ast_node); 
+  bool process_define_data_var(nlohmann::json & ast_node);
+  bool process_define_constant(nlohmann::json & ast_node);
+  bool process_define_map(nlohmann::json & ast_node);
+  void insert_dummy_objType(nlohmann::json & ast_node, std::string type_name, int type_size); 
+  bool is_state_variable(const nlohmann::json & ast_node);
+  bool is_variable_declaration(const nlohmann::json & ast_node);
+
+
+  // end-m-ali
+  
   bool convert_ast_nodes(const nlohmann::json &contract_def);
 
   // conversion functions
@@ -219,6 +231,7 @@ protected:
   //! Be careful of using 'current_contractName'. This might lead to trouble in inheritance.
   //! If you are not sure, use 'get_current_contract_name' instead.
   std::string current_contractName;
+  std::string current_contract_issuer;
   std::string current_fileName;
 
   // Auxiliary data structures:
