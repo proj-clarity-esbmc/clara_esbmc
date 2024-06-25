@@ -32,7 +32,8 @@ clarity_convertert::clarity_convertert(
     current_contractName(""),
     scope_map({}),
     tgt_func(config.options.get_option("function")),
-    tgt_cnt(config.options.get_option("contract"))
+    //tgt_cnt(config.options.get_option("contract"))
+    tgt_cnt("basic_dummy")
 {
   std::ifstream in(_contract_path);
   contract_contents.assign(
@@ -55,6 +56,25 @@ bool clarity_convertert::is_variable_declaration(const nlohmann::json & ast_node
   return is_state_variable(ast_node);
 }
 
+// takes first param as input ast_node, the second param is output param where the node represents the objtype node inside an Ast_node
+void clarity_convertert::get_objtype_node(const nlohmann::json & ast_node, nlohmann::json & objtype_node)
+{
+  objtype_node = ast_node[1]["objtype"];
+}
+// takes objtype node as input param
+std::string clarity_convertert::get_objtype_type_name(const nlohmann::json & objtype_node)
+{
+  return objtype_node[0];
+}
+std::string clarity_convertert::get_objtype_type_identifier(const nlohmann::json & objtype_node)
+{
+  return objtype_node[1];
+}
+std::string clarity_convertert::get_objtype_type_size(const nlohmann::json & objtype_node)
+{
+  return objtype_node[2];
+}
+
 void clarity_convertert::insert_dummy_objType(nlohmann::json & ast_node, std::string type_name, int type_size)
 {
 
@@ -63,26 +83,21 @@ void clarity_convertert::insert_dummy_objType(nlohmann::json & ast_node, std::st
   // example 1 : ['string-ascii','string-ascii','string.length()']
   // exmaple 2:  ['uint', 'uint_128', '128 ]
   // m-ali
-   auto dummyObjType =  R"(
-           {"objtype": [ 
-                
-                "string-ascii",
-                "string-ascii", 
-                "16" 
-              ]}
-        )"_json;
-  // auto dummyObjType = R"(
-  //             {
-  //               "objtype": "ParameterList",
-  //               "parameters": []
-  //             }
-  //           )"_json;
+
+  
+    ast_node[1]["objtype"] = {type_name, type_name+std::string("_128"), type_size};
+
+    log_status("Dummy objtype node inserted ");
+    std::cout << std::setw(4) << ast_node[1] << "\n";
     
-    ast_node[1].insert(dummyObjType.begin(), dummyObjType.end());
+  //   ast_node[1].insert(dummyObjType.begin(), dummyObjType.end());
 
 }
 bool clarity_convertert::process_define_data_var(nlohmann::json & ast_node)
 {
+
+  ast_node[0]["nodeType"] = "VariableDeclaration";
+
   return false;
 
 }
@@ -109,28 +124,49 @@ bool clarity_convertert::process_define_constant(nlohmann::json & ast_node)
     std::string type_name = std::string(ast_node[1]["value"].type_name());
 
    
+   // insert a node type information to be used later in get_expression_t()
+    
+    ast_node[1]["nodeType"] = "VariableDeclaration";
+    // we will add expression type depending on the value node rules in each of the 
+    // following if cases
 
     if ( type_name == "string")
     {
+      ast_node[1]["expressionType"] = "Literal";
       identifier_value = ast_node[1]["value"];
-      //this is a dummy call. fix this plz.
-      // FIXME
-      insert_dummy_objType(ast_node, "string-ascii" , identifier_value.length());
+      int type_size = 128;
+      // "u10" for uint 10, 10 for int value of 10.
+      if (type_name.find("u"))
+        //type_name = "uint";
+        type_name = "uint_const";
+      else
+        type_name = "int";
+
+      insert_dummy_objType(ast_node, type_name , type_size);
       
     }
     else if ( type_name == "number")
     {
+      ast_node[1]["expressionType"] = "Literal";
       identifier_value = std::to_string(ast_node[1]["value"].get<double>());
       // the type could be uint , int , double, float.
       // 128 represents 128-bit
       insert_dummy_objType(ast_node, "uint" , 128);
+    }
+    else if (type_name == "array")
+    {
+      std::cout << " It's a list, so probably a function / operator \n";
+    }
+    else if (type_name == "object")
+    {
+      std::cout << " It's an object, so probably contains lit_ascii \n";
     }
     else
     {
       identifier_value = "invalid value";
     }
     
-    std::cout <<"Constant Definition" <<" of : " <<identifier_name<< "value : " <<identifier_value<<" found @ "<<start_line<< ":" <<start_column <<"\n";
+    std::cout <<"Constant Definition" <<" of : " <<identifier_name<< " | value : " <<identifier_value<<" found @ "<<start_line<< ":" <<start_column <<"\n";
 
     if (convert_ast_nodes(ast_node))
         return true;
@@ -379,7 +415,9 @@ bool clarity_convertert::convert()
     // we got to skip contract_identifier as we have already read that part.
     if (std::string(itr->type_name()) == "object")
     {
-      
+      // this is old logic
+      // FIXME
+      // remove this logic from here. we might not need it with F3 ast
       std::cout <<"Key "<< itr.key()<<"\n";
 
       if (itr.key() == "indentifier")
@@ -535,30 +573,10 @@ bool clarity_convertert::convert()
 bool clarity_convertert::convert_ast_nodes(const nlohmann::json &contract_def)
 {
   size_t index = 0;
-  // nlohmann::json ast_nodes = contract_def["nodes"];
-  // for (nlohmann::json::iterator itr = ast_nodes.begin(); itr != ast_nodes.end();
-  //      ++itr, ++index)
-  // {
-  //   nlohmann::json ast_node = *itr;
-  //   std::string node_name = ast_node["name"].get<std::string>();
-  //   std::string node_type = ast_node["nodeType"].get<std::string>();
-  //   log_debug(
-  //     "clarity",
-  //     "@@ Converting node[{}]: name={}, nodeType={} ...",
-  //     index,
-  //     node_name.c_str(),
-  //     node_type.c_str());
-  //   exprt dummy_decl;
-  //   if (get_decl(ast_node, dummy_decl))
-  //     return true;
-  // }
-
- 
-
   
     nlohmann::json ast_node = contract_def;
     std::string identifier_name = ast_node[1]["identifier"].get<std::string>();
-    std::string identifier_type = std::string(ast_node[1]["value"].type_name());
+    std::string identifier_type = get_objtype_type_name(ast_node[1]["objtype"]);    //std::string(ast_node[1]["objtype"][0]; //.type_name());
     log_debug(
       "clarity",
       "@@ Converting node[{}]: name={}, nodeType={} ...",
@@ -659,7 +677,8 @@ bool clarity_convertert::get_var_decl(
   // to improve the re-usability of get_type* function, when dealing with non-array var decls.
   // For array, do NOT use ["typeName"]. Otherwise, it will cause problem
   // when populating typet in get_cast
-  bool dyn_array = false ; //is_dyn_array(ast_node["typeDescriptions"]);
+
+  bool dyn_array = false ; // dyn arrays are not supported in Clarity
   bool mapping = false ; //is_child_mapping(ast_node);
   if (dyn_array)
   {
@@ -764,7 +783,7 @@ bool clarity_convertert::get_var_decl(
   // For state var decl, we look for "value".
   // For local var decl, we look for "initialValue"
   bool has_init =
-    (ast_node[1].contains("value") || ast_node[1].contains("initialValue"));
+    (ast_node[1].contains("value") || ast_node[1].contains("initialValue"));  // in clarity we do not use "initialValue"
   if (symbol.static_lifetime && !symbol.is_extern && !has_init)
   {
     // set default value as zero
@@ -781,11 +800,10 @@ bool clarity_convertert::get_var_decl(
 
   if (has_init)
   {
-    nlohmann::json init_value =  ast_node[1]["value"];
-      
-    // nlohmann::json init_value =
-    //   is_state_var ? ast_node[1]["value"] : ast_node[1]["initialValue"];
-    nlohmann::json literal_type = ast_node[1]["objtype"][1];
+    nlohmann::json init_value =  ast_node[1]["value"];  //refer to AST parsing rules : "Rules for reading Value Node"
+    
+    //this might cause issue
+    nlohmann::json literal_type = get_objtype_type_name(ast_node[1]["objtype"]) ;//ast_node[1]["objtype"][1];
 
     assert(literal_type != nullptr);
     exprt val;
@@ -1827,6 +1845,9 @@ bool clarity_convertert::get_expr(const nlohmann::json &expr, exprt &new_expr)
      * @return true iff the conversion has failed
      * @return false iff the conversion was successful
      */
+
+  //FIXME
+  // rignt now , literal_type passed is objtype[0] . which is a std::string
 bool clarity_convertert::get_expr(
   const nlohmann::json &expr,
   const nlohmann::json &literal_type,
@@ -1948,8 +1969,8 @@ bool clarity_convertert::get_expr(
   case ClarityGrammar::ExpressionT::Literal:
   {
     // make a type-name json for integer literal conversion
-    std::string the_value = expr["value"].get<std::string>();
-    const nlohmann::json &literal = expr["typeDescriptions"];
+    std::string the_value = expr[1]["value"].get<std::string>();
+    const nlohmann::json &literal = expr[1]["objtype"];
     ClarityGrammar::ElementaryTypeNameT type_name =
       ClarityGrammar::get_elementary_type_name_t(literal);
     log_debug(
@@ -1958,9 +1979,11 @@ bool clarity_convertert::get_expr(
       ClarityGrammar::elementary_type_name_to_str(type_name));
 
     if (
-      literal_type != nullptr &&
-      literal_type["typeString"].get<std::string>().find("bytes") !=
-        std::string::npos)
+      literal_type != nullptr ) 
+      // m-ali : we probably do not need to look for type string -> bytes in our AST
+      //&&
+      //literal_type["typeString"].get<std::string>().find("bytes") !=
+      //  std::string::npos)
     {
       // literal_type["typeString"] could be
       //    "bytes1" ... "bytes32"
@@ -1972,7 +1995,7 @@ bool clarity_convertert::get_expr(
       //
 
       ClarityGrammar::ElementaryTypeNameT type =
-        ClarityGrammar::get_elementary_type_name_t(literal_type);
+        ClarityGrammar::get_elementary_type_name_t(literal);
 
       int byte_size;
       // TODO
@@ -1985,6 +2008,14 @@ bool clarity_convertert::get_expr(
       // convert hex to decimal value and populate
       switch (type_name)
       {
+      case ClarityGrammar::ElementaryTypeNameT::UINT_LITERAL:
+      {
+        //ToDo ; how does byte_size map here 
+        //if (convert_hex_literal(the_value, new_expr, byte_size * 8))
+        if (convert_str_uint_literal(the_value, new_expr, byte_size * 8))
+          return true;
+        break;
+      }
       case ClarityGrammar::ElementaryTypeNameT::INT_LITERAL:
       {
         if (convert_hex_literal(the_value, new_expr, byte_size * 8))
@@ -2799,7 +2830,7 @@ bool clarity_convertert::get_binary_operator_expr(
   exprt &new_expr)
 {
   // preliminary step for recursive BinaryOperation
-  current_BinOp_type.push(&(expr["typeDescriptions"]));
+  current_BinOp_type.push(&(expr["objtype"]));
 
   // 1. Convert LHS and RHS
   // For "Assignment" expression, it's called "leftHandSide" or "rightHandSide".
@@ -3690,6 +3721,7 @@ bool clarity_convertert::get_clar_builtin_ref(
   return false;
 }
 
+// the input type_name is objtype node
 bool clarity_convertert::get_type_description(
   const nlohmann::json &type_name,
   typet &new_type)
@@ -4366,6 +4398,7 @@ bool clarity_convertert::get_elementary_type_name_bytesn(
   return false;
 }
 
+// input param type_name is objtype node
 bool clarity_convertert::get_elementary_type_name(
   const nlohmann::json &type_name,
   typet &new_type)
@@ -4396,10 +4429,17 @@ bool clarity_convertert::get_elementary_type_name(
       return true;
     break;
   }
+   case ClarityGrammar::ElementaryTypeNameT::UINT_LITERAL:
+  {
+    // for int_const type
+    new_type = signedbv_typet(128);
+    new_type.set("#cpp_type", "unsigned_char");
+    break;
+  }
   case ClarityGrammar::ElementaryTypeNameT::INT_LITERAL:
   {
     // for int_const type
-    new_type = signedbv_typet(256);
+    new_type = signedbv_typet(128);
     new_type.set("#cpp_type", "signed_char");
     break;
   }

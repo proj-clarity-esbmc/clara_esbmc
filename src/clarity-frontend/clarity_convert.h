@@ -37,8 +37,10 @@ protected:
   void insert_dummy_objType(nlohmann::json & ast_node, std::string type_name, int type_size); 
   bool is_state_variable(const nlohmann::json & ast_node);
   bool is_variable_declaration(const nlohmann::json & ast_node);
-
-
+  std::string get_objtype_type_name(const nlohmann::json & objtype_node);
+  std::string get_objtype_type_identifier(const nlohmann::json & objtype_node);
+  std::string get_objtype_type_size(const nlohmann::json & objtype_node);
+  void get_objtype_node(const nlohmann::json & ast_node, nlohmann::json & objtype_node);
   // end-m-ali
   
   bool convert_ast_nodes(const nlohmann::json &contract_def);
@@ -200,7 +202,8 @@ protected:
   bool convert_string_literal(std::string the_value, exprt &dest);
   void convert_type_expr(const namespacet &ns, exprt &dest, const typet &type);
   bool
-  convert_hex_literal(std::string the_value, exprt &dest, const int n = 256);
+  convert_hex_literal(std::string the_value, exprt &dest, const int n = 128);
+  bool convert_str_uint_literal(std::string the_value, exprt &dest, const int n = 128);
   // check if it's a bytes type
   bool is_bytes_type(const typet &t);
 

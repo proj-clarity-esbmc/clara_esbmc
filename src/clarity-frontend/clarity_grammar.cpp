@@ -31,18 +31,20 @@ const std::unordered_map<std::string, ElementaryTypeNameT> bytesn_to_type_map =
 };
 const std::map<ElementaryTypeNameT, unsigned int> bytesn_size_map = {
   {BUFF, 32},
+  {UINT_LITERAL, 128},
+  {INT_LITERAL, 128}
 };
 
 // rule contract-body-element
 ContractBodyElementT get_contract_body_element_t(const nlohmann::json &element)
 {
-  if (element[0] == "constant") //"data-var" | "map" | "trait" |  "def-ft" | "def-nft" (m-ali) ToDo
+  if (element[1]["nodeType"] == "VariableDeclaration") //"data-var" | "map" | "trait" |  "def-ft" | "def-nft" (m-ali) ToDo
   {
     return VarDecl;
   }
   else if (
-    element["nodeType"] == "FunctionDefinition" &&
-    (element["kind"] == "function" || element["kind"] == "constructor"))
+    element[1]["nodeType"] == "FunctionDefinition") //&&
+    //(element["kind"] == "function" || element["kind"] == "constructor")
   {
     return FunctionDef;
   }
@@ -217,6 +219,7 @@ const char *type_name_to_str(TypeNameT type)
 
 // rule elementary-type-name
 // return the type of expression
+// takes objtype node as input 
 ElementaryTypeNameT get_elementary_type_name_t(const nlohmann::json &type_name)
 {
   std::string typeString =  type_name[0]; //type_name["typeString"].get<std::string>();
@@ -233,6 +236,17 @@ ElementaryTypeNameT get_elementary_type_name_t(const nlohmann::json &type_name)
   if (typeString == "bool")
   {
     return BOOL;
+  
+  }
+  if (typeString.find("uint_const") != std::string::npos)
+  {
+    /**
+     * For Literal, their typeString is like "int_const 100".
+     * There is no additional type info (bitsize, signed/unsigned),
+     * This means it will require additional type info from the parent
+     * expr to create an internal type.
+     */
+    return UINT_LITERAL;
   }
   if (typeString.find("int_const") != std::string::npos)
   {
@@ -244,6 +258,7 @@ ElementaryTypeNameT get_elementary_type_name_t(const nlohmann::json &type_name)
      */
     return INT_LITERAL;
   }
+  //if (typeString.find("literal_ascii_string") == 0)
   if (typeString.find("literal_ascii_string") == 0)
   {
     return STRING_ASCII_LITERAL;
@@ -493,9 +508,9 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
     return NullExpr;
   }
   
-  std::string nodeType = expr[0];
+  std::string nodeType = expr[1]["expressionType"];
 
-  if (nodeType == "Assignment" || nodeType == "BinaryOperation" || (nodeType == "constant"))
+  if (nodeType == "Assignment" || nodeType == "BinaryOperation" )
   {
     return BinaryOperatorClass;
   }
