@@ -269,7 +269,8 @@ bool clarity_convertert::convert()
     assert(!"JSON file does not contain absolutePath");
     absolute_path = src_ast_json["absolutePath"].get<std::string>();
 #endif
-  
+   absolute_path = current_fileName = "directory/";
+
   
 
   // By now the context should have the symbols of all ESBMC's intrinsics and the dummy main
@@ -293,6 +294,13 @@ bool clarity_convertert::convert()
     std::string issuer = master_node["identifier"]["issuer_principal"];
     found_contract_def = true;
     current_contract_issuer = issuer;
+
+     if (get_clarity_struct_class(master_node))
+          return true;
+        
+         // add implicit construcor function
+        if (add_implicit_constructor())
+          return true;
 
     std::cout <<" Contract : "<< current_contractName <<"\nIssuer :" <<current_contract_issuer <<" found." <<"\n";
  
@@ -378,28 +386,33 @@ bool clarity_convertert::convert()
   // seems like this is something needed for inheritance in contracts.
   // does that apply to Clarity ? I don't think so.
   // just using current_contractName should work fine.
-  #if 0
-  FIXME : (m-ali) Do we need this for clarity ?
 
-  index = 0;
-  for (nlohmann::json::iterator itr = nodes.begin(); itr != nodes.end();
-       ++itr, ++index)
-  {
-    std::string node_type = (*itr)["nodeType"].get<std::string>();
+  //FIXME : (m-ali) Do we need this for clarity ?
 
-    if (node_type == "ContractDefinition") // rule source-unit
-    {
-      current_contractName = (*itr)["name"].get<std::string>();
+  //this is a dummy linearizedBaseList
+  linearizedBaseList[current_contractName].push_back(
+          9999);
+  assert(!linearizedBaseList[current_contractName].empty());
 
-      // poplulate linearizedBaseList
-      // this is esstinally the calling order of the constructor
-      for (const auto &id : (*itr)["linearizedBaseContracts"].items())
-        linearizedBaseList[current_contractName].push_back(
-          id.value().get<int>());
-      assert(!linearizedBaseList[current_contractName].empty());
-    }
-  }
-  #endif
+  // index = 0;
+  // for (nlohmann::json::iterator itr = nodes.begin(); itr != nodes.end();
+  //      ++itr, ++index)
+  // {
+  //   std::string node_type = (*itr)["nodeType"].get<std::string>();
+
+  //   if (node_type == "ContractDefinition") // rule source-unit
+  //   {
+  //     current_contractName = (*itr)["name"].get<std::string>();
+
+  //     // poplulate linearizedBaseList
+  //     // this is esstinally the calling order of the constructor
+  //     for (const auto &id : (*itr)["linearizedBaseContracts"].items())
+  //       linearizedBaseList[current_contractName].push_back(
+  //         id.value().get<int>());
+  //     assert(!linearizedBaseList[current_contractName].empty());
+  //   }
+  // }
+
 
   // third round: handle contract definition
   // single contract verification: where the option "--contract" is set.
@@ -422,6 +435,7 @@ bool clarity_convertert::convert()
 
       if (itr.key() == "indentifier")
       {
+       
         log_status("Skipping contract-identifier as we have already processed it");
         continue;
       } 
@@ -557,8 +571,8 @@ bool clarity_convertert::convert()
   {
     // perform multi-transaction verification
     // by adding symbols to the "clar_main()" entry function
-    if (multi_transaction_verification(tgt_cnt))
-      return true;
+    // if (multi_transaction_verification(tgt_cnt))
+    //   return true;
   }
   // multiple contract
   if (tgt_func.empty() && tgt_cnt.empty())
@@ -863,32 +877,16 @@ bool clarity_convertert::get_var_decl(
 
 // This function handles both contract and struct
 // The contract can be regarded as the class in C++, converting to a struct
-bool clarity_convertert::get_struct_class(const nlohmann::json &struct_def)
+bool clarity_convertert::get_clarity_struct_class(const nlohmann::json &struct_def)
 {
   // 1. populate name, id
   std::string id, name;
   struct_typet t = struct_typet();
 
-  if (struct_def["nodeType"].get<std::string>() == "ContractDefinition")
-  {
-    name = struct_def["name"].get<std::string>();
-    id = prefix + name;
-    t.tag(name);
-  }
-  else if (struct_def["nodeType"].get<std::string>() == "StructDefinition")
-  {
-    // ""tag-struct Struct_Name"
-    name = struct_def["name"].get<std::string>();
-    id = prefix + "struct " + struct_def["canonicalName"].get<std::string>();
-    t.tag("struct " + name);
-  }
-  else
-  {
-    log_error(
-      "Got nodeType={}. Unsupported struct type",
-      struct_def["nodeType"].get<std::string>());
-    return true;
-  }
+  name = current_contractName; //["name"].get<std::string>();
+  id = prefix + name;
+  t.tag(name);
+
 
   // 2. Check if the symbol is already added to the context, do nothing if it is
   // already in the context.
@@ -897,7 +895,9 @@ bool clarity_convertert::get_struct_class(const nlohmann::json &struct_def)
 
   // 3. populate location
   locationt location_begin;
-  get_location_from_decl(struct_def, location_begin);
+  //get_location_from_decl(struct_def, location_begin);
+  location_begin.set_line(9999);
+  location_begin.set_file(absolute_path);
 
   // 4. populate debug module name
   std::string debug_modulename =
@@ -913,12 +913,109 @@ bool clarity_convertert::get_struct_class(const nlohmann::json &struct_def)
   // populate the scope_map
   // this map is used to find reference when there is no decl_ref_id provided in the nodes
   // or replace the find_decl_ref in order to speed up
-  int scp = struct_def["id"].get<int>();
+  int scp = 9999; //struct_def["id"].get<int>();
   scope_map.insert(std::pair<int, std::string>(scp, name));
 
   // 5. populate fields(state var) and method(function)
   // We have to add fields before methods as the fields are likely to be used
   // in the methods
+
+  //m-ali todo . we probably don't need this.
+
+  // nlohmann::json ast_nodes;
+  // if (struct_def.contains("nodes"))
+  //   ast_nodes = struct_def["nodes"];
+  // else if (struct_def.contains("members"))
+  //   ast_nodes = struct_def["members"];
+  // else
+  // {
+  //   // Defining empty structs is disallowed.
+  //   // Contracts can be empty
+  //   log_warning("Empty contract.");
+  // }
+
+  // m-ali : todo . we probably don't need this 
+
+  // for (nlohmann::json::iterator itr = ast_nodes.begin(); itr != ast_nodes.end();
+  //      ++itr)
+  // {
+  //   ClarityGrammar::ContractBodyElementT type =
+  //     ClarityGrammar::get_contract_body_element_t(*itr);
+
+  //   switch (type)
+  //   {
+  //   case ClarityGrammar::ContractBodyElementT::VarDecl:
+  //   {
+  //     // this can be both state and non-state variable
+  //     if (get_struct_class_fields(*itr, t))
+  //       return true;
+  //     break;
+  //   }
+  //   case ClarityGrammar::ContractBodyElementT::FunctionDef:
+  //   {
+  //     if (get_struct_class_method(*itr, t))
+  //       return true;
+  //     break;
+  //   }
+  //   default:
+  //   {
+  //     log_error("Unimplemented type in rule contract-body-element");
+  //     return true;
+  //   }
+  //   }
+  // }
+
+  t.location() = location_begin;
+  added_symbol.type = t;
+
+  return false;
+}
+
+// This function handles both contract and struct
+// The contract can be regarded as the class in C++, converting to a struct
+bool clarity_convertert::get_struct_class(const nlohmann::json &struct_def)
+{
+  // 1. populate name, id
+  std::string id, name;
+  struct_typet t = struct_typet();
+
+  name = struct_def["name"].get<std::string>();
+  id = prefix + name;
+  t.tag(name);
+
+
+  // 2. Check if the symbol is already added to the context, do nothing if it is
+  // already in the context.
+  if (context.find_symbol(id) != nullptr)
+    return false;
+
+  // 3. populate location
+  locationt location_begin;
+  get_location_from_decl(struct_def, location_begin);
+  
+  // 4. populate debug module name
+  std::string debug_modulename =
+    get_modulename_from_path(location_begin.file().as_string());
+  current_fileName = debug_modulename;
+
+  symbolt symbol;
+  get_default_symbol(symbol, debug_modulename, t, name, id, location_begin);
+
+  symbol.is_type = true;
+  symbolt &added_symbol = *move_symbol_to_context(symbol);
+
+  // populate the scope_map
+  // this map is used to find reference when there is no decl_ref_id provided in the nodes
+  // or replace the find_decl_ref in order to speed up
+  int scp = 9999; //struct_def["id"].get<int>();
+  scope_map.insert(std::pair<int, std::string>(scp, name));
+
+  // 5. populate fields(state var) and method(function)
+  // We have to add fields before methods as the fields are likely to be used
+  // in the methods
+
+  
+
   nlohmann::json ast_nodes;
   if (struct_def.contains("nodes"))
     ast_nodes = struct_def["nodes"];
@@ -930,6 +1027,8 @@ bool clarity_convertert::get_struct_class(const nlohmann::json &struct_def)
     // Contracts can be empty
     log_warning("Empty contract.");
   }
+
+  
 
   for (nlohmann::json::iterator itr = ast_nodes.begin(); itr != ast_nodes.end();
        ++itr)
@@ -4523,7 +4622,7 @@ bool clarity_convertert::get_parameter_list(
   //  - For non-empty param list, it may need to call get_elementary_type_name, since parameter-list is just a list of types
   std::string c_type;
   ClarityGrammar::ParameterListT type =
-    ClarityGrammar::get_parameter_list_t(type_name);
+    ClarityGrammar::get_parameter_list_t(type_name[3]);
 
   switch (type)
   {
@@ -5497,20 +5596,33 @@ bool clarity_convertert::get_default_function(
 
   // (mango) : will need to populate this as a dummy function.
   // i am not quite sure as to why but let's discuss this
+  // auto j2 = R"(
+  //             {
+  //               "nodeType": "ParameterList",
+  //               "parameters": []
+  //             }
+  //           )"_json;
+  
   auto j2 = R"(
-              {
-                "nodeType": "ParameterList",
-                "parameters": []
-              }
+              [
+                "ParameterList",
+                "ParameterList",
+                0,
+                {
+                  "Parameters" : []
+                }
+              ]
             )"_json;
-  ast_node["returnParameters"] = j2;
+  
+  ast_node["returnParameters"] = j2 ; //{"ParameterList", "ParameterList", 0, "{\"Parameters\":[]}"};
+  std::cout << std::setw(4) << ast_node["returnParameters"] << "\n";
 
   code_typet type;
   if (get_type_description(ast_node["returnParameters"], type.return_type()))
     return true;
 
   locationt location_begin;
-
+  current_fileName = "basic_dummy";
   if (current_fileName == "")
     return true;
   std::string debug_modulename = current_fileName;
@@ -5714,18 +5826,12 @@ bool clarity_convertert::multi_transaction_verification(
   func_body.make_block();
 
   // 1. get constructor call
-  const std::vector<int> &id_list = linearizedBaseList[contractName];
-  // iterating from the end to the beginning
-  if (id_list.empty())
-  {
-    log_error("Input contract is not found in the source file.");
-    return true;
-  }
 
-  for (auto it = id_list.rbegin(); it != id_list.rend(); ++it)
+
+  //for (auto it = id_list.rbegin(); it != id_list.rend(); ++it)
   {
     // 1.1 get contract symbol ("tag-contractName")
-    std::string c_name = exportedSymbolsList[*it];
+    std::string c_name = current_contractName; //exportedSymbolsList[*it];
     const std::string id = prefix + c_name;
     if (context.find_symbol(id) == nullptr)
       return true;
@@ -5827,21 +5933,21 @@ bool clarity_convertert::multi_transaction_verification(
   }
 
   // while-cond:
-  const symbolt &guard = *context.find_symbol("c:@F@nondet_bool");
-  side_effect_expr_function_callt cond_expr;
-  cond_expr.name("nondet_bool");
-  cond_expr.identifier("c:@F@nondet_bool");
-  cond_expr.cmt_lvalue(true);
-  cond_expr.location() = func_body.location();
-  cond_expr.function() = symbol_expr(guard);
+  // const symbolt &guard = *context.find_symbol("c:@F@nondet_bool");
+  // side_effect_expr_function_callt cond_expr;
+  // cond_expr.name("nondet_bool");
+  // cond_expr.identifier("c:@F@nondet_bool");
+  // cond_expr.cmt_lvalue(true);
+  // cond_expr.location() = func_body.location();
+  // cond_expr.function() = symbol_expr(guard);
 
-  // while-loop statement:
-  code_whilet code_while;
-  code_while.cond() = cond_expr;
-  code_while.body() = while_body;
+  // // while-loop statement:
+  // code_whilet code_while;
+  // code_while.cond() = cond_expr;
+  // code_while.body() = while_body;
 
-  // move to "clar_main"
-  func_body.move_to_operands(code_while);
+  // // move to "clar_main"
+  // func_body.move_to_operands(code_while);
 
   // 3. add "clar_main" to symbol table
   symbolt new_symbol;

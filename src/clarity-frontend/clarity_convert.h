@@ -57,6 +57,7 @@ protected:
 
   // handle the non-contract definition, including struct/enum/error/event/abstract/...
   bool get_noncontract_defition(nlohmann::json &ast_node);
+  bool get_clarity_struct_class(const nlohmann::json &struct_def);
   bool get_struct_class(const nlohmann::json &ast_node);
   void add_enum_member_val(nlohmann::json &ast_node);
   bool get_error_definition(const nlohmann::json &ast_node);

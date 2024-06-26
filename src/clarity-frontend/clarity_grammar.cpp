@@ -79,12 +79,13 @@ TypeNameT get_type_name_t(const nlohmann::json &type_name)
 {
   // Clarity AST node has type stored in ast_node[1]["objtype"] as [ "typeName","typeIdentifier" , "size"]
   //! Order matters
-
-  if (true) // if (type_name.contains("typeString"))
-  {
-    // for AST node that contains ["typeName"]["typeDescriptions"]
+   // for AST node that contains ["typeName"]["typeDescriptions"]
     const std::string typeString = type_name[0]; // type_name["typeString"].get<std::string>();
     const std::string typeIdentifier = type_name[1];
+    
+  if (typeString != "ParameterList") // if (type_name.contains("typeString"))
+  {
+   
       //type_name["typeIdentifier"].get<std::string>();
 
     // we must first handle tuple
@@ -177,17 +178,16 @@ TypeNameT get_type_name_t(const nlohmann::json &type_name)
   {
     // for AST node that does not contain ["typeDescriptions"] only
     // function returnParameters
-    if (type_name["nodeType"] == "ParameterList")
-    {
+    
       return ParameterList;
-    }
-    else
-    {
-      log_error(
-        "Got type-name nodeType={}. Unsupported type-name type",
-        type_name["nodeType"].get<std::string>());
-      abort();
-    }
+    
+    // else
+    // {
+    //   log_error(
+    //     "Got type-name nodeType={}. Unsupported type-name type",
+    //     type_name["nodeType"].get<std::string>());
+    //   abort();
+    // }
   }
 
   return TypeNameTError; // to make some old compiler happy
@@ -348,15 +348,15 @@ unsigned int bytesn_type_name_to_size(ElementaryTypeNameT type)
 // rule parameter-list
 ParameterListT get_parameter_list_t(const nlohmann::json &type_name)
 {
-  if (type_name["parameters"].size() == 0)
+  if (type_name["Parameters"].size() == 0)
   {
     return EMPTY;
   }
-  else if (type_name["parameters"].size() == 1)
+  else if (type_name["Parameters"].size() == 1)
   {
     return ONE_PARAM;
   }
-  else if (type_name["parameters"].size() > 1)
+  else if (type_name["Parameters"].size() > 1)
   {
     return MORE_THAN_ONE_PARAM;
   }
