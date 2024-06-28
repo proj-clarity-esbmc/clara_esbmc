@@ -116,29 +116,20 @@ bool clarity_convertert::convert_hex_literal(
  * convert str-string to uint constant
  * @n: the bit width, default 256 (unsignedbv_typet(256))
 */
-bool clarity_convertert::convert_str_uint_literal(
+bool clarity_convertert::convert_uint_literal(
+  const nlohmann::json &uint_literal,
   std::string the_value,
-  exprt &dest,
-  const int n)
+  exprt &dest)
+
 {
   // remove "u" prefix
-
   if (the_value.length() >= 2)
     if (the_value.substr(0, 1) == "u")
     {
       the_value.erase(0, 1);
     }
-
-  typet type;
-  type = unsignedbv_typet(n);
-
-  // e.g. 0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984
-  BigInt hex_addr = string2integer(the_value, 10);
-  exprt the_val;
-  the_val = constant_exprt(
-    integer2binary(hex_addr, bv_width(type)), integer2string(hex_addr), type);
-
-  dest.swap(the_val);
+ 
+  convert_integer_literal(uint_literal, the_value, dest);
   return false;
 }
 // TODO: Float literal.

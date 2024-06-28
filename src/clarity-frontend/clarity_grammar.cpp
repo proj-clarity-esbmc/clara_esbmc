@@ -18,12 +18,14 @@ const std::unordered_map<std::string, ElementaryTypeNameT>
 
 const std::unordered_map<ElementaryTypeNameT, unsigned int> uint_size_map = {
   {UINT, 128},
+  {UINT_LITERAL, 128},
 };
 const std::map<std::string, ElementaryTypeNameT> int_string_to_type_map = {
   {"int", INT},
 };
 const std::map<ElementaryTypeNameT, unsigned int> int_size_map = {
   {INT, 128},
+  {INT_LITERAL, 128},
 };
 const std::unordered_map<std::string, ElementaryTypeNameT> bytesn_to_type_map =
   {

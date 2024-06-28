@@ -204,7 +204,10 @@ protected:
   void convert_type_expr(const namespacet &ns, exprt &dest, const typet &type);
   bool
   convert_hex_literal(std::string the_value, exprt &dest, const int n = 128);
-  bool convert_str_uint_literal(std::string the_value, exprt &dest, const int n = 128);
+  bool convert_uint_literal(
+    const nlohmann::json &integer_literal,
+    std::string the_value,
+    exprt &dest);
   // check if it's a bytes type
   bool is_bytes_type(const typet &t);
 

@@ -2111,7 +2111,7 @@ bool clarity_convertert::get_expr(
       {
         //ToDo ; how does byte_size map here 
         //if (convert_hex_literal(the_value, new_expr, byte_size * 8))
-        if (convert_str_uint_literal(the_value, new_expr, byte_size * 8))
+        if (convert_uint_literal(literal, the_value, new_expr))
           return true;
         break;
       }
@@ -4516,32 +4516,21 @@ bool clarity_convertert::get_elementary_type_name(
   switch (type)
   {
   // rule unsigned-integer-type
+  case ClarityGrammar::ElementaryTypeNameT::UINT_LITERAL:
   case ClarityGrammar::ElementaryTypeNameT::UINT:
   {
     if (get_elementary_type_name_uint(type, new_type))
       return true;
     break;
   }
+  case ClarityGrammar::ElementaryTypeNameT::INT_LITERAL:
   case ClarityGrammar::ElementaryTypeNameT::INT:
   {
     if (get_elementary_type_name_int(type, new_type))
       return true;
     break;
   }
-   case ClarityGrammar::ElementaryTypeNameT::UINT_LITERAL:
-  {
-    // for int_const type
-    new_type = signedbv_typet(128);
-    new_type.set("#cpp_type", "unsigned_char");
-    break;
-  }
-  case ClarityGrammar::ElementaryTypeNameT::INT_LITERAL:
-  {
-    // for int_const type
-    new_type = signedbv_typet(128);
-    new_type.set("#cpp_type", "signed_char");
-    break;
-  }
+  
   case ClarityGrammar::ElementaryTypeNameT::BOOL:
   {
     new_type = bool_type();
@@ -5593,15 +5582,6 @@ bool clarity_convertert::get_default_function(
   const std::string id)
 {
   nlohmann::json ast_node;
-
-  // (mango) : will need to populate this as a dummy function.
-  // i am not quite sure as to why but let's discuss this
-  // auto j2 = R"(
-  //             {
-  //               "nodeType": "ParameterList",
-  //               "parameters": []
-  //             }
-  //           )"_json;
   
   auto j2 = R"(
               [
@@ -5614,7 +5594,7 @@ bool clarity_convertert::get_default_function(
               ]
             )"_json;
   
-  ast_node["returnParameters"] = j2 ; //{"ParameterList", "ParameterList", 0, "{\"Parameters\":[]}"};
+  ast_node["returnParameters"] = j2 ; 
   std::cout << std::setw(4) << ast_node["returnParameters"] << "\n";
 
   code_typet type;
