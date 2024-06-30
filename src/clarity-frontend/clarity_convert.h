@@ -41,6 +41,12 @@ protected:
   std::string get_objtype_type_identifier(const nlohmann::json & objtype_node);
   std::string get_objtype_type_size(const nlohmann::json & objtype_node);
   void get_objtype_node(const nlohmann::json & ast_node, nlohmann::json & objtype_node);
+  
+  // dummy functions for learning
+  void add_dummy_symbol();
+  void convert_dummy_uint_literal();
+  void convert_dummy_string_literal();
+  
   // end-m-ali
   
   bool convert_ast_nodes(const nlohmann::json &contract_def);
@@ -196,6 +202,16 @@ protected:
     const nlohmann::json &integer_literal,
     std::string the_value,
     exprt &dest);
+
+  bool convert_integer_literal_with_type(
+  typet & type,
+  std::string the_value,
+  exprt &dest);
+  bool convert_unsigned_integer_literal_with_type(
+  typet & type,
+  std::string the_value,
+  exprt &dest);
+
   bool convert_bool_literal(
     const nlohmann::json &bool_literal,
     std::string the_value,

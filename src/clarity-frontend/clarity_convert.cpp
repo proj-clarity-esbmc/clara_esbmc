@@ -251,8 +251,128 @@ bool clarity_convertert::process_expr_node(nlohmann::json & ast_node)
             return false;
 }
 
+void clarity_convertert::convert_dummy_uint_literal()
+{
+  typet symbolType = unsignedbv_typet(128);
+      std::string varName = "myVar";
+      std::string varId = "clar:@C@basicDummy@" + varName + "#123";
+
+      locationt locationBegin;
+      locationBegin.set_line("293");
+      locationBegin.set_file("basicDummy.clar");
+
+      std::string debugModuleName = locationBegin.file().as_string();
+
+      symbolt symbol;
+      get_default_symbol(symbol,debugModuleName,symbolType,varName,varId,locationBegin);
+
+      bool is_state_var = true;
+
+      symbol.lvalue = true;
+      symbol.static_lifetime = is_state_var;
+      symbol.file_local = !is_state_var;
+      symbol.is_extern = false;
+
+      symbolt &addedSymbol = *move_symbol_to_context(symbol);
+
+     
+        // unsigned int constant
+        exprt val;
+        convert_unsigned_integer_literal_with_type(symbolType,"23",val);
+      //   BigInt const_value = string2integer("23");
+      //   /*
+        
+      //     constant_exprt constant(
+      //     integer2binary(z_ext_value, 32), // Convert the value to its binary representation
+      //     integer2string(z_ext_value),     // Human-readable string representation of the value
+      //     type                             // The type of the constant
+      // );
+      // */
+      //   val = constant_exprt(integer2binary(const_value,128),integer2string(const_value),symbolType);
+        addedSymbol.value = val;
+}
+
+void clarity_convertert::convert_dummy_string_literal()
+{
+ // a string literal in ESBMC is represented as a character array.
+      // a character is an 8-bit value (unsigned 8 bit value).
+      // in ESBMC arrays are represented as array_typet. 
+      // array_type has a subtype of char (unsignedbv(8)).
+      std::string literalValue = "Ali";
+      typet subType = signed_char_type();
+      typet symbolType = array_typet(subType,from_integer(literalValue.length() + 1, size_type()));
+      std::string varName = "myString";
+      std::string varId = "clar:@C@basicDummy@" + varName + "#123";
+
+      locationt locationBegin;
+      locationBegin.set_line("293");
+      locationBegin.set_file("basicDummy.clar");
+
+      std::string debugModuleName = locationBegin.file().as_string();
+
+      symbolt symbol;
+      get_default_symbol(symbol,debugModuleName,symbolType,varName,varId,locationBegin);
+      bool is_state_var = true;
+
+      symbol.lvalue = true;
+      symbol.static_lifetime = is_state_var;
+      symbol.file_local = !is_state_var;
+      symbol.is_extern = false;
+
+      symbolt &addedSymbol = *move_symbol_to_context(symbol);
+
+        
+        exprt val;
+        convert_string_literal(literalValue,val);
+        
+       
+        addedSymbol.value = val;
+}
+void clarity_convertert::add_dummy_symbol()
+{
+  bool experimental = true;
+  if (experimental)
+  {
+      //translate : define-constant myvar u23
+      //task : create a dummy symbol of 128 bits : unsigned
+      // add reference to that diagram which states all the members of a symbol
+
+      /*
+         typet type;
+        exprt value;
+        locationt location;
+        irep_idt id;
+        irep_idt module;
+        irep_idt name;
+        irep_idt mode;
+      
+      */
+      #define STRING_CONSTANT_ENABLED
+      #define UNSIGNED_INT_CONSTANT_ENABLED
+      
+      #ifdef UNSIGNED_INT_CONSTANT_ENABLED
+        convert_dummy_uint_literal();
+      #endif
+
+       #ifdef STRING_CONSTANT_ENABLED
+
+        convert_dummy_string_literal();
+     
+      #endif
+
+
+
+
+  }
+  else {
+
+  }
+}
 bool clarity_convertert::convert()
 {
+
+  
+
   // This function consists of two parts:
   //  1. First, we perform pattern-based verificaiton
   //  2. Then we populate the context with symbols annotated based on the each AST node, and hence prepare for the GOTO conversion.
@@ -467,7 +587,8 @@ bool clarity_convertert::convert()
           {
            
             // process expr node;
-            process_define_constant(expr);
+            //process_define_constant(expr);
+            add_dummy_symbol();
             
             
           }
@@ -500,62 +621,6 @@ bool clarity_convertert::convert()
 
     continue;
 
-    /* 
-      [expressions] -> [id: 1] ,[id: 2] ... [id: n]
-                      ( Can be several ID nodes)
-                      Each id is a new line item'
-      
-      LOOPER:
-      [id: 1] -> [expr] ->[list]
-              -> [span] -> ["start_line", "start_column", "end_line", "end_column"]
-              (each expr is a list)
-              (and id node will have only one expr node)
-              (a list node may have one or more id nodes)
-      
-      if expr has a list, then iterate over that list to find other id nodes. and continue from LOOPER
-      else if expr has [Atom] node.
-        check for possible values of Atom node.
-        if "Atom" is any of the below, then parse accordingly.
-          ["define-constant", "define-data-var", "define-data-read-only", "define-public", "define_map"]
-
-        "define-constant":
-          go to next "id" node and look for another atom that will be an identifier name e-g "a"
-          go to next "id" node and look for "LiteralValue" node, then follow through to get the value node of literalValue.
-          example:
-            (define-constant a u10)
-              a <-- is "atom"
-              u10 <-- is literal value ["LiteralValue"]->[Uint:"10"]
-              
-    */
-   
-
-    std::string node_type = (*itr)["nodeType"].get<std::string>();
-
-    if (node_type == "ContractDefinition") // rule source-unit
-    {
-      current_contractName = (*itr)["name"].get<std::string>();
-
-      nlohmann::json &ast_nodes = (*itr)["nodes"];
-      for (nlohmann::json::iterator ittr = ast_nodes.begin();
-           ittr != ast_nodes.end();
-           ++ittr)
-      {
-        if (get_noncontract_defition(*ittr))
-          return true;
-      }
-
-      // add a struct symbol for each contract
-      // e.g. contract Base => struct Base
-      if (get_struct_class(*itr))
-        return true;
-
-      if (convert_ast_nodes(*itr))
-        return true; // 'true' indicates something goes wrong.
-
-      // add implicit construcor function
-      if (add_implicit_constructor())
-        return true;
-    }
 
     // reset
     current_contractName = "";

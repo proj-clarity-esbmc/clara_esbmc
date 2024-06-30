@@ -29,6 +29,54 @@ bool clarity_convertert::convert_integer_literal(
   return false;
 }
 
+bool clarity_convertert::convert_integer_literal_with_type(
+  typet & type,
+  std::string the_value,
+  exprt &dest)
+{
+
+  if (type != signedbv_typet(128))
+  {
+    //std::cout <<"invalid type provided. "<<"Expected "<<"signedbv_typet \n";
+    abort();
+  }
+  exprt the_val;
+  // extract the value: unsigned
+  BigInt z_ext_value = string2integer(the_value);
+  the_val = constant_exprt(
+    integer2binary(z_ext_value, bv_width(type)),
+    integer2string(z_ext_value),
+    type);
+
+  dest.swap(the_val);
+  return false;
+}
+
+bool clarity_convertert::convert_unsigned_integer_literal_with_type(
+  typet & type,
+  std::string the_value,
+  exprt &dest)
+{
+
+  if (type != unsignedbv_typet(128))
+  {
+    //std::cout <<"invalid type provided. "<<"Expected "<<"unsignedbv_typet \n";
+    abort();
+  }
+    
+  exprt the_val;
+  // extract the value: unsigned
+  BigInt z_ext_value = string2integer(the_value);
+  the_val = constant_exprt(
+    integer2binary(z_ext_value, bv_width(type)),
+    integer2string(z_ext_value),
+    type);
+
+  dest.swap(the_val);
+  return false;
+}
+
+
 bool clarity_convertert::convert_bool_literal(
   const nlohmann::json &bool_literal,
   std::string the_value,
