@@ -118,7 +118,7 @@ bool clarity_languaget::parse(const std::string &path)
 // ToDo : to review this function 
 bool clarity_languaget::convert_intrinsics(contextt &context)
 {
-  clang_c_convertert converter(context, ASTs, "C++");
+  clang_c_convertert converter(context, AST, "C++");
   if (converter.convert())
     return true;
 

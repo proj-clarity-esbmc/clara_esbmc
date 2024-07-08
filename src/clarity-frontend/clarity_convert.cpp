@@ -13,6 +13,7 @@
 
 #include <fstream>
 #include <iostream>
+#include "clarity_convert.h"
 
 clarity_convertert::clarity_convertert(
   contextt &_context,
@@ -74,6 +75,9 @@ std::string clarity_convertert::get_objtype_type_size(const nlohmann::json & obj
 {
   return objtype_node[2];
 }
+
+// Fixme
+// we might not need it as this was just to satisfy Solidity frontend.
 
 void clarity_convertert::insert_dummy_objType(nlohmann::json & ast_node, std::string type_name, int type_size)
 {
@@ -251,9 +255,11 @@ bool clarity_convertert::process_expr_node(nlohmann::json & ast_node)
             return false;
 }
 
+
 void clarity_convertert::convert_dummy_uint_literal()
 {
-  typet symbolType = unsignedbv_typet(128);
+      
+      typet symbolType = unsignedbv_typet(128);
       std::string varName = "myVar";
       std::string varId = "clar:@C@basicDummy@" + varName + "#123";
 
@@ -289,7 +295,244 @@ void clarity_convertert::convert_dummy_uint_literal()
       // );
       // */
       //   val = constant_exprt(integer2binary(const_value,128),integer2string(const_value),symbolType);
+      clarity_gen_typecast(ns, val, symbolType);
         addedSymbol.value = val;
+
+
+
+      {
+
+       
+       // Map the following equation : myResult = 23 + 50
+
+      locationt location_begin;
+      location_begin.set_line("393");
+      location_begin.set_file("basicDummy.clar");
+      std::string resultvar_name = "myResult";
+      std::string resultvar_id = "clar:@C@basicDummy@" + resultvar_name + "#333";
+      
+      symbolt result_symbol;
+      
+      get_default_symbol(result_symbol,"basicDummy.clar",signedbv_typet(128),resultvar_name,resultvar_id,location_begin);
+      
+      result_symbol.lvalue = true;
+      result_symbol.static_lifetime = true;
+      result_symbol.file_local = false;
+      result_symbol.is_extern = false;
+    
+
+      symbolt &addedSymbol = *move_symbol_to_context(result_symbol);
+      BigInt x = 23;
+      BigInt y = 50;
+      constant_exprt arg1 = constant_exprt(x,signedbv_typet(128));
+      constant_exprt arg2 = constant_exprt(y,signedbv_typet(128));
+    
+      plus_exprt addition(arg1,arg2);
+
+      clarity_gen_typecast(ns, addition, result_symbol.type);
+      addedSymbol.value = addition;
+      }
+      
+    {
+
+        ///////////////
+        // Map the following : variable_sum = myVar + 50
+        // myVar already exists in the symbol table
+        ////////////
+
+        // create a symbol to hold LHS
+
+        symbolt varSumSymbol;
+        typet varSumType = unsignedbv_typet(128);
+        // a symbol needs the following attribs to be filled
+        /* 
+        
+        std::string module_name,  //for debug only
+        typet type, 
+        std::string name,
+        std::string id,
+        locationt location)
+        */
+
+      
+      std::string varSumName = "varSum";
+      std::string varSumId = "clar:@C@" + current_contractName + "@" + varSumName + "#123";
+      locationt location_begin;
+      location_begin.set_line("393");
+      location_begin.set_file("basicDummy.clar");
+
+      get_default_symbol(varSumSymbol,"basicDummy.clar",varSumType,varSumName,varSumId,location_begin);
+
+      varSumSymbol.lvalue = true;
+      varSumSymbol.static_lifetime = true;
+      varSumSymbol.file_local = false;
+      varSumSymbol.is_extern = false;
+
+      symbolt &addedSymbol = *move_symbol_to_context(varSumSymbol);
+
+      //for RHS we need to create an expression
+      // the expression is a binary expression
+      // the first operand is a symbol_exprt
+      // the second operand is a constant_exprt
+      // the operation is a plus_exprt
+
+      // first, look for the symbol in the symbol table as myVar has been created before
+      // if not found, create a new symbol for myVar
+
+      symbolt *myVarSymbol = context.find_symbol(varId);
+
+      // if myVarSymbol is not found, create a new symbol for myVar
+      // skipping this step for now. assuming myVar is already in the symbol table
+
+      // create a symbol_exprt for myVar
+      symbol_exprt myVarExpr(myVarSymbol->name,varSumType);
+      myVarExpr.identifier(myVarSymbol->id);
+
+      // create a constant_exprt for 50
+      constant_exprt fifty(50,varSumType);
+
+      // write code to use a symbol already in the symbol table to a plus expression
+
+
+
+      // create a plus_exprt for myVar + 50
+      plus_exprt sum(myVarExpr, fifty);
+
+      // typecast the expression
+      clarity_gen_typecast(ns, sum, varSumSymbol.type);
+
+      // assign the expression to the symbol
+      addedSymbol.value = sum;
+
+
+       
+
+    }
+
+    {
+      /*
+        DEFINING STRUCTS AND USING THEM FOR SYMBOL TYPES
+
+        Translate the following :
+        
+        typedef struct 
+        {
+          std::string name;
+          std::string homeTeam;
+        } principal;
+
+        principal myPrincipal;
+        
+      */
+
+      // Create a struct_typet for the principal struct
+      struct_typet principal_type;
+      std::string struct_name = "principal";
+      std::string struct_id = prefix + "struct " + struct_name;   //tag-struct principal
+      principal_type.tag("struct " + struct_name);
+
+      // Create a symbol for the principal variable
+      symbolt principal_symbol;
+
+      locationt location_begin;
+      location_begin.set_line("444");
+      location_begin.set_file("basicDummy.clar");
+
+      get_default_symbol(principal_symbol,"basicDummy.clar",principal_type,struct_name,struct_id,location_begin);
+      
+      principal_symbol.is_type = true;
+      //principal_symbol.static_lifetime = true;
+
+      // Add the principal symbol to the symbol table
+      symbolt &addedSymbol = *move_symbol_to_context(principal_symbol);
+
+      // populate the struct with fields
+
+          //define typet to represent strings
+          typet string_type = array_typet(char_type(), from_integer(30, size_type())); // Array of 30 chars
+
+          // Create component types for the name and homeTeam fields
+          {
+            struct_typet::componentt name_field; 
+            std::string name_field_name = "name";
+            std::string name_field_id = "clar:@C@" + current_contractName + "@" + struct_name + "@" + name_field_name + "#123";
+
+              //exprt new_expr1 ("symbol",string_type);
+              symbol_exprt new_expr1(name_field_name,string_type);
+              //new_expr1.identifier(name_field_id);
+              new_expr1.identifier(name_field_id);
+              new_expr1.name(name_field_name);
+              new_expr1.cmt_lvalue(true);
+              new_expr1.pretty_name(name_field_name);
+              name_field.swap(new_expr1);
+              
+            name_field.id("component");
+            //name_field.type().set("#member_name",name_field_name);    // this is just to represent it in a pretty way. ot has no other implication
+
+            principal_type.components().push_back(name_field);
+          }
+
+          {
+            struct_typet::componentt home_team; 
+            std::string home_team_name = "homeTeam";
+            std::string home_team_id = "clar:@C@" + current_contractName + "@" + struct_name + "@" + home_team_name + "#123";
+
+              //exprt new_expr1 ("symbol",string_type);
+              symbol_exprt new_expr1(home_team_name,string_type);
+              //new_expr1.identifier(home_team_id);
+              new_expr1.identifier(home_team_id);
+              new_expr1.name(home_team_name);
+              new_expr1.cmt_lvalue(true);
+              new_expr1.pretty_name(home_team_name);
+              home_team.swap(new_expr1);
+              
+            home_team.id("component");
+            //home_team.type().set("#member_name",home_team_name);    // this is just to represent it in a pretty way. ot has no other implication
+
+            principal_type.components().push_back(home_team);
+          }
+      
+      principal_type.location() = location_begin;
+      addedSymbol.type = principal_type;
+
+      //std::cout <<"Name field " <<principal_type.pretty() <<"\n";
+
+
+      // create an instane of the struct principal
+       { 
+        symbolt principal_instance;
+        std::string principal_instance_name = "myPrincipal";
+        std::string principal_instance_id = "clar:@C@" + current_contractName + "@" + principal_instance_name + "#123";
+        std::string principal_struct_id = "tag-struct principal";   //prefix + "struct " + struct_name
+        typet principal_type;
+        
+        if(context.find_symbol(principal_struct_id) != nullptr)
+        {
+          const symbolt* symbol = context.find_symbol(principal_struct_id);
+          principal_type = symbol->type;
+        }
+          
+        else
+          abort();
+
+        locationt principal_instance_location;
+        principal_instance_location.set_line("555");
+        principal_instance_location.set_file("basicDummy.clar");
+
+        get_default_symbol(principal_instance,"basicDummy.clar",principal_type,principal_instance_name,principal_instance_id,principal_instance_location);
+
+        principal_instance.lvalue = true;
+        principal_instance.static_lifetime = true;
+        principal_instance.file_local = false;
+        principal_instance.is_extern = false;
+
+        symbolt &added_principal_instance = *move_symbol_to_context(principal_instance);
+       }
+   
+
+    }
+
+      
 }
 
 void clarity_convertert::convert_dummy_string_literal()
@@ -325,8 +568,304 @@ void clarity_convertert::convert_dummy_string_literal()
         exprt val;
         convert_string_literal(literalValue,val);
         
-       
+       clarity_gen_typecast(ns, val, symbolType);
         addedSymbol.value = val;
+}
+
+#if 0
+void clarity_convertert::add_function_definition_symboltable()
+{
+
+  // create a function symbol
+
+
+  //add statements to the function
+
+  // add the function to the symbol table
+
+  // add the function to the context
+
+
+  codet func_body, while_body;
+  static_lifetime_init(context, while_body);
+  static_lifetime_init(context, func_body);
+
+  while_body.make_block();
+  func_body.make_block();
+
+  // 1. get function call
+
+
+    // 1.1 get contract symbol ("tag-contractName")
+    std::string c_name = current_contractName;;
+    const std::string id = prefix + c_name;
+    
+
+    // 1.2 construct a constructor call and move to func_body
+    const std::string ctor_id = get_ctor_call_id(c_name);
+
+   
+    const symbolt &constructor ;
+    code_function_callt call;
+    call.location() = constructor.location;
+    call.function() = symbol_expr(constructor);
+    const code_typet::argumentst &arguments =
+      to_code_type(constructor.type).arguments();
+    call.arguments().resize(
+      arguments.size(), static_cast<const exprt &>(get_nil_irep()));
+
+    // move to "clar_main" body
+    func_body.move_to_operands(call);
+
+    // 2. construct a while-loop and move to func_body
+
+    // 2.0 check visibility setting
+    bool skip_vis =
+      config.options.get_option("no-visibility").empty() ? false : true;
+    if (skip_vis)
+    {
+      log_warning(
+        "force to verify every function, even it's an unreachable "
+        "internal/private function. This might lead to false positives.");
+    }
+
+    // 2.1 construct ifthenelse statement
+    const struct_typet::componentst &methods =
+      to_struct_type(contract.type).methods();
+    bool is_tgt_cnt = c_name == contractName ? true : false;
+
+    for (const auto &method : methods)
+    {
+      // we only handle public (and external) function
+      // as the private and internal function cannot be directly called
+      if (is_tgt_cnt)
+      {
+        if (
+          !skip_vis && method.get_access().as_string() != "public" &&
+          method.get_access().as_string() != "external")
+          continue;
+      }
+      else
+      {
+        // this means functions inherited from base contracts
+        if (!skip_vis && method.get_access().as_string() != "public")
+          continue;
+      }
+
+      // skip constructor
+      const std::string func_id = method.identifier().as_string();
+      if (func_id == ctor_id)
+        continue;
+
+      // guard: nondet_bool()
+      if (context.find_symbol("c:@F@nondet_bool") == nullptr)
+        return true;
+      const symbolt &guard = *context.find_symbol("c:@F@nondet_bool");
+
+      side_effect_expr_function_callt guard_expr;
+      guard_expr.name("nondet_bool");
+      guard_expr.identifier("c:@F@nondet_bool");
+      guard_expr.location() = guard.location;
+      guard_expr.cmt_lvalue(true);
+      guard_expr.function() = symbol_expr(guard);
+
+      // then: function_call
+      if (context.find_symbol(func_id) == nullptr)
+        return true;
+      const symbolt &func = *context.find_symbol(func_id);
+      code_function_callt then_expr;
+      then_expr.location() = func.location;
+      then_expr.function() = symbol_expr(func);
+      const code_typet::argumentst &arguments =
+        to_code_type(func.type).arguments();
+      then_expr.arguments().resize(
+        arguments.size(), static_cast<const exprt &>(get_nil_irep()));
+
+      // ifthenelse-statement:
+      codet if_expr("ifthenelse");
+      if_expr.copy_to_operands(guard_expr, then_expr);
+
+      // move to while-loop body
+      while_body.move_to_operands(if_expr);
+    }
+  // while-cond:
+  // const symbolt &guard = *context.find_symbol("c:@F@nondet_bool");
+  // side_effect_expr_function_callt cond_expr;
+  // cond_expr.name("nondet_bool");
+  // cond_expr.identifier("c:@F@nondet_bool");
+  // cond_expr.cmt_lvalue(true);
+  // cond_expr.location() = func_body.location();
+  // cond_expr.function() = symbol_expr(guard);
+
+  // // while-loop statement:
+  // code_whilet code_while;
+  // code_while.cond() = cond_expr;
+  // code_while.body() = while_body;
+
+  // // move to "clar_main"
+  // func_body.move_to_operands(code_while);
+
+  // 3. add "clar_main" to symbol table
+  symbolt new_symbol;
+  code_typet main_type;
+  main_type.return_type() = empty_typet();
+  const std::string clar_name = "clar_main_" + contractName;
+  const std::string clar_id = "clar:@C@" + contractName + "@F@" + clar_name;
+  const symbolt &contract = *context.find_symbol(prefix + contractName);
+  new_symbol.location = contract.location;
+  std::string debug_modulename =
+    get_modulename_from_path(contract.location.file().as_string());
+  get_default_symbol(
+    new_symbol,
+    debug_modulename,
+    main_type,
+    clar_name,
+    clar_id,
+    contract.location);
+
+  new_symbol.lvalue = true;
+  new_symbol.is_extern = false;
+  new_symbol.file_local = false;
+
+  symbolt &added_symbol = *context.move_symbol_to_context(new_symbol);
+
+  // no params
+  main_type.make_ellipsis();
+
+  added_symbol.type = main_type;
+  added_symbol.value = func_body;
+
+  // 4. set "clar_main" as main function
+  // this will be overwrite in multi-contract mode.
+  config.main = clar_name;
+
+  return false;
+
+}
+#endif
+  
+
+
+
+void clarity_convertert::add_dummy_builtin_functionCall()
+{
+    std::string literalA = "My name ";
+        std::string literalB = "Fatima ";
+        BigInt outputSize = literalA.length() + literalB.length() + 1;
+
+        exprt functionExpression;
+        std::string id_var = "c:@string_concat";
+        std::string id_func = "c:@F@string_concat";
+
+        typet subType = signed_char_type();
+        typet symbolType = array_typet(subType,from_integer(outputSize,size_type()));
+        std::string varName = "myConcat";
+        std::string varId = "clar:@C@basicDummy@" + varName + "#123";
+
+        locationt locationBegin;
+        locationBegin.set_line("293");
+        locationBegin.set_file("basicDummy.clar");
+
+        std::string debugModuleName = locationBegin.file().as_string();
+
+        symbolt symbol;
+        get_default_symbol(symbol,debugModuleName,symbolType,varName,varId,locationBegin);
+
+        bool is_state_var = true;
+
+        symbol.lvalue = true;
+        symbol.static_lifetime = is_state_var;
+        symbol.file_local = !is_state_var;
+        symbol.is_extern = false;
+
+        symbolt &addedSymbol = *move_symbol_to_context(symbol);
+
+        //check if it's already in the symbol table.
+        // it should be, as all builtin functions and blockchain variables
+        // have been pre-defined and added to symbol table during temp_file() creation
+
+
+        // 1 - look for the function name in symbol table.
+
+        // for global blockchain vars like block_height
+        if (context.find_symbol(id_var) != nullptr)
+          {
+            symbolt &sym = *context.find_symbol(id_var);
+
+            if (sym.value.is_empty() || sym.value.is_zero())
+            {
+              // update: set the value to rand (default 0）
+              // since all the current support built-in vars are uint type.
+              // we just set the value to c:@F@nondet_uint
+              symbolt &r = *context.find_symbol("c:@F@nondet_uint");
+              sym.value = r.value;
+            }
+            functionExpression = symbol_expr(sym);
+          }
+
+          // for builtin functions like concat.
+          else if (context.find_symbol(id_func) != nullptr)
+            functionExpression = symbol_expr(*context.find_symbol(id_func));
+          else
+          {
+              std::cout <<"ALL HELL BROKE LOSE\n";
+              abort();
+          }
+
+         
+            // ToDo: check validity of functionExpression first.
+            if (functionExpression.is_nil())
+            {
+              std:: cout <<"Function expression is nil \n";
+              abort();
+            }
+
+            // get type of expression: for a function call, the type is the return type
+            //a functioncall is a code_type expression
+            //a function body is a code_t type expression
+            // not to be confused.
+
+            typet returnValSymbolType = to_code_type(functionExpression.type()).return_type();
+
+            side_effect_expr_function_callt call;
+            call.function() = functionExpression;
+            call.type() = returnValSymbolType;
+
+            // populate params
+
+            //find the number of arguments defined in the template (clarity_template.h)
+
+            size_t no_of_arguments = to_code_type(functionExpression.type()).arguments().size();
+
+            // since this is a test dummy. i am assuming just two fixed params to string_concat function
+            exprt arg1, arg2;
+           
+
+            // convert string literals to exprt nodes which are irept nodes.
+            convert_string_literal(literalA,arg1);
+            convert_string_literal(literalB,arg2);
+
+            call.arguments().push_back(arg1);
+            call.arguments().push_back(arg2);
+
+            // std::cout <<"Call node \n";
+            // std::cout <<call.pretty(4);
+            functionExpression = call;
+
+            // std::cout <<"Functionexpression node \n";
+            // std::cout <<functionExpression.pretty(4);
+
+            clarity_gen_typecast(ns, functionExpression, symbolType);
+            addedSymbol.value = functionExpression;
+            if (addedSymbol.value.is_nil()) {
+              std::cout << "Added symbol value is nil\n";
+              } else {
+                  std::cout << "Added symbol value is assigned\n";
+              }
+            
+            
+
+          
 }
 void clarity_convertert::add_dummy_symbol()
 {
@@ -338,7 +877,7 @@ void clarity_convertert::add_dummy_symbol()
       // add reference to that diagram which states all the members of a symbol
 
       /*
-         typet type;
+        typet type;
         exprt value;
         locationt location;
         irep_idt id;
@@ -349,17 +888,157 @@ void clarity_convertert::add_dummy_symbol()
       */
       #define STRING_CONSTANT_ENABLED
       #define UNSIGNED_INT_CONSTANT_ENABLED
-      
+      //#define BUILTIN_FUNCTIONCALL_ENABLED
+      #define PUBLIC_FUNCTION_ENABLED
+
       #ifdef UNSIGNED_INT_CONSTANT_ENABLED
         convert_dummy_uint_literal();
       #endif
 
        #ifdef STRING_CONSTANT_ENABLED
-
         convert_dummy_string_literal();
-     
       #endif
 
+      #ifdef BUILTIN_FUNCTIONCALL_ENABLED
+        add_dummy_builtin_functionCall();
+      #endif
+
+      #ifdef PUBLIC_FUNCTION_ENABLED
+      // add a code for adding a public function "add_nums"
+      // takes two arguments as input int x, and int y
+      // return an int
+      // (define-public (add_nums (num1 int) (num2 int)) (+ num1 num2))
+      // + is a binary operator. it should be handled as such.
+      // a binary operator in esbmc assumes an LHS and a RHS and an opcode.
+
+      // steps :
+      // create symbol add_nums
+      std::string functionName = "add_nums";
+      std::string functionId = "clar:@C@basicDummy@F@" + functionName + "#123";
+
+      locationt locationBegin;
+      locationBegin.set_line("293");
+      locationBegin.set_file("basicDummy.clar");
+
+      std::string debugModuleName = locationBegin.file().as_string();
+
+      //function return type
+      code_typet symbolType;// = signedbv_typet(128);
+      symbolType.return_type() = signedbv_typet(128);
+      
+      symbolt symbol;
+      get_default_symbol(symbol,debugModuleName,symbolType,functionName,functionId,locationBegin);
+
+
+      symbol.lvalue = true;
+      symbol.file_local = false;
+      symbol.is_extern = false;
+
+      symbolt &addedSymbol = *move_symbol_to_context(symbol);
+
+      //till now :  function name has been added to context 
+
+      // get parameters list from AST
+      // for each param, do the following
+      // each param is a code_typet::argumentt type -> this is an exprt type
+
+      //argument 1
+      code_typet::argumentt param1;
+      param1.type() = signedbv_typet(128);
+      std::string param1_name = "num1";
+      param1.name(param1_name);
+      std::string param1_id = "clar:@C@basicDummy@F@" + functionName + "@" + param1_name + "#123";
+      //param1.id( param1_id);
+      param1.cmt_base_name(param1_name); 
+      
+      locationt param1_location;
+      param1_location.set_line("111");
+      param1_location.set_file("basicDummy.clar");
+      // we set cmt_identifier instead of type.id for arguments  
+      param1.cmt_identifier(param1_id);
+      param1.location() = param1_location;
+
+      std::string debug_modulename =
+      get_modulename_from_path(param1_location.file().as_string());
+
+      symbolt param1_symbol;
+      get_default_symbol(param1_symbol,debug_modulename,param1.type(),param1_name,param1_id,param1_location);
+      param1_symbol.lvalue = true;
+      param1_symbol.is_parameter=true;
+      param1_symbol.file_local=true;
+
+      symbolt &added_param1_symbol = *move_symbol_to_context(param1_symbol);
+
+      //argument 2
+      code_typet::argumentt param2;
+      
+      param2.type() = signedbv_typet(128);
+      std::string param2_name = "num2";
+      param2.name(param2_name);
+      std::string param2_id = "clar:@C@basicDummy@F@" + functionName + "@" + param2_name + "#111";
+      param2.cmt_base_name(param2_name);
+
+      locationt param2_location;
+      param2_location.set_line("111");
+      param2_location.set_file("basicDummy.clar");
+      param2.cmt_identifier(param2_id);
+      param2.location() = param2_location;
+
+      symbolt param2_symbol;
+      get_default_symbol(param2_symbol,debug_modulename,param2.type(),param2_name,param2_id,param2_location);
+      param2_symbol.lvalue = true;
+      param2_symbol.is_parameter=true;
+      param2_symbol.file_local=true;
+
+      symbolt &added_param2_symbol = *move_symbol_to_context(param2_symbol);
+
+      // add parameters to function type
+
+      symbolType.arguments().push_back(param1);
+      symbolType.arguments().push_back(param2);
+
+  
+
+      addedSymbol.type = symbolType;
+
+
+      
+      // create function body
+      // create a codet type exprt
+
+      //code_blockt functionBody = code_blockt();
+      // create a binary expression
+      //plus_exprt binExpr(symbol_exprt(param1_symbol),symbol_exprt(param2_symbol),signedbv_typet(128));
+
+      exprt param1_expr = symbol_expr(added_param1_symbol);
+      exprt param2_expr = symbol_expr(added_param2_symbol);
+      
+      plus_exprt binExpr(param1_expr,param2_expr);
+
+      code_returnt returnStatement;
+      returnStatement.return_value() = binExpr;
+      irept param1_irept;
+      irept param2_irept;
+      added_param1_symbol.to_irep(param1_irept);
+      added_param2_symbol.to_irep(param2_irept);
+      // std::cout <<"Param 1 symbol : " << param1_irept.pretty(4) <<"\n";
+      // std::cout <<"Param 2 symbol : " << param2_irept.pretty(4) <<"\n";
+      // std::cout <<"Param 1 expr: " << param1_expr.pretty(4) <<"\n";
+      // std::cout <<"Param 2 expr: " << param2_expr.pretty(4) <<"\n";
+      // std::cout <<"Bin Expr : " << binExpr.pretty(4) <<"\n";
+      // std::cout <<"Return Statement : " <<returnStatement.pretty(4) <<"\n";
+      // std::cout <<"Function Body : " <<functionBody.pretty(4) <<"\n";
+    
+
+
+    //functionBody.swap(returnStatement);
+
+    // // refer to get_block function
+    //   functionBody.operands().push_back(returnStmt);// .add(to_code_return(returnStmt));
+
+      // add function body to the symbol
+      addedSymbol.value = returnStatement;
+      #endif
 
 
 
@@ -636,8 +1315,8 @@ bool clarity_convertert::convert()
   {
     // perform multi-transaction verification
     // by adding symbols to the "clar_main()" entry function
-    // if (multi_transaction_verification(tgt_cnt))
-    //   return true;
+    if (multi_transaction_verification(tgt_cnt))
+      return true;
   }
   // multiple contract
   if (tgt_func.empty() && tgt_cnt.empty())
@@ -1444,11 +2123,7 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
     }
   }
 
-  if (type.arguments().empty())
-  {
-    // assume ellipsis if the function has no parameters
-    type.make_ellipsis();
-  }
+  NewFunction(type);
 
   added_symbol.type = type;
 
@@ -1472,7 +2147,15 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
   return false;
 }
 
-bool clarity_convertert::get_function_params(
+
+void clarity_convertert::NewFunction(code_typet &type)
+{
+if (type.arguments().empty())
+  {
+    // assume ellipsis if the function has no parameters
+    type.make_ellipsis();
+  }
+}bool clarity_convertert::get_function_params(
   const nlohmann::json &pd,
   exprt &param)
 {

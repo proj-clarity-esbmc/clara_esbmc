@@ -46,7 +46,8 @@ protected:
   void add_dummy_symbol();
   void convert_dummy_uint_literal();
   void convert_dummy_string_literal();
-  
+  void add_dummy_builtin_functionCall();
+  void add_function_definition_symboltable();
   // end-m-ali
   
   bool convert_ast_nodes(const nlohmann::json &contract_def);
@@ -58,6 +59,7 @@ protected:
   bool get_var_decl_stmt(const nlohmann::json &ast_node, exprt &new_expr);
   bool get_var_decl(const nlohmann::json &ast_node, exprt &new_expr);
   bool get_function_definition(const nlohmann::json &ast_node);
+void NewFunction(code_typet &type);
   bool get_function_params(const nlohmann::json &pd, exprt &param);
   bool get_default_function(const std::string name, const std::string id);
 

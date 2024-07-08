@@ -82,11 +82,8 @@ bool clarity_convertert::convert_bool_literal(
   std::string the_value,
   exprt &dest)
 {
-  typet type;
-  if (get_type_description(bool_literal, type))
-    return true;
-
-  assert(type.is_bool());
+  // typet type = bool_typet();
+  // assert(type.is_bool());
 
   if (the_value == "true")
   {
@@ -116,15 +113,15 @@ bool clarity_convertert::convert_string_literal(
   std::string the_value,
   exprt &dest)
 {
-  size_t string_size = the_value.size();
+  size_t string_size = the_value.size() + 1;  //to accommodate \0
   typet type = array_typet(
     signed_char_type(),
     constant_exprt(
       integer2binary(string_size, bv_width(int_type())),
       integer2string(string_size),
       int_type()));
-  // TODO: Handle null terminator byte
-  string_constantt string(the_value, type, string_constantt::k_default);
+  // ToDo : Handle null terminator byte --> completed by catenating '\0' to the string
+  string_constantt string(the_value + '\0', type, string_constantt::k_default);
   dest.swap(string);
 
   return false;
