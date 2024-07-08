@@ -1051,6 +1051,8 @@ void dereferencet::build_reference_rec(
       uni_type.members[selected_member_index],
       value,
       uni_type.member_names[selected_member_index]);
+
+    /* type didn't change, it's not an array, so recursion is safe */
     build_reference_rec(value, offset, type, guard, mode, alignment);
     break;
   }
@@ -1091,15 +1093,6 @@ void dereferencet::construct_from_array(
 
   expr2tc mod = modulus2tc(offset->type, offset, subtype_sz_expr);
   simplify(mod);
-
-  if (is_structure_type(arr_subtype))
-  {
-    value = index2tc(arr_subtype, value, div);
-    build_reference_rec(value, mod, type, guard, mode, alignment);
-    return;
-  }
-
-  assert(is_scalar_type(arr_subtype));
 
   // Two different ways we can access elements
   //  1) Just treat them as an element and select them out, possibly with some
@@ -1534,7 +1527,7 @@ void dereferencet::construct_from_multidir_array(
   expr2tc mod = modulus2tc(offset->type, offset, subtype_sz);
   simplify(mod);
 
-  build_reference_rec(value, mod, type, guard, mode, alignment);
+  construct_from_array(value, mod, type, guard, mode, alignment);
 }
 
 void dereferencet::construct_struct_ref_from_const_offset_array(

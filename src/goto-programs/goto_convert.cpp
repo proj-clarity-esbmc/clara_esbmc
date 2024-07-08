@@ -1556,6 +1556,7 @@ void goto_convertt::convert_return(
   {
     if (!new_code.has_return_value())
     {
+      code.dump();
       log_error("function must return value");
       abort();
     }
@@ -1832,7 +1833,16 @@ void goto_convertt::convert_ifthenelse(const codet &c, goto_programt &dest)
     convert(to_code(code.op2()), tmp_op2);
 
   exprt tmp_guard = code.op0();
-  remove_sideeffects(tmp_guard, dest);
+
+  // for condition coverage
+  // to keep the guard format
+  if (!(options.get_bool_option("condition-coverage") ||
+        options.get_bool_option("condition-coverage-claims") ||
+        options.get_bool_option("condition-coverage-rm") ||
+        options.get_bool_option("condition-coverage-claims-rm")))
+  {
+    remove_sideeffects(tmp_guard, dest);
+  }
 
   generate_ifthenelse(tmp_guard, tmp_op1, tmp_op2, location, dest);
 }

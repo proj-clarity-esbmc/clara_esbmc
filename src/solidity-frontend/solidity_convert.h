@@ -27,11 +27,16 @@ public:
   bool convert();
 
 protected:
+  void multi_json_file();
+  std::vector<nlohmann::json> topological_sort(
+    std::unordered_map<std::string, std::unordered_set<std::string>> &graph,
+    std::unordered_map<std::string, nlohmann::json> &path_to_json);
   bool convert_ast_nodes(const nlohmann::json &contract_def);
 
   // conversion functions
   // get decl in rule contract-body-element
-  bool get_decl(const nlohmann::json &ast_node, exprt &new_expr);
+  bool get_non_function_decl(const nlohmann::json &ast_node, exprt &new_expr);
+  bool get_function_decl(const nlohmann::json &ast_node);
   // get decl in rule variable-declaration-statement, e.g. function local declaration
   bool get_var_decl_stmt(const nlohmann::json &ast_node, exprt &new_expr);
   bool get_var_decl(const nlohmann::json &ast_node, exprt &new_expr);
@@ -44,6 +49,7 @@ protected:
   bool get_struct_class(const nlohmann::json &ast_node);
   void add_enum_member_val(nlohmann::json &ast_node);
   bool get_error_definition(const nlohmann::json &ast_node);
+  void add_empty_function_body(nlohmann::json &ast_node);
 
   // handle the implicit constructor
   bool add_implicit_constructor();
@@ -103,7 +109,15 @@ protected:
   bool get_current_contract_name(
     const nlohmann::json &ast_node,
     std::string &contract_name);
+  void get_library_function_call(
+    const std::string &func_name,
+    const std::string &func_id,
+    const typet &t,
+    const locationt &l,
+    exprt &new_expr);
   bool get_empty_array_ref(const nlohmann::json &ast_node, exprt &new_expr);
+
+  // tuple
   bool get_tuple_definition(const nlohmann::json &ast_node);
   bool get_tuple_instance(const nlohmann::json &ast_node, exprt &new_expr);
   void get_tuple_name(
@@ -121,6 +135,12 @@ protected:
     exprt &new_expr);
   void get_tuple_assignment(code_blockt &_block, const exprt &lop, exprt rop);
   void get_tuple_function_call(code_blockt &_block, const exprt &op);
+
+  // mapping
+  bool get_mapping_definition(const nlohmann::json &ast_node, exprt &new_expr);
+  bool get_mapping_value_type(const typet &val_type, std::string &_val);
+  bool get_mapping_key(const nlohmann::json &ast_node, exprt &new_expr);
+  bool move_mapping_to_ctor();
 
   // line number and locations
   void
@@ -161,7 +181,7 @@ protected:
   nlohmann::json add_dyn_array_size_expr(
     const nlohmann::json &type_descriptor,
     const nlohmann::json &dyn_array_node);
-  bool is_child_mapping(const nlohmann::json &ast_node);
+  bool is_mapping(const nlohmann::json &ast_node);
 
   void get_default_symbol(
     symbolt &symbol,
@@ -193,7 +213,9 @@ protected:
   contextt &context;
   namespacet ns;
   // json for Solidity AST. Use vector for multiple contracts
-  nlohmann::json &src_ast_json;
+  nlohmann::json src_ast_json_array = nlohmann::json::array();
+  // json for Solidity AST. Use object for single contract
+  nlohmann::json src_ast_json;
   // Solidity function to be verified
   const std::string &sol_func;
   //smart contract source file
@@ -237,6 +259,10 @@ protected:
   // dealing with the implicit constructor call
   // this is to avoid reference to stack memory associated with local variable returned
   const nlohmann::json empty_json;
+
+  // this block stores the map_init function calls and
+  // will merge to the constructor later on
+  code_blockt map_init_block;
 
   // --function
   std::string tgt_func;

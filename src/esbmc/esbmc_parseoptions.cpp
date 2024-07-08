@@ -33,7 +33,7 @@ extern "C"
 #include <goto-programs/abstract-interpretation/interval_analysis.h>
 #include <goto-programs/abstract-interpretation/gcse.h>
 #include <goto-programs/loop_numbers.h>
-#include <goto-programs/read_goto_binary.h>
+#include <goto-programs/goto_binary_reader.h>
 #include <goto-programs/write_goto_binary.h>
 #include <goto-programs/remove_no_op.h>
 #include <goto-programs/remove_unreachable.h>
@@ -51,6 +51,7 @@ extern "C"
 #include <pointer-analysis/value_set_analysis.h>
 #include <util/symbol.h>
 #include <util/time_stopping.h>
+#include <goto-programs/goto_cfg.h>
 
 #ifndef _WIN32
 #  include <sys/wait.h>
@@ -1191,7 +1192,9 @@ int esbmc_parseoptionst::do_bmc_strategy(
     // k-induction
     if (options.get_bool_option("k-induction"))
     {
-      if (is_base_case_violated(options, goto_functions, k_step).is_true())
+      if (
+        is_base_case_violated(options, goto_functions, k_step).is_true() &&
+        !cmdline.isset("multi-property"))
         return 1;
 
       if (does_forward_condition_hold(options, goto_functions, k_step)
@@ -1221,7 +1224,9 @@ int esbmc_parseoptionst::do_bmc_strategy(
     // incremental-bmc
     if (options.get_bool_option("incremental-bmc"))
     {
-      if (is_base_case_violated(options, goto_functions, k_step).is_true())
+      if (
+        is_base_case_violated(options, goto_functions, k_step).is_true() &&
+        !cmdline.isset("multi-property"))
         return 1;
 
       if (does_forward_condition_hold(options, goto_functions, k_step)
@@ -1598,9 +1603,10 @@ bool esbmc_parseoptionst::create_goto_program(
 bool esbmc_parseoptionst::read_goto_binary(goto_functionst &goto_functions)
 {
   log_progress("Reading GOTO program from file");
+  goto_binary_reader goto_reader;
   for (const auto &arg : cmdline.args)
   {
-    if (::read_goto_binary(arg, context, goto_functions))
+    if (goto_reader.read_goto_binary(arg, context, goto_functions))
     {
       log_error("Failed to open `{}'", arg);
       return true;
@@ -1625,10 +1631,9 @@ bool esbmc_parseoptionst::parse_goto_program(
 
     if (cmdline.isset("parse-tree-too") || cmdline.isset("parse-tree-only"))
     {
-      assert(language_files.filemap.size());
-      languaget &language = *language_files.filemap.begin()->second.language;
       std::ostringstream oss;
-      language.show_parse(oss);
+      for (auto &it : langmap)
+        it.second->show_parse(oss);
       log_status("{}", oss.str());
       if (cmdline.isset("parse-tree-only"))
         return true;
@@ -1699,8 +1704,10 @@ bool esbmc_parseoptionst::process_goto_program(
     namespacet ns(context);
 
     bool is_no_remove = cmdline.isset("multi-property") ||
-                        cmdline.isset("goto-coverage") ||
-                        cmdline.isset("goto-coverage-claims");
+                        cmdline.isset("assertion-coverage") ||
+                        cmdline.isset("assertion-coverage-claims") ||
+                        cmdline.isset("condition-coverage") ||
+                        cmdline.isset("condition-coverage-claims");
 
     // Start by removing all no-op instructions and unreachable code
     if (!(cmdline.isset("no-remove-no-op")))
@@ -1708,7 +1715,7 @@ bool esbmc_parseoptionst::process_goto_program(
 
     // We should skip this 'remove-unreachable' removal in goto-cov and multi-property
     // - multi-property wants to find all the bugs in the src code
-    // - goto-coverage wants to find out unreached codes (asserts)
+    // - assertion-coverage wants to find out unreached codes (asserts)
     // - however, the optimisation below will remove codes during the Goto stage
     if (!(cmdline.isset("no-remove-unreachable") || is_no_remove))
       remove_unreachable(goto_functions);
@@ -1821,29 +1828,58 @@ bool esbmc_parseoptionst::process_goto_program(
 
       value_set_analysis.update(goto_functions);
     }
-    if (cmdline.isset("add-false-assert"))
-    {
-      goto_coveraget tmp;
-      tmp.add_false_asserts(goto_functions);
-    }
 
     //! goto-cov will also mutate the asserts added by esbmc (e.g. goto-check)
-    if (cmdline.isset("goto-coverage") || cmdline.isset("goto-coverage-claims"))
+    if (
+      cmdline.isset("assertion-coverage") ||
+      cmdline.isset("assertion-coverage-claims"))
     {
-      // for assertion coverage metric
-      options.set_option("make-assert-false", true);
       // for multi-property
       options.set_option("result-only", true);
       options.set_option("base-case", true);
       options.set_option("multi-property", true);
       options.set_option("keep-verified-claims", false);
+
+      goto_coveraget tmp(ns, goto_functions);
+      tmp.replace_all_asserts_to_guard(gen_false_expr(), true);
+    }
+
+    if (
+      cmdline.isset("condition-coverage") ||
+      cmdline.isset("condition-coverage-claims") ||
+      cmdline.isset("condition-coverage-rm") ||
+      cmdline.isset("condition-coverage-claims-rm"))
+    {
+      // for multi-property
+      options.set_option("result-only", true);
+      options.set_option("base-case", true);
+      options.set_option("multi-property", true);
+      options.set_option("keep-verified-claims", false);
+      // unreachable conditions should be also considered as short-circuited
+
+      //?:
+      // if we do not want expressions like 'if(2 || 3)' get simplified to 'if(1||1)'
+      // we need to enable the options below:
+      //    options.set_option("no-simplify", true);
+      //    options.set_option("no-propagation", true);
+      // however, this will affect the performance, thus they are not enabled by default
+
+      std::string filename = cmdline.args[0];
+      goto_coveraget tmp(ns, goto_functions, filename);
+      tmp.replace_all_asserts_to_guard(gen_true_expr());
+      tmp.gen_cond_cov();
     }
 
     if (options.get_bool_option("make-assert-false"))
     {
-      goto_coveraget tmp;
-      tmp.make_asserts_false(goto_functions, ns);
-      tmp.gen_assert_instance(goto_functions);
+      goto_coveraget tmp(ns, goto_functions);
+      tmp.replace_all_asserts_to_guard(gen_false_expr());
+    }
+
+    if (cmdline.isset("add-false-assert"))
+    {
+      goto_coveraget tmp(ns, goto_functions);
+      tmp.add_false_asserts();
     }
   }
 
@@ -1935,6 +1971,13 @@ bool esbmc_parseoptionst::output_goto_program(
       log_status("{}", oss.str());
       if (cmdline.isset("goto-functions-only"))
         return true;
+    }
+
+    if (cmdline.isset("dump-goto-cfg"))
+    {
+      goto_cfg cfg(goto_functions);
+      cfg.dump_graph();
+      return true;
     }
 
     // Translate the GOTO program to C and output it into the log or

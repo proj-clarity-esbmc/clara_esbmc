@@ -225,8 +225,13 @@ void clang_c_adjust::adjust_side_effect(side_effect_exprt &expr)
     }
     else if (has_prefix(id2string(statement), "assign"))
     {
-      adjust_side_effect_assignment(expr);
+      // _First_ adjust references. Otherwise, for
+      // `i.c = 20.0f;` where `c` is a reference, we would try to cast `20.0f`
+      // to a reference type. This would only be possible if we would take the
+      // address of `20.0f` and assign it to `i.c`, which is not what we want.
+      // Instead, after adjustment, we will get `*(i.c) = 20.0f;` which works.
       adjust_reference(expr);
+      adjust_side_effect_assignment(expr);
     }
     else if (statement == "statement_expression")
       adjust_side_effect_statement_expression(expr);
@@ -1115,6 +1120,16 @@ void clang_c_adjust::do_special_functions(side_effect_expr_function_callt &expr)
       exprt new_expr("ieee_sqrt", expr.type());
       new_expr.operands() = expr.arguments();
       expr.swap(new_expr);
+    }
+    else if (identifier == "__builtin_nontemporal_load")
+    {
+      // T __builtin_nontemporal_load(T *addr);
+      assert(expr.arguments().front().type().is_pointer());
+      typet t = to_pointer_type(expr.arguments().front().type()).subtype();
+      assert(
+        t.is_floatbv() || t.is_vector() || t.is_signedbv() ||
+        t.is_unsignedbv());
+      expr.type() = t;
     }
   }
 

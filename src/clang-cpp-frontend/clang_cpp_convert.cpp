@@ -28,9 +28,9 @@ CC_DIAGNOSTIC_POP()
 
 clang_cpp_convertert::clang_cpp_convertert(
   contextt &_context,
-  std::vector<std::unique_ptr<clang::ASTUnit>> &_ASTs,
+  std::unique_ptr<clang::ASTUnit> &_AST,
   irep_idt _mode)
-  : clang_c_convertert(_context, _ASTs, _mode)
+  : clang_c_convertert(_context, _AST, _mode)
 {
 }
 
@@ -961,6 +961,17 @@ bool clang_cpp_convertert::get_expr(const clang::Stmt &stmt, exprt &new_expr)
       new_expr.move_to_operands(tmp);
       new_expr.type() = tmp.type();
     }
+
+    break;
+  }
+
+  case clang::Stmt::CXXTypeidExprClass:
+  {
+    const clang::CXXTypeidExpr &cxxtid =
+      static_cast<const clang::CXXTypeidExpr &>(stmt);
+
+    if (get_expr(*cxxtid.getExprOperand(), new_expr))
+      return true;
 
     break;
   }
