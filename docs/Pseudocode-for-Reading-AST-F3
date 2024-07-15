@@ -1,0 +1,79 @@
+Pseudo code for Reading AST F3
+
+
+1 - Parent object Structure - 
+  - "exported_functions" : [List of exported functions]
+  - "identifiers" : Object
+    - Indentifier Object Structure :
+    {
+      "contract_name" : string 
+      "issuer_raw" : [] // can ignore
+      "issuer_principal" : string
+    }
+  - "expressions" : [list of expressions]
+    - Each element of the expressions array represents an expression and is a sub-array.
+      - The order of Sub-array elements is as follow :
+        - type of expression : 
+          [0] "Declaration" : 
+                - "data-var" //represents variable declaration e-g (define-data-var o1 (int 0))
+                - "constant" //represents constant declaration e-g (define-constant c1 u0)
+                - "map"   //does not have obtypes, instead has keytype and valtype
+                - "trait" 
+                - "def-ft"  //does not have objtypes, it may have "total_supply" or nothing.
+                - "def-nft"
+                - ... do we need anymore ?
+                "Functions" : // do not contain objtype at parent. instead it contains "args:[]" and "body:[]"
+                - "var-get" : // gets the value of an already defined variable by referring to "cid" and "identifier name" and "scope"
+                - "read-only" // creates a function that does not modify values, but only reads values
+                - "private" , "public"
+          [1] "Object"
+                {
+                  "identifier" : string // declaration (variable/constant) name 
+                  "cid" : int // internal use to refer to nodes already declared in the system
+                  "id" : int // if cids are consistent in the AST for same element being referred to, then we can ignore "id"
+                  "scope" : local / global
+                  "span" : Object // contains location information
+                      {
+                        "start_line": int
+                        "start_column": int
+                        "end_line": int
+                        "end_column": int
+                      }
+                  "objtype": [list containing type information regarding the identifier]
+                      [0] type : string // example "uint"
+                          - [0] can be literal type e-g uint, int , string-ascii, string-utf8, bool, principal, buff, etc
+                          - [0] can be "optional" which means the type is optional and requires special handling 
+                          - [0] can be a funcion name, which means the following items are function params
+                          - [0] can be operator, which means the following items are the operands.
+                          - [0] can be "response" which means it will require special handling. Like, it will have two objTypes (sucess type, failure type)
+                      [1] type identifer : string //example uint_128
+                        - However, if the [0] anything other than a literal type then special handling is needed.
+                      [2]  size of identifier
+
+                      Example : "objtype" : ["uint", "uint_128", 128]
+                      Example : "objtype" : ["optional","optional", object(objtype)]
+                  "value": // can be a string literal or an object or a list 
+                        -string literal: if string literal then it is the valueof type int/uint or hex-string 0xaaaa for buff value or principal string for Principal.
+                        -object: if object then it contains either of the two:
+                            - "lit_ascii"
+                            - "lit_utf8"
+                        -list: the "value" key contains a list
+                            - the [0] element has to be an operator e-g "+", "-", "*", "/", ">" , "==" etc or a function name or a known keyword that takes params
+                              - if [0] is "some" then the value could be an Nan or an int/uint for integers, or null or a string for string values.
+                              - if [0] is "list" then what follows is the elements of the list as per the size in list objtype node.
+                              - if [0] is a a conditional "if" then [1] would be a value node containing expression to test, [2] is "value" node if [1] is true, [3] is "value" if [1] is false
+                              - if [0] is a "begin" or "let" then it starts a code_block with one or multiple expressions. each expression is a "value" node.
+                            - [1] to [n] would be the params to the operator or function
+
+                  
+                  "keytype" : ONLY FOR MAPS --- follows objtype structure for type of "keys" of maps
+                  "valtype" : ONLY FOR MAPS --- follows objtype structure for type of "values" of maps
+                  "total_supply" : ONLY FOR FTs --- contains the total supply as unsigned int value.
+                  "args" : ONLY FOR FUNCTIONS --- contains a list [] of the arguments of the function
+                  "body" : ONLY FOR FUNCTIONS --- contains a list [] of the "expressions" inside a body of a function. This list is to be read as a "value" node.
+                  "return_type" : ONLY FOR FUNCTIONS --- contains objtype node for a return type of a function
+
+
+
+                }
+
