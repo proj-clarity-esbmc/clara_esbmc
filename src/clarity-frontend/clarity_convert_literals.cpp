@@ -8,17 +8,17 @@
 #include <util/std_expr.h>
 
 // Integer literal
+// first argument : integer_literal is not used in Clarity frontend, but left for compatibility with other frontends
 bool clarity_convertert::convert_integer_literal(
   const nlohmann::json &integer_literal,
   std::string the_value,
   exprt &dest)
 {
-  typet type;
-  if (get_type_description(integer_literal, type))
-    return true;
-
+  // clarity only supports 128 bit signed integers
+  typet type = signedbv_typet(128);
+  
   exprt the_val;
-  // extract the value: unsigned
+  // extract the value: signed
   BigInt z_ext_value = string2integer(the_value);
   the_val = constant_exprt(
     integer2binary(z_ext_value, bv_width(type)),
@@ -29,6 +29,28 @@ bool clarity_convertert::convert_integer_literal(
   return false;
 }
 
+bool clarity_convertert::convert_unsigned_integer_literal(
+  const nlohmann::json &unsigned_integer_literal,
+  std::string the_value,
+  exprt &dest)
+{
+  // clarity only supports 128 bit unsigned integers
+  typet type = unsignedbv_typet(128);
+  
+  exprt the_val;
+  // extract the value: signed
+  BigInt z_ext_value = string2integer(the_value);
+  the_val = constant_exprt(
+    integer2binary(z_ext_value, bv_width(type)),
+    integer2string(z_ext_value),
+    type);
+
+  dest.swap(the_val);
+  return false;
+}
+
+// can probably be ignored.
+// use convert_integer_literal instead.
 bool clarity_convertert::convert_integer_literal_with_type(
   typet & type,
   std::string the_value,

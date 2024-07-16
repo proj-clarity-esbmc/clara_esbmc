@@ -204,6 +204,11 @@ void NewFunction(code_typet &type);
     const nlohmann::json &integer_literal,
     std::string the_value,
     exprt &dest);
+  
+  bool convert_unsigned_integer_literal(
+  const nlohmann::json &unsigned_integer_literal,
+  std::string the_value,
+  exprt &dest);
 
   bool convert_integer_literal_with_type(
   typet & type,
