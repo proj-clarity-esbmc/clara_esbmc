@@ -73,7 +73,7 @@ const struct group_opt_templ all_cmd_options[] = {
    {{"clar",
      boost::program_options::value<std::string>()->value_name("path"),
      ".clarast file name"},
-    {"contract",
+    {"clar_contract",
      boost::program_options::value<std::string>()->value_name("cname"),
      "set contract name"},
 #if 0

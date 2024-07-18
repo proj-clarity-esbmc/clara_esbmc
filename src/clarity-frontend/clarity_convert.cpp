@@ -33,8 +33,8 @@ clarity_convertert::clarity_convertert(
     current_contractName(""),
     scope_map({}),
     tgt_func(config.options.get_option("function")),
-    //tgt_cnt(config.options.get_option("contract"))
-    tgt_cnt("basic_dummy")
+    tgt_cnt(config.options.get_option("clar_contract"))
+    
 {
   std::ifstream in(_contract_path);
   contract_contents.assign(
