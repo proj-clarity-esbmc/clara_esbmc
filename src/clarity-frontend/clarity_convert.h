@@ -34,14 +34,16 @@ protected:
   bool process_define_data_var(nlohmann::json & ast_node);
   bool process_define_constant(nlohmann::json & ast_node);
   bool process_define_map(nlohmann::json & ast_node);
-  void insert_dummy_objType(nlohmann::json & ast_node, std::string type_name, int type_size); 
-  bool is_state_variable(const nlohmann::json & ast_node);
-  bool is_variable_declaration(const nlohmann::json & ast_node);
+
+
   std::string get_objtype_type_name(const nlohmann::json & objtype_node);
   std::string get_objtype_type_identifier(const nlohmann::json & objtype_node);
   std::string get_objtype_type_size(const nlohmann::json & objtype_node);
   void get_objtype_node(const nlohmann::json & ast_node, nlohmann::json & objtype_node);
-  
+  bool check_valid_ast(const nlohmann::json & ast_node);
+  void set_current_contract_name(std::string &contract_name);
+  bool parse_expression_element(const nlohmann::json & expr_element_json);
+
   // dummy functions for learning
   void add_dummy_symbol();
   void convert_dummy_uint_literal();
@@ -110,7 +112,7 @@ void NewFunction(code_typet &type);
   bool get_func_decl_ref_type(const nlohmann::json &decl, typet &new_type);
   bool get_array_to_pointer_type(const nlohmann::json &decl, typet &new_type);
   bool
-  get_elementary_type_name(const nlohmann::json &type_name, typet &new_type);
+  get_elementary_type_name(const nlohmann::json &objtype, typet &new_type);
   bool get_parameter_list(const nlohmann::json &type_name, typet &new_type);
   void get_state_var_decl_name(
     const nlohmann::json &ast_node,

@@ -19,6 +19,20 @@ enum ContractBodyElementT
 ContractBodyElementT get_contract_body_element_t(const nlohmann::json &element);
 const char *contract_body_element_to_str(ContractBodyElementT type);
 
+
+
+/* m-ali */
+  bool is_state_variable(const nlohmann::json & ast_node);
+  bool is_variable_declaration(const nlohmann::json & ast_node);
+  bool is_function_definitionn(const nlohmann::json & ast_node);
+  bool parse_expression_element(nlohmann::json & expr_element_json);
+  bool get_operation_type(nlohmann::json & expression_node);
+  bool operation_is_conditional(const nlohmann::json & ast_node);
+  bool operation_is_unary(const nlohmann::json & ast_node);
+  bool operation_is_binary(const nlohmann::json & ast_node);
+
+/* end m-ali*/
+
 // rule type-name
 enum TypeNameT
 {
@@ -28,17 +42,11 @@ enum TypeNameT
   // rule parameter-list. Strictly, this should not be here. Just a workaround
   ParameterList,
 
-  // auxiliary type for FunctionToPointer decay in CallExpr when making a function call
-  Pointer, // TODO: Fix me. Rename it to PointerFuncToPtr
-
-  // auxiliary type for ArrayToPointer when dereferencing array, e.g. a[0]
-  PointerArrayToPtr,
 
   // static array type
   ArrayTypeName,
 
-  // dynamic array type
-  DynArrayTypeName,
+  
 
   // contract type
   ContractTypeName,
