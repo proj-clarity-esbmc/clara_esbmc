@@ -298,7 +298,7 @@ private:
     ClarityGrammar::ElementaryTypeNameT &type,
     typet &out);
   bool get_elementary_type_name_bytesn(
-    ClarityGrammar::ElementaryTypeNameT &type,
+    const nlohmann::json &objtype,
     typet &out);
 };
 

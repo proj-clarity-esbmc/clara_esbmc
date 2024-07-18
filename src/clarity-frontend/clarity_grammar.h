@@ -46,7 +46,7 @@ enum TypeNameT
   // static array type
   ArrayTypeName,
 
-  
+  BuffTypeName,
 
   // contract type
   ContractTypeName,

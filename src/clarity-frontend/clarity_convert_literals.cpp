@@ -196,7 +196,7 @@ bool clarity_convertert::convert_uint_literal(
       the_value.erase(0, 1);
     }
  
-  convert_integer_literal(uint_literal, the_value, dest);
+  convert_unsigned_integer_literal(uint_literal, the_value, dest);
   return false;
 }
 // TODO: Float literal.

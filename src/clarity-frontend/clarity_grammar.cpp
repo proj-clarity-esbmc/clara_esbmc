@@ -271,27 +271,15 @@ TypeNameT get_type_name_t(const nlohmann::json &type_name)
     {
       return MappingTypeName;
     }
-    else if (typeIdentifier.find("t_array$") != std::string::npos)
+    else if (typeString == "buff")
     {
-      // Clarity's array type description is like:
-      //  "typeIdentifier": "t_array$_t_uint8_$2_memory_ptr",
-      //  "typeString": "uint8[2] memory"
+     //buff in clarity can be considered as array of bytes
 
-      // The Arrays in Clarity can be classified into the following two types based on size –
-      //   Fixed Size Array
-      //   Dynamic Array
-      // Furthermore, the clarity array can also be categorized based on where they are stored as –
-      //   Storage Array
-      //   Memory Array
-
-      // Multi-Dimensional Arrays
-      if (typeIdentifier.find("t_array$_t_array$") != std::string::npos)
-      {
-        log_error("Multi-Dimensional Arrays are not supported.");
-        abort();
-      }
-
-     
+      return BuffTypeName;
+    }
+    else if (typeString == "list")
+    {
+     //buff in clarity can be considered as array of bytes
 
       return ArrayTypeName;
     }
@@ -443,12 +431,7 @@ ElementaryTypeNameT get_elementary_type_name_t(const nlohmann::json &type_name)
   }
   if (typeString.find("buff") != std::string::npos)
   {
-    // dynamic bytes array
-    // e.g.
-    //    bytes
-    //    bytes storage ref
-    //    bytes memory
-    // TODO
+
     return BUFF;
   }
   log_error(

@@ -1223,6 +1223,7 @@ bool clarity_convertert::convert()
         //process expression array
         for (auto &expr : vec_expressions)
         {
+          log_status("Parsing {} {} ",expr[0].get<std::string>(), expr[1]["identifier"].get<std::string>());
           if (ClarityGrammar::parse_expression_element(expr))
           {
             log_error("Invalid expression element");
@@ -1502,7 +1503,7 @@ bool clarity_convertert::get_var_decl(
     // we will pass the whole ast node everywhere.
     // we can then parse inside the sub-functions accordingly.
     // for initial value : consider looking into ast_node[1]["value"]
-    if (get_expr(ast_node, literal_type, val))
+    if (get_expr(ast_node, ast_node[1]["objtype"], val))
       return true;
 
     clarity_gen_typecast(ns, val, t);
@@ -2628,8 +2629,9 @@ bool clarity_convertert::get_expr(const nlohmann::json &expr, exprt &new_expr)
      * @return false iff the conversion was successful
      */
 
-  //FIXME
-  // rignt now , literal_type passed is objtype[0] . which is a std::string
+  // FIX ABOVE COMMENTS
+  //  literal_type is objtype
+  // expr is the whole expression node
 bool clarity_convertert::get_expr(
   const nlohmann::json &expr,
   const nlohmann::json &literal_type,
@@ -2794,31 +2796,39 @@ bool clarity_convertert::get_expr(
       ClarityGrammar::ElementaryTypeNameT type = type_name;
     
 
-      int byte_size;
-      // TODO
-      if (type == ClarityGrammar::ElementaryTypeNameT::BUFF)
-        // dynamic bytes array, the type is set to unsignedbv(256);
-        byte_size = 32;
-      
-      // this else statement seems to bear no significance for us.
-      // ToDo
-      // else
-      //   byte_size = bytesn_type_name_to_size(type);
-
       // convert hex to decimal value and populate
       switch (type_name)
       {
+
+      case ClarityGrammar::ElementaryTypeNameT::BUFF:
+      {
+         if (
+        the_value.length() >= 2 &&
+        the_value.substr(0, 2) == "0x") // meaning hex-string
+        {
+          std::string str_buff_size = literal_type[2];
+          int buff_size = std::stoi(str_buff_size);
+          if (convert_hex_literal(the_value, new_expr, buff_size * 8))
+            return true;
+        }
+        else{
+          log_error("Invalid buff value found. Missing 0x prefix");
+          return true;
+        }
+        break;
+      }
+      case ClarityGrammar::ElementaryTypeNameT::UINT:
       case ClarityGrammar::ElementaryTypeNameT::UINT_LITERAL:
       {
-        //ToDo ; how does byte_size map here 
-        //if (convert_hex_literal(the_value, new_expr, byte_size * 8))
+        
         if (convert_uint_literal(literal, the_value, new_expr))
           return true;
         break;
       }
+      case ClarityGrammar::ElementaryTypeNameT::INT:
       case ClarityGrammar::ElementaryTypeNameT::INT_LITERAL:
       {
-        //if (convert_hex_literal(the_value, new_expr, byte_size * 8))
+        
         if (convert_integer_literal(literal, the_value, new_expr))
           return true;
         break;
@@ -2874,56 +2884,7 @@ bool clarity_convertert::get_expr(
       break;
     }
 
-    // switch (type_name)
-    // {
-    // case ClarityGrammar::ElementaryTypeNameT::INT_LITERAL:
-    // {
-    //   assert(literal_type != nullptr);
-    //   if (
-    //     the_value.length() >= 2 &&
-    //     the_value.substr(0, 2) == "0x") // meaning hex-string
-    //   {
-    //     if (convert_hex_literal(the_value, new_expr))
-    //       return true;
-    //   }
-    //   else if (convert_integer_literal(literal_type, the_value, new_expr))
-    //     return true;
-    //   break;
-    // }
-    // case ClarityGrammar::ElementaryTypeNameT::BOOL:
-    // {
-    //   if (convert_bool_literal(literal, the_value, new_expr))
-    //     return true;
-    //   break;
-    // }
-    // case ClarityGrammar::ElementaryTypeNameT::STRING_ASCII:
-    // case ClarityGrammar::ElementaryTypeNameT::STRING_ASCII_LITERAL:
-    // {
-    //   // TODO: figure out how to handle ascii/utf8 strings
-    //   if (convert_string_literal(the_value, new_expr))
-    //     return true;
-    //   break;
-    // }
     
-    // case ClarityGrammar::ElementaryTypeNameT::STRING_UTF8:
-    // case ClarityGrammar::ElementaryTypeNameT::STRING_UTF8_LITERAL:
-    // {
-    //   if (convert_string_literal(the_value, new_expr))
-    //     return true;
-    //   break;
-    // }
-
-    // case ClarityGrammar::ElementaryTypeNameT::ADDRESS:
-    // {
-    //   // 20 bytes
-    //   if (convert_hex_literal(the_value, new_expr, 160))
-    //     return true;
-    //   break;
-    // }
-    // default:
-    //   assert(!"Literal not implemented");
-    // }
-
     break;
   }
   case ClarityGrammar::ExpressionT::Tuple:
@@ -4529,15 +4490,29 @@ bool clarity_convertert::get_type_description(
     // Used for Clarity function parameter or return list
     return get_parameter_list(type_name, new_type);
   }
+  case ClarityGrammar::TypeNameT::BuffTypeName:
+  {
+        //it's a buffer of bytes
+        // std::string str_buff_size = type_name[2];
+        // int bit_width = 8 * std::stoi(str_buff_size);
+        // new_type = unsignedbv_typet(bit_width);
+        
+        if (get_elementary_type_name_bytesn(type_name, new_type))
+          return true;
+
+   
+   break;
+  }
   case ClarityGrammar::TypeNameT::ArrayTypeName:
   {
     // Deal with array with constant size, e.g., int a[2]; Similar to clang::Type::ConstantArray
-    // array's typeDescription is in a compact form, e.g.:
-    //    "typeIdentifier": "t_array$_t_uint8_$2_storage_ptr",
-    //    "typeString": "uint8[2]"
-    // We need to extract the elementary type of array from the information provided above
-    // We want to make it like ["baseType"]["typeDescriptions"]
-    nlohmann::json array_elementary_type =
+    // buff is an array of bytes
+    // list is an array of entry-type
+   
+  
+      //it's a list of entry-type
+      // ToDo
+      nlohmann::json array_elementary_type =
       make_array_elementary_type(type_name);
     typet the_type;
     if (get_type_description(array_elementary_type, the_type))
@@ -4552,6 +4527,9 @@ bool clarity_convertert::get_type_description(
         integer2binary(z_ext_value, bv_width(int_type())),
         integer2string(z_ext_value),
         int_type()));
+   
+   
+    
 
     break;
   }
@@ -5059,15 +5037,17 @@ bool clarity_convertert::get_elementary_type_name_int(
 }
 
 bool clarity_convertert::get_elementary_type_name_bytesn(
-  ClarityGrammar::ElementaryTypeNameT &type,
+  const nlohmann::json &objtype,
   typet &out)
 {
   /*
     bytes1 has size of 8 bits (possible values 0x00 to 0xff),
     which you can implicitly convert to uint8 (unsigned integer of size 8 bits) but not to int8
   */
-  const unsigned int byte_num = ClarityGrammar::bytesn_type_name_to_size(type);
-  out = unsignedbv_typet(byte_num * 8);
+  
+  std::string str_buff_size = objtype[2];
+  const unsigned int bytes = std::stoi(str_buff_size);
+  out = unsignedbv_typet(bytes * 8);
 
   return false;
 }
@@ -5156,13 +5136,13 @@ bool clarity_convertert::get_elementary_type_name(
   }
   case ClarityGrammar::ElementaryTypeNameT::BUFF:
   {
-    // TODO: size
-    if (get_elementary_type_name_bytesn(type, new_type))
-      return true;
-
+  
+    if (get_elementary_type_name_bytesn(objtype, new_type))
+       return true;
+   
     // for type conversion
-    new_type.set("#clar_type", elementary_type_name_to_str(type));
-    new_type.set("#clar_bytes_size", bytesn_type_name_to_size(type));
+    //new_type.set("#clar_type", elementary_type_name_to_str(type));
+    //new_type.set("#clar_bytes_size", bytesn_type_name_to_size(type));
 
     break;
   }
