@@ -851,7 +851,7 @@ void clarity_convertert::add_dummy_symbol()
       #define STRING_CONSTANT_ENABLED
       #define UNSIGNED_INT_CONSTANT_ENABLED
       //#define BUILTIN_FUNCTIONCALL_ENABLED
-      #define PUBLIC_FUNCTION_ENABLED
+      //#define PUBLIC_FUNCTION_ENABLED
 
       #ifdef UNSIGNED_INT_CONSTANT_ENABLED
         convert_dummy_uint_literal();
@@ -1224,16 +1224,17 @@ bool clarity_convertert::convert()
         for (auto &expr : vec_expressions)
         {
           log_status("Parsing {} {} ",expr[0].get<std::string>(), expr[1]["identifier"].get<std::string>());
-          if (ClarityGrammar::parse_expression_element(expr))
-          {
-            log_error("Invalid expression element");
-            continue;
-          }
+          add_dummy_symbol();
+          // if (ClarityGrammar::parse_expression_element(expr))
+          // {
+          //   log_error("Invalid expression element");
+          //   continue;
+          // }
            // for each element in expressions array
            // check if valid expression array
          
-           if (convert_ast_nodes(expr))
-              return true;
+          //  if (convert_ast_nodes(expr))
+          //     return true;
         }
 
 
@@ -1255,8 +1256,8 @@ bool clarity_convertert::convert()
 
 
     // reset
-    current_contractName = "";
-    current_functionName = "";
+    //current_contractName = "";
+    //current_functionName = "";
     current_functionDecl = nullptr;
     current_forStmt = nullptr;
     global_scope_id = 0;
@@ -1562,7 +1563,7 @@ bool clarity_convertert::get_clarity_struct_class(const nlohmann::json &struct_d
   std::string id, name;
   struct_typet t = struct_typet();
 
-  name = get_current_contract_name(struct_def, name);
+  get_current_contract_name(struct_def, name);
   id = prefix + name;
   t.tag(name);
 
@@ -6368,7 +6369,8 @@ bool clarity_convertert::multi_transaction_verification(
   //for (auto it = id_list.rbegin(); it != id_list.rend(); ++it)
   {
     // 1.1 get contract symbol ("tag-contractName")
-    std::string c_name = current_contractName; //exportedSymbolsList[*it];
+    std::string c_name; 
+    get_current_contract_name(nullptr,c_name); //exportedSymbolsList[*it];
     const std::string id = prefix + c_name;
     if (context.find_symbol(id) == nullptr)
       return true;
