@@ -31,8 +31,8 @@ const std::string clar_header = R"(
 	see https://docs.stacks.co/clarity/functions#principal-destruct
 */
 const std::string clar_typedef = R"(
-typedef signed _ExtInt(128) int128_t;
-typedef unsigned _ExtInt(128) uint128_t;
+typedef signed _BitInt(128) int128_t;
+typedef unsigned _BitInt(128) uint128_t;
 
 #define CLARITY_ADDRESS_TYPE_STANDARD 1
 #define CLARITY_ADDRESS_TYPE_CONTRACT 2
@@ -51,10 +51,10 @@ typedef struct {
 #  if 0
 TODO: not used
 const std::string clar_msg = R"(
-uint256_t msg_data;
+uint128_t msg_data;
 address_t msg_address;
 __uint32_t msg_sig;
-uint256_t msg_value;
+uint128_t msg_value;
 )";
 #  endif
 
@@ -68,14 +68,14 @@ address_t tx_sponsorM;
 TODO: some of this is in https://docs.stacks.co/clarity/functions#get-block-info
 
 const std::string clar_block = R"(
-uint256_t block_basefee;
-uint256_t block_chainid;
+uint128_t block_basefee;
+uint128_t block_chainid;
 address_t block_coinbase;
-uint256_t block_difficulty;
-uint256_t block_gaslimit;
-uint256_t block_number;
-uint256_t block_prevrandao;
-uint256_t block_timestamp;
+uint128_t block_difficulty;
+uint128_t block_gaslimit;
+uint128_t block_number;
+uint128_t block_prevrandao;
+uint128_t block_timestamp;
 )";
 #  endif
 
@@ -89,34 +89,34 @@ const std::string clar_vars = clar_tx;
 // https://docs.soliditylang.org/en/latest/units-and-global-variables.html#special-variables-and-functions
 
 const std::string blockhash = R"(
-uint256_t blockhash();
+uint128_t blockhash();
 )";
 
 const std::string gasleft = R"(
-uint256_t gasleft();
+uint128_t gasleft();
 )";
 
 const std::string clar_abi = R"(
-uint256_t abi_encode();
-uint256_t abi_encodePacked();
-uint256_t abi_encodeWithSelector();
-uint256_t abi_encodeWithSignature();
-uint256_t abi_encodeCall();
+uint128_t abi_encode();
+uint128_t abi_encodePacked();
+uint128_t abi_encodeWithSelector();
+uint128_t abi_encodeWithSignature();
+uint128_t abi_encodeCall();
 )";
 
 const std::string clar_math = R"(
-uint256_t addmod(uint256_t x, uint256_t y, uint256_t k)
+uint128_t addmod(uint128_t x, uint128_t y, uint128_t k)
 {
 	return (x + y) % k;
 }
 
-uint256_t mulmod(uint256_t x, uint256_t y, uint256_t k)
+uint128_t mulmod(uint128_t x, uint128_t y, uint128_t k)
 {
 	return (x * y) % k;
 }
 
-uint256_t keccak256();
-uint256_t sha256();
+uint128_t keccak256();
+uint128_t sha256();
 address_t ripemd160();
 address_t ecrecover();
 )";

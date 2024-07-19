@@ -75,7 +75,9 @@ bool clarity_languaget::parse(const std::string &path)
   // get AST nodes of ESBMC intrinsics and the dummy main
   // populate ASTs inherited from parent class
   auto clar_lang = std::exchange(config.language, {language_idt::C, ""});
-  clang_c_languaget::parse(temp_path);
+  if (clang_c_languaget::parse(temp_path))
+    return true;
+    
   config.language = std::move(clar_lang);
 
   // Process AST json file
