@@ -1224,17 +1224,17 @@ bool clarity_convertert::convert()
         for (auto &expr : vec_expressions)
         {
           log_status("Parsing {} {} ",expr[0].get<std::string>(), expr[1]["identifier"].get<std::string>());
-          add_dummy_symbol();
-          // if (ClarityGrammar::parse_expression_element(expr))
-          // {
-          //   log_error("Invalid expression element");
-          //   continue;
-          // }
+         
+          if (ClarityGrammar::parse_expression_element(expr))
+          {
+            log_error("Invalid expression element");
+            continue;
+          }
            // for each element in expressions array
            // check if valid expression array
          
-          //  if (convert_ast_nodes(expr))
-          //     return true;
+           if (convert_ast_nodes(expr))
+              return true;
         }
 
 
