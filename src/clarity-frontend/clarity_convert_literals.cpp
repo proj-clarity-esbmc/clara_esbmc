@@ -179,6 +179,7 @@ bool clarity_convertert::convert_hex_literal(
 }
 
 
+
 /**
  * convert str-string to uint constant
  * @n: the bit width, default 256 (unsignedbv_typet(256))

@@ -233,6 +233,8 @@ void NewFunction(code_typet &type);
     const nlohmann::json &integer_literal,
     std::string the_value,
     exprt &dest);
+
+
   // check if it's a bytes type
   bool is_bytes_type(const typet &t);
 
@@ -300,6 +302,10 @@ private:
   bool get_elementary_type_name_bytesn(
     const nlohmann::json &objtype,
     typet &out);
+  
+bool get_elementary_type_name_buff(
+  const nlohmann::json &objtype,
+  typet &out);
 };
 
 #endif /* CLARITY_FRONTEND_CLARITY_CONVERT_H_ */

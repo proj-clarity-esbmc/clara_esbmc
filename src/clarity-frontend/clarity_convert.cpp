@@ -2785,19 +2785,9 @@ bool clarity_convertert::get_expr(
     if (
       literal_type != nullptr ) 
     {
-      // literal_type["typeString"] could be
-      //    "bytes1" ... "bytes32"
-      //    "bytes storage ref"
-      // e.g.
-      //    bytes1 x = 0x12;
-      //    bytes32 x = "string";
-      //    bytes x = "string";
-      //
 
       ClarityGrammar::ElementaryTypeNameT type = type_name;
     
-
-      // convert hex to decimal value and populate
       switch (type_name)
       {
 
@@ -2807,10 +2797,39 @@ bool clarity_convertert::get_expr(
         the_value.length() >= 2 &&
         the_value.substr(0, 2) == "0x") // meaning hex-string
         {
+          the_value.erase(0, 2);    //remove the first two characters (0x)
+
           std::string str_buff_size = literal_type[2];
           int buff_size = std::stoi(str_buff_size);
-          if (convert_hex_literal(the_value, new_expr, buff_size * 8))
-            return true;
+
+          // Buffer is sort of an array of bytes
+          typet type = array_typet(unsigned_char_type(), from_integer(buff_size, size_type()));
+          exprt buff_inits = gen_zero(type);
+
+          // the string value should be 2xbuff_size long
+          // one byte = 2 characters
+        
+          int i = 0;
+          int value_length = the_value.length();
+          for (i = 0; i < value_length / 2; i++)
+          {
+            unsigned int buff_elem = std::stoi(the_value.substr(i*2, 2),nullptr,16);
+            exprt val = constant_exprt(buff_elem, unsigned_char_type());
+            buff_inits.operands().at(i) = val;
+          }
+
+            // Handle the case where the last byte is not a complete byte
+          if (the_value.length() % 2 != 0)
+          {
+            std::string last_byte_str = the_value.substr(the_value.length() - 1, 1);
+            unsigned int last_byte = std::stoi(last_byte_str, nullptr, 16);
+            exprt last_byte_expr = constant_exprt(last_byte, unsigned_char_type());
+            buff_inits.operands().at(i) = last_byte_expr;
+          }
+
+
+          new_expr.swap(buff_inits);
+        
         }
         else{
           log_error("Invalid buff value found. Missing 0x prefix");
@@ -4498,7 +4517,7 @@ bool clarity_convertert::get_type_description(
         // int bit_width = 8 * std::stoi(str_buff_size);
         // new_type = unsignedbv_typet(bit_width);
         
-        if (get_elementary_type_name_bytesn(type_name, new_type))
+        if (get_elementary_type_name_buff(type_name, new_type))
           return true;
 
    
@@ -5037,6 +5056,23 @@ bool clarity_convertert::get_elementary_type_name_int(
   return false;
 }
 
+
+bool clarity_convertert::get_elementary_type_name_buff(
+  const nlohmann::json &objtype,
+  typet &out)
+{
+  /*
+    bytes1 has size of 8 bits (possible values 0x00 to 0xff),
+    which you can implicitly convert to uint8 (unsigned integer of size 8 bits) but not to int8
+  */
+  
+  std::string str_buff_size = objtype[2];
+  const unsigned int bytes = std::stoi(str_buff_size);
+  out = array_typet(unsigned_char_type(),from_integer(bytes,size_type()));
+
+  return false;
+}
+
 bool clarity_convertert::get_elementary_type_name_bytesn(
   const nlohmann::json &objtype,
   typet &out)
@@ -5138,7 +5174,8 @@ bool clarity_convertert::get_elementary_type_name(
   case ClarityGrammar::ElementaryTypeNameT::BUFF:
   {
   
-    if (get_elementary_type_name_bytesn(objtype, new_type))
+    
+    if (get_elementary_type_name_buff(objtype, new_type))
        return true;
    
     // for type conversion
