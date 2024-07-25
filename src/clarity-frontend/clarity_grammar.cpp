@@ -83,6 +83,16 @@ bool operation_is_unary(const nlohmann::json & ast_node)
     return false;
 }
 
+bool operation_is_optional(const nlohmann::json & ast_node)
+{
+  const std::vector<std::string> conditional_operators {"some"};
+  
+  if (std::find(conditional_operators.begin(), conditional_operators.end(), ast_node[0]) != conditional_operators.end())
+    return true;
+  else
+    return false;
+}
+
 bool operation_is_conditional(const nlohmann::json & ast_node)
 {
   const std::vector<std::string> conditional_operators {"if"};
@@ -108,6 +118,10 @@ bool get_operation_type(nlohmann::json & expression_node)
   else if(operation_is_conditional(value_node))
   {
     expression_node[1]["expressionType"] = "Conditional";
+  }
+  else if (value_node[0] == "tuple")
+  {
+    expression_node[1]["expressionType"] = "TupleExpression";
   }
   else
   {
@@ -253,7 +267,7 @@ TypeNameT get_type_name_t(const nlohmann::json &type_name)
   //! Order matters
    
     const std::string typeString = type_name[0];      //type name
-    const std::string typeIdentifier = type_name[1];  //type identifier
+    const std::string typeIdentifier = ""; //FIXME: we can't have type_name[1];  as it's not valid for tuples
     
   if (typeString != "ParameterList") // if (type_name.contains("typeString"))
   {
@@ -263,7 +277,7 @@ TypeNameT get_type_name_t(const nlohmann::json &type_name)
     // we must first handle tuple
     // otherwise we might parse tuple(literal_string, literal_string)
     // as ElementaryTypeName
-    if (typeString.compare(0, 6, "tuple(") == 0)
+    if (typeString == "tuple")
     {
       return TupleTypeName;
     }
@@ -279,7 +293,7 @@ TypeNameT get_type_name_t(const nlohmann::json &type_name)
     }
     else if (typeString == "list")
     {
-     //buff in clarity can be considered as array of bytes
+     //list in clarity can be considered as array of bytes
 
       return ArrayTypeName;
     }
@@ -420,9 +434,9 @@ ElementaryTypeNameT get_elementary_type_name_t(const nlohmann::json &type_name)
     // TODO
     return STRING_UTF8;
   }
-  if (typeString == "address")
+  if (typeString == "principal")
   {
-    return ADDRESS;
+    return PRINCIPAL;
   }
   if (bytesn_to_type_map.count(typeString))
   {
@@ -450,7 +464,7 @@ const char *elementary_type_name_to_str(ElementaryTypeNameT type)
     ENUM_TO_STR(INT)
     ENUM_TO_STR(INT_LITERAL)
     ENUM_TO_STR(BOOL)
-    ENUM_TO_STR(ADDRESS)
+    ENUM_TO_STR(PRINCIPAL)
     ENUM_TO_STR(STRING_ASCII)
     ENUM_TO_STR(STRING_ASCII_LITERAL)
     ENUM_TO_STR(STRING_UTF8)

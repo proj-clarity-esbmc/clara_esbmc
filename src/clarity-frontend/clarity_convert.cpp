@@ -245,8 +245,9 @@ void clarity_convertert::convert_dummy_uint_literal()
 
      
         // unsigned int constant
-        exprt val;
+        exprt val ;
         convert_unsigned_integer_literal_with_type(symbolType,"23",val);
+      
       //   BigInt const_value = string2integer("23");
       //   /*
         
@@ -1225,6 +1226,7 @@ bool clarity_convertert::convert()
         {
           log_status("Parsing {} {} ",expr[0].get<std::string>(), expr[1]["identifier"].get<std::string>());
          
+          add_dummy_symbol();
           if (ClarityGrammar::parse_expression_element(expr))
           {
             log_error("Invalid expression element");
@@ -1485,6 +1487,8 @@ bool clarity_convertert::get_var_decl(
     symbol.value.zero_initializer(true);
   }
 
+  // FIXME : add exception for if we don't have value node
+
   // 6. add symbol into the context
   // just like clang-c-frontend, we have to add the symbol before converting the initial assignment
   symbolt &added_symbol = *move_symbol_to_context(symbol);
@@ -1492,6 +1496,7 @@ bool clarity_convertert::get_var_decl(
   // 7. populate init value if there is any
   code_declt decl(symbol_expr(added_symbol));
 
+  
   if (has_init)
   {
     nlohmann::json init_value =  ast_node[1]["value"];  //refer to AST parsing rules : "Rules for reading Value Node"
@@ -2875,7 +2880,7 @@ bool clarity_convertert::get_expr(
           return true;
         break;
       }
-      case ClarityGrammar::ElementaryTypeNameT::ADDRESS:
+      case ClarityGrammar::ElementaryTypeNameT::PRINCIPAL:
       {
         // 20 bytes
         if (convert_hex_literal(the_value, new_expr, 160))
@@ -2909,131 +2914,18 @@ bool clarity_convertert::get_expr(
   }
   case ClarityGrammar::ExpressionT::Tuple:
   {
-    // "nodeType": "TupleExpression":
-    //    1. InitList: uint[3] x = [1, 2, 3];
-    //    2. Operator:
-    //        - (x+1) % 2
-    //        - if( x && (y || z) )
-    //    3. TupleExpr:
-    //        - multiple returns: return (x, y);
-    //        - (x, y) = (y, x)
+    
+    /*
+      for each "component" in "objtype[1]"
+      1. get the type of the component
+      2. get the value of the component
+      3. create a new exprt for the component
+      4. add the component to the tuple
+      5. return the tuple
+    
+    */
 
-    assert(expr.contains("components"));
-    ClarityGrammar::TypeNameT type =
-      ClarityGrammar::get_type_name_t(expr["typeDescriptions"]);
-
-    switch (type)
-    {
-    // case 1
-    case ClarityGrammar::TypeNameT::ArrayTypeName:
-    {
-      assert(literal_type != nullptr);
-
-      // get elem type
-      nlohmann::json elem_literal_type =
-        make_array_elementary_type(literal_type);
-
-      // get size
-      exprt size;
-      size = constant_exprt(
-        integer2binary(expr["components"].size(), bv_width(int_type())),
-        integer2string(expr["components"].size()),
-        int_type());
-
-      // get array type
-      typet arr_type;
-      if (get_type_description(literal_type, arr_type))
-        return true;
-
-      // reallocate array size
-      arr_type = array_typet(arr_type.subtype(), size);
-
-      // declare static array tuple
-      exprt inits;
-      inits = gen_zero(arr_type);
-
-      // populate array
-      int i = 0;
-      for (const auto &arg : expr["components"].items())
-      {
-        exprt init;
-        if (get_expr(arg.value(), elem_literal_type, init))
-          return true;
-
-        inits.operands().at(i) = init;
-        i++;
-      }
-
-      new_expr = inits;
-      break;
-    }
-
-    // case 3
-    case ClarityGrammar::TypeNameT::TupleTypeName: // case 3
-    {
-      /*
-      we assume there are three types of tuple expr:
-      0. dump: (x,y);
-      1. fixed: (x,y) = (y,x);
-      2. function-related:
-          2.1. (x,y) = func();
-          2.2. return (x,y);
-
-      case 0:
-        1. create a struct type
-        2. create a struct type instance
-        3. new_expr = instance
-        e.g.
-        (x , y) ==>
-        struct Tuple
-        {
-          uint x,
-          uint y
-        };
-        Tuple tuple;
-
-      case 1:
-        1. add special handling in binary operation.
-           when matching struct_expr A = struct_expr B,
-           divided into A.operands()[i] = B.operands()[i]
-           and populated into a code_block.
-        2. new_expr = code_block
-        e.g.
-        (x, y) = (1, 2) ==>
-        {
-          tuple.x = 1;
-          tuple.y = 2;
-        }
-        ? any potential scope issue?
-
-      case 2:
-        1. when parsing the funciton definition, if the returnParam > 1
-           make the function return void instead, and create a struct type
-        2. when parsing the return statement, if the return value is a tuple,
-           create a struct type instance, do assignments,  and return empty;
-        3. when the lhs is tuple and rhs is func_call, get_tuple_instance_expr based
-           on the func_call, and do case 1.
-        e.g.
-        function test() returns (uint, uint)
-        {
-          return (1,2);
-        }
-        ==>
-        struct Tuple
-        {
-          uint x;
-          uint y;
-        }
-        function test()
-        {
-          Tuple tuple;
-          tuple.x = 1;
-          tuple.y = 2;
-          return;
-        }
-      */
-
-      // 1. construct struct type
+     // 1. construct struct type
       if (get_tuple_definition(expr))
         return true;
 
@@ -3041,17 +2933,177 @@ bool clarity_convertert::get_expr(
       if (get_tuple_instance(expr, new_expr))
         return true;
 
-      break;
-    }
+  //  nlohmann::json objtype = expr[1]["objtype"][1];
+  //  //std::cout <<objtype.dump(4)<<std::endl;
 
-    // case 2
-    default:
-    {
-      if (get_expr(expr["components"][0], literal_type, new_expr))
-        return true;
-      break;
-    }
-    }
+  
+
+  //  //for loop to iterate over all keys of objtype
+  //   //for (nlohmann::json::iterator itr = src_ast_json.begin(); itr != src_ast_json.end();
+  //   for (nlohmann::json::iterator it = objtype.begin(); it != objtype.end(); ++it)
+  //   {
+  //     //get the type of the component
+  //     nlohmann::json component_type = it.value();
+  //     std::string tuple_key = it.key();
+  //     ClarityGrammar::TypeNameT type =ClarityGrammar::get_type_name_t(component_type);
+      
+  //     //Fixme: right now it only handles elementary types
+  //     // we will need to pass it the whole get_expr function to handle more complex types. 
+  //     // recursive call to get_expr
+  //     ClarityGrammar::ElementaryTypeNameT type_name = ClarityGrammar::get_elementary_type_name_t(component_type);
+
+  //     /* Create a temporary JSON object to ease processing */
+  //     nlohmann::json temp_expression_node;
+  //     temp_expression_node["expressionType"] = "Literal";
+  //     temp_expression_node["span"] = expr[1]["span"];
+  //     temp_expression_node["identifier"] = tuple_key;
+  //     temp_expression_node["cid"] = expr[1]["cid"];
+  //     temp_expression_node["objtype"] = component_type;
+  //     temp_expression_node["value"] = expr[1]["value"][1][tuple_key];
+
+      
+  //     nlohmann::json temp_declarative_node = {"tuple", temp_expression_node};
+
+      
+  //     //std::string the_value = expr[1][tuple_key].get<std::string>();
+  //     std::cout <<temp_declarative_node.dump(4)<<std::endl;
+
+     
+  //   }
+// older code
+    // assert(expr.contains("components"));
+    
+
+    // switch (type)
+    // {
+    // // case 1
+    // case ClarityGrammar::TypeNameT::ArrayTypeName:
+    // {
+    //   assert(literal_type != nullptr);
+
+    //   // get elem type
+    //   nlohmann::json elem_literal_type =
+    //     make_array_elementary_type(literal_type);
+
+    //   // get size
+    //   exprt size;
+    //   size = constant_exprt(
+    //     integer2binary(expr["components"].size(), bv_width(int_type())),
+    //     integer2string(expr["components"].size()),
+    //     int_type());
+
+    //   // get array type
+    //   typet arr_type;
+    //   if (get_type_description(literal_type, arr_type))
+    //     return true;
+
+    //   // reallocate array size
+    //   arr_type = array_typet(arr_type.subtype(), size);
+
+    //   // declare static array tuple
+    //   exprt inits;
+    //   inits = gen_zero(arr_type);
+
+    //   // populate array
+    //   int i = 0;
+    //   for (const auto &arg : expr["components"].items())
+    //   {
+    //     exprt init;
+    //     if (get_expr(arg.value(), elem_literal_type, init))
+    //       return true;
+
+    //     inits.operands().at(i) = init;
+    //     i++;
+    //   }
+
+    //   new_expr = inits;
+    //   break;
+    // }
+
+    // // case 3
+    // case ClarityGrammar::TypeNameT::TupleTypeName: // case 3
+    // {
+    //   /*
+    //   we assume there are three types of tuple expr:
+    //   0. dump: (x,y);
+    //   1. fixed: (x,y) = (y,x);
+    //   2. function-related:
+    //       2.1. (x,y) = func();
+    //       2.2. return (x,y);
+
+    //   case 0:
+    //     1. create a struct type
+    //     2. create a struct type instance
+    //     3. new_expr = instance
+    //     e.g.
+    //     (x , y) ==>
+    //     struct Tuple
+    //     {
+    //       uint x,
+    //       uint y
+    //     };
+    //     Tuple tuple;
+
+    //   case 1:
+    //     1. add special handling in binary operation.
+    //        when matching struct_expr A = struct_expr B,
+    //        divided into A.operands()[i] = B.operands()[i]
+    //        and populated into a code_block.
+    //     2. new_expr = code_block
+    //     e.g.
+    //     (x, y) = (1, 2) ==>
+    //     {
+    //       tuple.x = 1;
+    //       tuple.y = 2;
+    //     }
+    //     ? any potential scope issue?
+
+    //   case 2:
+    //     1. when parsing the funciton definition, if the returnParam > 1
+    //        make the function return void instead, and create a struct type
+    //     2. when parsing the return statement, if the return value is a tuple,
+    //        create a struct type instance, do assignments,  and return empty;
+    //     3. when the lhs is tuple and rhs is func_call, get_tuple_instance_expr based
+    //        on the func_call, and do case 1.
+    //     e.g.
+    //     function test() returns (uint, uint)
+    //     {
+    //       return (1,2);
+    //     }
+    //     ==>
+    //     struct Tuple
+    //     {
+    //       uint x;
+    //       uint y;
+    //     }
+    //     function test()
+    //     {
+    //       Tuple tuple;
+    //       tuple.x = 1;
+    //       tuple.y = 2;
+    //       return;
+    //     }
+    //   */
+
+    //   // 1. construct struct type
+    //   if (get_tuple_definition(expr))
+    //     return true;
+
+    //   //2. construct struct_type instance
+    //   if (get_tuple_instance(expr, new_expr))
+    //     return true;
+
+    //   break;
+    // }
+
+    // // case 2
+    // default:
+    // {
+    //   if (get_expr(expr["components"][0], literal_type, new_expr))
+    //     return true;
+    //   break;
+    // }
+    // }
 
     break;
   }
@@ -4556,6 +4608,8 @@ bool clarity_convertert::get_type_description(
 
   case ClarityGrammar::TypeNameT::ContractTypeName:
   {
+    // ToDo
+    // FIXME
     // e.g. ContractName tmp = new ContractName(Args);
 
     std::string constructor_name = type_name["typeString"].get<std::string>();
@@ -4624,7 +4678,7 @@ bool clarity_convertert::get_type_description(
   }
   case ClarityGrammar::TypeNameT::TupleTypeName:
   {
-    // do nothing as it won't be used
+    
     new_type = struct_typet();
     new_type.set("#cpp_type", "void");
     new_type.set("#clar_type", "tuple");
@@ -4787,34 +4841,32 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node)
   get_default_symbol(symbol, debug_modulename, t, name, id, location_begin);
   symbolt &added_symbol = *move_symbol_to_context(symbol);
 
-  auto &args = ast_node.contains("components")
-                 ? ast_node["components"]
-                 : ast_node["returnParameters"]["parameters"];
-
+  
   // populate params
   //TODO: flatten the nested tuple (e.g. ((x,y),z) = (func(),1); )
   size_t counter = 0;
-  for (const auto &arg : args.items())
+  nlohmann::json objtype = ast_node[1]["objtype"][1];
+  //std::cout <<objtype.dump(4)<<std::endl;
+
+  //  //for loop to iterate over all keys of objtype
+  for (nlohmann::json::iterator it = objtype.begin(); it != objtype.end(); ++it) 
   {
-    if (arg.value().is_null())
-    {
-      ++counter;
-      continue;
-    }
+    
 
     struct_typet::componentt comp;
 
     // manually create a member_name
     // follow the naming rule defined in get_var_decl_name
     assert(!current_contractName.empty());
-    const std::string mem_name = "mem" + std::to_string(counter);
+    //const std::string mem_name = "mem" + std::to_string(counter);
+    const std::string mem_name = it.key();
     const std::string mem_id = "clar:@C@" + current_contractName + "@" + name +
                                "@" + mem_name + "#" +
-                               i2string(ast_node["id"].get<std::int16_t>());
+                               i2string(ast_node[1]["cid"].get<std::int16_t>());
 
     // get type
     typet mem_type;
-    if (get_type_description(arg.value()["typeDescriptions"], mem_type))
+    if (get_type_description(it.value(), mem_type))
       return true;
 
     // construct comp
@@ -4873,55 +4925,74 @@ bool clarity_convertert::get_tuple_instance(
   get_default_symbol(symbol, debug_modulename, t, name, id, location_begin);
   symbolt &added_symbol = *move_symbol_to_context(symbol);
 
-  if (!ast_node.contains("components"))
-  {
-    // assume it's function return parameter list
-    // therefore no initial value
-    new_expr = symbol_expr(added_symbol);
+  // not needed for clarity
+  // keeping for reference purpose only
+  // FIXME
 
-    return false;
-  }
+  // if (!ast_node.contains("components"))
+  // {
+  //   // assume it's function return parameter list
+  //   // therefore no initial value
+  //   new_expr = symbol_expr(added_symbol);
+
+  //   return false;
+  // }
 
   // populate initial value
-  // e.g. (1,2) ==> Tuple tuple = Tuple(1,2);
-  //! since there is no tuple type variable in clarity
-  // we can just convert it as inital value instead of assignment
-  //? should we set the default value as zero?
+  
 
   exprt inits = gen_zero(t);
-  auto &args = ast_node["components"];
+  nlohmann::json objtype = ast_node[1]["objtype"];
 
   size_t i = 0;
-  size_t j = 0;
-  unsigned is = inits.operands().size();
-  unsigned as = args.size();
+  int is = inits.operands().size();
+  int as = objtype[2].get<int>();
   assert(is <= as);
 
-  while (i < is && j < as)
-  {
-    if (args.at(j).is_null())
+  for (nlohmann::json::iterator it = objtype[1].begin(); it != objtype[1].end(); ++it)
     {
-      ++j;
-      continue;
+      //get the type of the component
+      nlohmann::json component_type = it.value();
+      std::string tuple_key = it.key();
+      ClarityGrammar::TypeNameT type =ClarityGrammar::get_type_name_t(component_type);
+      
+      //Fixme: right now it only handles elementary types
+      // we will need to pass it the whole get_expr function to handle more complex types. 
+      // recursive call to get_expr
+      ClarityGrammar::ElementaryTypeNameT type_name = ClarityGrammar::get_elementary_type_name_t(component_type);
+
+      /* Create a temporary JSON object to ease processing */
+      nlohmann::json temp_expression_node;
+      temp_expression_node["expressionType"] = "Literal";
+      temp_expression_node["span"] = ast_node[1]["span"];
+      temp_expression_node["identifier"] = tuple_key;
+      temp_expression_node["cid"] = ast_node[1]["cid"];
+      temp_expression_node["objtype"] = component_type;
+      temp_expression_node["value"] = ast_node[1]["value"][1][tuple_key];
+
+      
+      nlohmann::json temp_declarative_node = {"tuple", temp_expression_node};
+
+      
+      //std::string the_value = expr[1][tuple_key].get<std::string>();
+      std::cout <<temp_declarative_node.dump(4)<<std::endl;
+      exprt init;
+      if (get_expr(temp_declarative_node, component_type, init))
+        return true;
+
+      const struct_union_typet::componentt *c =
+      &to_struct_type(t).components().at(i);
+      typet elem_type = c->type();
+
+      clarity_gen_typecast(ns, init, elem_type);
+      inits.operands().at(i) = init;
+
+      // update
+      ++i;
+     
     }
 
-    exprt init;
-    const nlohmann::json &litera_type = args.at(j)["typeDescriptions"];
 
-    if (get_expr(args.at(j), litera_type, init))
-      return true;
-
-    const struct_union_typet::componentt *c =
-      &to_struct_type(t).components().at(i);
-    typet elem_type = c->type();
-
-    clarity_gen_typecast(ns, init, elem_type);
-    inits.operands().at(i) = init;
-
-    // update
-    ++i;
-    ++j;
-  }
 
   added_symbol.value = inits;
   new_expr = added_symbol.value;
@@ -4934,7 +5005,7 @@ void clarity_convertert::get_tuple_name(
   std::string &name,
   std::string &id)
 {
-  name = "tuple" + std::to_string(ast_node["id"].get<int>());
+  name = "tuple_" + ast_node[1]["identifier"].get<std::string>()+ "#" + std::to_string(ast_node[1]["cid"].get<int>());
   id = prefix + "struct " + name;
 }
 
@@ -4949,7 +5020,7 @@ bool clarity_convertert::get_tuple_instance_name(
   if (c_name.empty())
     return true;
 
-  name = "tuple_instance" + std::to_string(ast_node["id"].get<int>());
+  name = "tuple_instance_" + ast_node[1]["identifier"].get<std::string>()+ "#"+ std::to_string(ast_node[1]["cid"].get<int>());
   id = "clar:@C@" + c_name + "@" + name;
   return false;
 }
@@ -5158,18 +5229,30 @@ bool clarity_convertert::get_elementary_type_name(
         int_type()));
     break;
   }
-  case ClarityGrammar::ElementaryTypeNameT::ADDRESS:
+  case ClarityGrammar::ElementaryTypeNameT::PRINCIPAL:
   {
-    //  An Address is a DataHexString of 20 bytes (uint160)
-    // e.g. 0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984
-    // ops: <=, <, ==, !=, >= and >
+    /// obj[2] contains size of object
+    std::string str_value_length =  objtype[2];
+    size_t value_length = std::stoi(str_value_length);
 
-    new_type = unsignedbv_typet(160);
-
-    // for type conversion
-    new_type.set("#clar_type", elementary_type_name_to_str(type));
+    if (value_length > 1)
+    {
+      log_error("Principal type can only have one byte");
+      return true;
+    }
+    else{
+      
+      new_type = array_typet(
+      signed_char_type(),
+      constant_exprt(
+        integer2binary(value_length, bv_width(int_type())),
+        integer2string(value_length),
+        int_type()));
 
     break;
+    }
+
+    
   }
   case ClarityGrammar::ElementaryTypeNameT::BUFF:
   {

@@ -81,7 +81,7 @@ enum ElementaryTypeNameT
   BOOL,
 
   // rule address
-  ADDRESS,
+  PRINCIPAL,
 
   // rule string
   // TODO: it's always (string-ascii <max-size>) or (string-utf8 <max-size>)
