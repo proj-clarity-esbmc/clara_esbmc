@@ -25,7 +25,6 @@ clarity_languaget::clarity_languaget()
   if (!fun.empty())
     func_name = fun;
 
-
   std::string clar = config.options.get_option("clar");
   if (clar.empty())
 
@@ -77,7 +76,7 @@ bool clarity_languaget::parse(const std::string &path)
   auto clar_lang = std::exchange(config.language, {language_idt::C, ""});
   if (clang_c_languaget::parse(temp_path))
     return true;
-    
+
   config.language = std::move(clar_lang);
 
   // Process AST json file
@@ -116,8 +115,7 @@ bool clarity_languaget::parse(const std::string &path)
   return false;
 }
 
-
-// ToDo : to review this function 
+// ToDo : to review this function
 bool clarity_languaget::convert_intrinsics(contextt &context)
 {
   clang_c_convertert converter(context, AST, "C++");
@@ -133,12 +131,10 @@ bool clarity_languaget::typecheck(contextt &context, const std::string &module)
   convert_intrinsics(
     new_context); // Add ESBMC and TACAS intrinsic symbols to the context
 
-
   clarity_convertert converter(
     new_context, src_ast_json, func_name, smart_contract);
   if (converter.convert()) // Add Clarity symbols to the context
     return true;
-
 
   // migrate from clang_c_adjust to clang_cpp_adjust
   // for the reason that we need clang_cpp_adjust::adjust_side_effect
