@@ -47,6 +47,15 @@ bool is_state_variable(const nlohmann::json & ast_node)
     return false;
 }
 
+bool is_tuple_declaration(const nlohmann::json & ast_node)
+{
+  
+  if (ast_node[1]["objtype"][0] == "tuple")
+    return true;
+  else
+    return false;
+}
+
 bool is_variable_declaration(const nlohmann::json & ast_node)
 {
   
