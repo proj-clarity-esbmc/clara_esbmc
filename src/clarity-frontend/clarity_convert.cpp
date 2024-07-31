@@ -33,80 +33,46 @@ clarity_convertert::clarity_convertert(
     current_contractName(""),
     scope_map({}),
     tgt_func(config.options.get_option("function")),
-    //tgt_cnt(config.options.get_option("contract"))
-    tgt_cnt("basic_dummy")
+    tgt_cnt(config.options.get_option("clar_contract"))
+
 {
   std::ifstream in(_contract_path);
   contract_contents.assign(
     (std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
 }
 
-bool clarity_convertert::is_state_variable(const nlohmann::json & ast_node)
-{
-  const std::vector<std::string> state_node_types {"data-var" , "map" , "trait" , "constant" , "def-ft" , "def-nft"};
-  
-  if (std::find(state_node_types.begin(), state_node_types.end(), ast_node[0]) != state_node_types.end())
-    return true;
-  else
-    return false;
-}
-
-bool clarity_convertert::is_variable_declaration(const nlohmann::json & ast_node)
-{
-  
-  return is_state_variable(ast_node);
-}
-
 // takes first param as input ast_node, the second param is output param where the node represents the objtype node inside an Ast_node
-void clarity_convertert::get_objtype_node(const nlohmann::json & ast_node, nlohmann::json & objtype_node)
+void clarity_convertert::get_objtype_node(
+  const nlohmann::json &ast_node,
+  nlohmann::json &objtype_node)
 {
   objtype_node = ast_node[1]["objtype"];
 }
 // takes objtype node as input param
-std::string clarity_convertert::get_objtype_type_name(const nlohmann::json & objtype_node)
+std::string
+clarity_convertert::get_objtype_type_name(const nlohmann::json &objtype_node)
 {
   return objtype_node[0];
 }
-std::string clarity_convertert::get_objtype_type_identifier(const nlohmann::json & objtype_node)
+std::string clarity_convertert::get_objtype_type_identifier(
+  const nlohmann::json &objtype_node)
 {
   return objtype_node[1];
 }
-std::string clarity_convertert::get_objtype_type_size(const nlohmann::json & objtype_node)
+std::string
+clarity_convertert::get_objtype_type_size(const nlohmann::json &objtype_node)
 {
   return objtype_node[2];
 }
 
-// Fixme
-// we might not need it as this was just to satisfy Solidity frontend.
-
-void clarity_convertert::insert_dummy_objType(nlohmann::json & ast_node, std::string type_name, int type_size)
+bool clarity_convertert::process_define_data_var(nlohmann::json &ast_node)
 {
-
-  //FIXME this needs to be made generic. too sleepy to do it right now. just need to verify conversion
-  // objtype : ['type name', 'type identifier', 'type size']
-  // example 1 : ['string-ascii','string-ascii','string.length()']
-  // exmaple 2:  ['uint', 'uint_128', '128 ]
-  // m-ali
-
-  
-    ast_node[1]["objtype"] = {type_name, type_name+std::string("_128"), type_size};
-
-    log_status("Dummy objtype node inserted ");
-    std::cout << std::setw(4) << ast_node[1] << "\n";
-    
-  //   ast_node[1].insert(dummyObjType.begin(), dummyObjType.end());
-
-}
-bool clarity_convertert::process_define_data_var(nlohmann::json & ast_node)
-{
-
   ast_node[0]["nodeType"] = "VariableDeclaration";
 
   return false;
-
 }
 
-bool clarity_convertert::process_define_constant(nlohmann::json & ast_node)
+bool clarity_convertert::process_define_constant(nlohmann::json &ast_node)
 {
   /* CASE 1 : 
    {    "identifier": "fixed",
@@ -120,232 +86,220 @@ bool clarity_convertert::process_define_constant(nlohmann::json & ast_node)
         "value": "fixed constant value"
       }*/
 
-    std::string identifier_name = ast_node[1]["identifier"];
-    int id = ast_node[1]["id"];
-    int start_line = ast_node[1]["span"]["start_line"];
-    int start_column = ast_node[1]["span"]["start_column"];
-    std::string identifier_value = "";
-    std::string type_name = std::string(ast_node[1]["value"].type_name());
+  std::string identifier_name = ast_node[1]["identifier"];
+  int id = ast_node[1]["id"];
+  int start_line = ast_node[1]["span"]["start_line"];
+  int start_column = ast_node[1]["span"]["start_column"];
+  std::string identifier_value = "";
+  std::string type_name = std::string(ast_node[1]["value"].type_name());
 
-   
-   // insert a node type information to be used later in get_expression_t()
-    
-    ast_node[1]["nodeType"] = "VariableDeclaration";
-    // we will add expression type depending on the value node rules in each of the 
-    // following if cases
+  // insert a node type information to be used later in get_expression_t()
 
-    if ( type_name == "string")
-    {
-      ast_node[1]["expressionType"] = "Literal";
-      identifier_value = ast_node[1]["value"];
-      int type_size = 128;
-      // "u10" for uint 10, 10 for int value of 10.
-      if (type_name.find("u"))
-        //type_name = "uint";
-        type_name = "uint_const";
-      else
-        type_name = "int";
+  ast_node[1]["nodeType"] = "VariableDeclaration";
+  // we will add expression type depending on the value node rules in each of the
+  // following if cases
 
-      insert_dummy_objType(ast_node, type_name , type_size);
-      
-    }
-    else if ( type_name == "number")
-    {
-      ast_node[1]["expressionType"] = "Literal";
-      identifier_value = std::to_string(ast_node[1]["value"].get<double>());
-      // the type could be uint , int , double, float.
-      // 128 represents 128-bit
-      insert_dummy_objType(ast_node, "uint" , 128);
-    }
-    else if (type_name == "array")
-    {
-      std::cout << " It's a list, so probably a function / operator \n";
-    }
-    else if (type_name == "object")
-    {
-      std::cout << " It's an object, so probably contains lit_ascii \n";
-    }
+  if (type_name == "string")
+  {
+    ast_node[1]["expressionType"] = "Literal";
+    identifier_value = ast_node[1]["value"];
+    int type_size = 128;
+    // "u10" for uint 10, 10 for int value of 10.
+    if (type_name.find("u"))
+      //type_name = "uint";
+      type_name = "uint_const";
     else
-    {
-      identifier_value = "invalid value";
-    }
-    
-    std::cout <<"Constant Definition" <<" of : " <<identifier_name<< " | value : " <<identifier_value<<" found @ "<<start_line<< ":" <<start_column <<"\n";
+      type_name = "int";
 
-    if (convert_ast_nodes(ast_node))
-        return true;
-    
-                    
+    //insert_dummy_objType(ast_node, type_name , type_size);
+  }
+  else if (type_name == "number")
+  {
+    ast_node[1]["expressionType"] = "Literal";
+    identifier_value = std::to_string(ast_node[1]["value"].get<double>());
+    // the type could be uint , int , double, float.
+    // 128 represents 128-bit
+    //insert_dummy_objType(ast_node, "uint" , 128);
+  }
+  else if (type_name == "array")
+  {
+    std::cout << " It's a list, so probably a function / operator \n";
+  }
+  else if (type_name == "object")
+  {
+    std::cout << " It's an object, so probably contains lit_ascii \n";
+  }
+  else
+  {
+    identifier_value = "invalid value";
+  }
+
+  std::cout << "Constant Definition"
+            << " of : " << identifier_name << " | value : " << identifier_value
+            << " found @ " << start_line << ":" << start_column << "\n";
 
   return false;
-
 }
 
-bool clarity_convertert::process_define_map(nlohmann::json & ast_node)
+bool clarity_convertert::process_define_map(nlohmann::json &ast_node)
 {
   return false;
-
 }
 
-bool clarity_convertert::process_expr_node(nlohmann::json & ast_node)
+bool clarity_convertert::process_expr_node(nlohmann::json &ast_node)
 {
   auto expr = ast_node;
   // process expr node;
-            if (expr["expr"].contains("List"))
+  if (expr["expr"].contains("List"))
+  {
+    // process expression
+    auto vec_expr_list = expr["expr"]["List"];
+
+    // process list
+    for (auto &list_expr : vec_expr_list)
+    {
+      // process each list item
+      if (list_expr.contains("expr"))
+      {
+        auto t_expr = list_expr["expr"];
+
+        if (t_expr.contains("Atom"))
+        {
+          // id will always be an integer.
+          int node_id = list_expr["id"];
+          int start_line = list_expr["span"]["start_line"];
+          int start_column = list_expr["span"]["start_column"];
+          std::string t_expr_type = t_expr["Atom"];
+          std::cout << "Expression of type : " << t_expr_type << " found @ "
+                    << start_line << ":" << start_column << "\n";
+        }
+        else if (t_expr.contains("LiteralValue"))
+        {
+          auto t_expr_literalValue = t_expr["LiteralValue"];
+          std::string t_expr_d_type;  // = t_expr_literalValue.first;
+          std::string t_expr_d_value; // = t_expr_literalValue.second;
+          for (auto &[key, value] : t_expr_literalValue.items())
+          {
+            if (key == "Principal")
             {
-              // process expression
-              auto vec_expr_list = expr["expr"]["List"];
-
-              // process list
-              for (auto &list_expr: vec_expr_list)
+              t_expr_d_type = "Principal_";
+              auto t_principal = t_expr_literalValue["Principal"];
+              for (auto &[principal_key, principal_value] : t_principal.items())
               {
-                // process each list item 
-                if (list_expr.contains("expr"))
-                {
-                  auto t_expr = list_expr["expr"];
-                  
-                  if (t_expr.contains("Atom"))
-                  {
-                      // id will always be an integer.
-                    int node_id = list_expr["id"];  
-                    int start_line = list_expr["span"]["start_line"];
-                    int start_column = list_expr["span"]["start_column"];
-                    std::string t_expr_type = t_expr["Atom"];
-                    std::cout <<"Expression of type : " <<t_expr_type<< " found @ "<<start_line<< ":" <<start_column <<"\n";
-                    
-                  }
-                  else if (t_expr.contains("LiteralValue"))
-                  {
-                    auto t_expr_literalValue = t_expr["LiteralValue"];
-                    std::string t_expr_d_type; // = t_expr_literalValue.first;
-                    std::string t_expr_d_value; // = t_expr_literalValue.second;
-                    for (auto & [key, value]: t_expr_literalValue.items())
-                    {
-                      
-                      if (key == "Principal")
-                      {
-                        t_expr_d_type = "Principal_";
-                        auto t_principal = t_expr_literalValue["Principal"];
-                        for (auto & [principal_key,principal_value]: t_principal.items())
-                        {
-                          t_expr_d_type += principal_key;
-                          t_expr_d_value = "STN" + principal_key;
-                        }
-
-                      }
-                      else
-                      {
-                        t_expr_d_type = key;
-                        t_expr_d_value = value;
-                        
-                      }
-                      std::cout <<"Literal Value : Type " <<key<< " Value "<<value <<"\n";
-
-                    }
-                  }
-                  
-                }
+                t_expr_d_type += principal_key;
+                t_expr_d_value = "STN" + principal_key;
               }
-              std::cout <<"\n--------- \n";
             }
             else
             {
-              std::cout <<"Incomplete expression \n";
+              t_expr_d_type = key;
+              t_expr_d_value = value;
             }
-            return false;
+            std::cout << "Literal Value : Type " << key << " Value " << value
+                      << "\n";
+          }
+        }
+      }
+    }
+    std::cout << "\n--------- \n";
+  }
+  else
+  {
+    std::cout << "Incomplete expression \n";
+  }
+  return false;
 }
-
 
 void clarity_convertert::convert_dummy_uint_literal()
 {
-      
-      typet symbolType = unsignedbv_typet(128);
-      std::string varName = "myVar";
-      std::string varId = "clar:@C@basicDummy@" + varName + "#123";
+  typet symbolType = unsignedbv_typet(128);
+  std::string varName = "myVar";
+  std::string varId = "clar:@C@basicDummy@" + varName + "#123";
 
-      locationt locationBegin;
-      locationBegin.set_line("293");
-      locationBegin.set_file("basicDummy.clar");
+  locationt locationBegin;
+  locationBegin.set_line("293");
+  locationBegin.set_file("basicDummy.clar");
 
-      std::string debugModuleName = locationBegin.file().as_string();
+  std::string debugModuleName = locationBegin.file().as_string();
 
-      symbolt symbol;
-      get_default_symbol(symbol,debugModuleName,symbolType,varName,varId,locationBegin);
+  symbolt symbol;
+  get_default_symbol(
+    symbol, debugModuleName, symbolType, varName, varId, locationBegin);
 
-      bool is_state_var = true;
+  bool is_state_var = true;
 
-      symbol.lvalue = true;
-      symbol.static_lifetime = is_state_var;
-      symbol.file_local = !is_state_var;
-      symbol.is_extern = false;
+  symbol.lvalue = true;
+  symbol.static_lifetime = is_state_var;
+  symbol.file_local = !is_state_var;
+  symbol.is_extern = false;
 
-      symbolt &addedSymbol = *move_symbol_to_context(symbol);
+  symbolt &addedSymbol = *move_symbol_to_context(symbol);
 
-     
-        // unsigned int constant
-        exprt val;
-        convert_unsigned_integer_literal_with_type(symbolType,"23",val);
-      //   BigInt const_value = string2integer("23");
-      //   /*
-        
-      //     constant_exprt constant(
-      //     integer2binary(z_ext_value, 32), // Convert the value to its binary representation
-      //     integer2string(z_ext_value),     // Human-readable string representation of the value
-      //     type                             // The type of the constant
-      // );
-      // */
-      //   val = constant_exprt(integer2binary(const_value,128),integer2string(const_value),symbolType);
-      clarity_gen_typecast(ns, val, symbolType);
-        addedSymbol.value = val;
+  // unsigned int constant
+  exprt val;
+  convert_unsigned_integer_literal_with_type(symbolType, "23", val);
 
+  //   BigInt const_value = string2integer("23");
+  //   /*
 
+  //     constant_exprt constant(
+  //     integer2binary(z_ext_value, 32), // Convert the value to its binary representation
+  //     integer2string(z_ext_value),     // Human-readable string representation of the value
+  //     type                             // The type of the constant
+  // );
+  // */
+  //   val = constant_exprt(integer2binary(const_value,128),integer2string(const_value),symbolType);
+  clarity_gen_typecast(ns, val, symbolType);
+  addedSymbol.value = val;
 
-      {
+  {
+    // Map the following equation : myResult = 23 + 50
 
-       
-       // Map the following equation : myResult = 23 + 50
+    locationt location_begin;
+    location_begin.set_line("393");
+    location_begin.set_file("basicDummy.clar");
+    std::string resultvar_name = "myResult";
+    std::string resultvar_id = "clar:@C@basicDummy@" + resultvar_name + "#333";
 
-      locationt location_begin;
-      location_begin.set_line("393");
-      location_begin.set_file("basicDummy.clar");
-      std::string resultvar_name = "myResult";
-      std::string resultvar_id = "clar:@C@basicDummy@" + resultvar_name + "#333";
-      
-      symbolt result_symbol;
-      
-      get_default_symbol(result_symbol,"basicDummy.clar",signedbv_typet(128),resultvar_name,resultvar_id,location_begin);
-      
-      result_symbol.lvalue = true;
-      result_symbol.static_lifetime = true;
-      result_symbol.file_local = false;
-      result_symbol.is_extern = false;
-    
+    symbolt result_symbol;
 
-      symbolt &addedSymbol = *move_symbol_to_context(result_symbol);
-      BigInt x = 23;
-      BigInt y = 50;
-      constant_exprt arg1 = constant_exprt(x,signedbv_typet(128));
-      constant_exprt arg2 = constant_exprt(y,signedbv_typet(128));
-    
-      plus_exprt addition(arg1,arg2);
+    get_default_symbol(
+      result_symbol,
+      "basicDummy.clar",
+      signedbv_typet(128),
+      resultvar_name,
+      resultvar_id,
+      location_begin);
 
-      clarity_gen_typecast(ns, addition, result_symbol.type);
-      addedSymbol.value = addition;
-      }
-      
-    {
+    result_symbol.lvalue = true;
+    result_symbol.static_lifetime = true;
+    result_symbol.file_local = false;
+    result_symbol.is_extern = false;
 
-        ///////////////
-        // Map the following : variable_sum = myVar + 50
-        // myVar already exists in the symbol table
-        ////////////
+    symbolt &addedSymbol = *move_symbol_to_context(result_symbol);
+    BigInt x = 23;
+    BigInt y = 50;
+    constant_exprt arg1 = constant_exprt(x, signedbv_typet(128));
+    constant_exprt arg2 = constant_exprt(y, signedbv_typet(128));
 
-        // create a symbol to hold LHS
+    plus_exprt addition(arg1, arg2);
 
-        symbolt varSumSymbol;
-        typet varSumType = unsignedbv_typet(128);
-        // a symbol needs the following attribs to be filled
-        /* 
+    clarity_gen_typecast(ns, addition, result_symbol.type);
+    addedSymbol.value = addition;
+  }
+
+  {
+    ///////////////
+    // Map the following : variable_sum = myVar + 50
+    // myVar already exists in the symbol table
+    ////////////
+
+    // create a symbol to hold LHS
+
+    symbolt varSumSymbol;
+    typet varSumType = unsignedbv_typet(128);
+    // a symbol needs the following attribs to be filled
+    /* 
         
         std::string module_name,  //for debug only
         typet type, 
@@ -354,63 +308,63 @@ void clarity_convertert::convert_dummy_uint_literal()
         locationt location)
         */
 
-      
-      std::string varSumName = "varSum";
-      std::string varSumId = "clar:@C@" + current_contractName + "@" + varSumName + "#123";
-      locationt location_begin;
-      location_begin.set_line("393");
-      location_begin.set_file("basicDummy.clar");
+    std::string varSumName = "varSum";
+    std::string varSumId =
+      "clar:@C@" + current_contractName + "@" + varSumName + "#123";
+    locationt location_begin;
+    location_begin.set_line("393");
+    location_begin.set_file("basicDummy.clar");
 
-      get_default_symbol(varSumSymbol,"basicDummy.clar",varSumType,varSumName,varSumId,location_begin);
+    get_default_symbol(
+      varSumSymbol,
+      "basicDummy.clar",
+      varSumType,
+      varSumName,
+      varSumId,
+      location_begin);
 
-      varSumSymbol.lvalue = true;
-      varSumSymbol.static_lifetime = true;
-      varSumSymbol.file_local = false;
-      varSumSymbol.is_extern = false;
+    varSumSymbol.lvalue = true;
+    varSumSymbol.static_lifetime = true;
+    varSumSymbol.file_local = false;
+    varSumSymbol.is_extern = false;
 
-      symbolt &addedSymbol = *move_symbol_to_context(varSumSymbol);
+    symbolt &addedSymbol = *move_symbol_to_context(varSumSymbol);
 
-      //for RHS we need to create an expression
-      // the expression is a binary expression
-      // the first operand is a symbol_exprt
-      // the second operand is a constant_exprt
-      // the operation is a plus_exprt
+    //for RHS we need to create an expression
+    // the expression is a binary expression
+    // the first operand is a symbol_exprt
+    // the second operand is a constant_exprt
+    // the operation is a plus_exprt
 
-      // first, look for the symbol in the symbol table as myVar has been created before
-      // if not found, create a new symbol for myVar
+    // first, look for the symbol in the symbol table as myVar has been created before
+    // if not found, create a new symbol for myVar
 
-      symbolt *myVarSymbol = context.find_symbol(varId);
+    symbolt *myVarSymbol = context.find_symbol(varId);
 
-      // if myVarSymbol is not found, create a new symbol for myVar
-      // skipping this step for now. assuming myVar is already in the symbol table
+    // if myVarSymbol is not found, create a new symbol for myVar
+    // skipping this step for now. assuming myVar is already in the symbol table
 
-      // create a symbol_exprt for myVar
-      symbol_exprt myVarExpr(myVarSymbol->name,varSumType);
-      myVarExpr.identifier(myVarSymbol->id);
+    // create a symbol_exprt for myVar
+    symbol_exprt myVarExpr(myVarSymbol->name, varSumType);
+    myVarExpr.identifier(myVarSymbol->id);
 
-      // create a constant_exprt for 50
-      constant_exprt fifty(50,varSumType);
+    // create a constant_exprt for 50
+    constant_exprt fifty(50, varSumType);
 
-      // write code to use a symbol already in the symbol table to a plus expression
+    // write code to use a symbol already in the symbol table to a plus expression
 
+    // create a plus_exprt for myVar + 50
+    plus_exprt sum(myVarExpr, fifty);
 
+    // typecast the expression
+    clarity_gen_typecast(ns, sum, varSumSymbol.type);
 
-      // create a plus_exprt for myVar + 50
-      plus_exprt sum(myVarExpr, fifty);
+    // assign the expression to the symbol
+    addedSymbol.value = sum;
+  }
 
-      // typecast the expression
-      clarity_gen_typecast(ns, sum, varSumSymbol.type);
-
-      // assign the expression to the symbol
-      addedSymbol.value = sum;
-
-
-       
-
-    }
-
-    {
-      /*
+  {
+    /*
         DEFINING STRUCTS AND USING THEM FOR SYMBOL TYPES
 
         Translate the following :
@@ -425,151 +379,167 @@ void clarity_convertert::convert_dummy_uint_literal()
         
       */
 
-      // Create a struct_typet for the principal struct
-      struct_typet principal_type;
-      std::string struct_name = "principal";
-      std::string struct_id = prefix + "struct " + struct_name;   //tag-struct principal
-      principal_type.tag("struct " + struct_name);
+    // Create a struct_typet for the principal struct
+    struct_typet principal_type;
+    std::string struct_name = "principal";
+    std::string struct_id =
+      prefix + "struct " + struct_name; //tag-struct principal
+    principal_type.tag("struct " + struct_name);
 
-      // Create a symbol for the principal variable
-      symbolt principal_symbol;
+    // Create a symbol for the principal variable
+    symbolt principal_symbol;
 
-      locationt location_begin;
-      location_begin.set_line("444");
-      location_begin.set_file("basicDummy.clar");
+    locationt location_begin;
+    location_begin.set_line("444");
+    location_begin.set_file("basicDummy.clar");
 
-      get_default_symbol(principal_symbol,"basicDummy.clar",principal_type,struct_name,struct_id,location_begin);
-      
-      principal_symbol.is_type = true;
-      //principal_symbol.static_lifetime = true;
+    get_default_symbol(
+      principal_symbol,
+      "basicDummy.clar",
+      principal_type,
+      struct_name,
+      struct_id,
+      location_begin);
 
-      // Add the principal symbol to the symbol table
-      symbolt &addedSymbol = *move_symbol_to_context(principal_symbol);
+    principal_symbol.is_type = true;
+    //principal_symbol.static_lifetime = true;
 
-      // populate the struct with fields
+    // Add the principal symbol to the symbol table
+    symbolt &addedSymbol = *move_symbol_to_context(principal_symbol);
 
-          //define typet to represent strings
-          typet string_type = array_typet(char_type(), from_integer(30, size_type())); // Array of 30 chars
+    // populate the struct with fields
 
-          // Create component types for the name and homeTeam fields
-          {
-            struct_typet::componentt name_field; 
-            std::string name_field_name = "name";
-            std::string name_field_id = "clar:@C@" + current_contractName + "@" + struct_name + "@" + name_field_name + "#123";
+    //define typet to represent strings
+    typet string_type = array_typet(
+      char_type(), from_integer(30, size_type())); // Array of 30 chars
 
-              //exprt new_expr1 ("symbol",string_type);
-              symbol_exprt new_expr1(name_field_name,string_type);
-              //new_expr1.identifier(name_field_id);
-              new_expr1.identifier(name_field_id);
-              new_expr1.name(name_field_name);
-              new_expr1.cmt_lvalue(true);
-              new_expr1.pretty_name(name_field_name);
-              name_field.swap(new_expr1);
-              
-            name_field.id("component");
-            //name_field.type().set("#member_name",name_field_name);    // this is just to represent it in a pretty way. ot has no other implication
+    // Create component types for the name and homeTeam fields
+    {
+      struct_typet::componentt name_field;
+      std::string name_field_name = "name";
+      std::string name_field_id = "clar:@C@" + current_contractName + "@" +
+                                  struct_name + "@" + name_field_name + "#123";
 
-            principal_type.components().push_back(name_field);
-          }
+      //exprt new_expr1 ("symbol",string_type);
+      symbol_exprt new_expr1(name_field_name, string_type);
+      //new_expr1.identifier(name_field_id);
+      new_expr1.identifier(name_field_id);
+      new_expr1.name(name_field_name);
+      new_expr1.cmt_lvalue(true);
+      new_expr1.pretty_name(name_field_name);
+      name_field.swap(new_expr1);
 
-          {
-            struct_typet::componentt home_team; 
-            std::string home_team_name = "homeTeam";
-            std::string home_team_id = "clar:@C@" + current_contractName + "@" + struct_name + "@" + home_team_name + "#123";
+      name_field.id("component");
+      //name_field.type().set("#member_name",name_field_name);    // this is just to represent it in a pretty way. ot has no other implication
 
-              //exprt new_expr1 ("symbol",string_type);
-              symbol_exprt new_expr1(home_team_name,string_type);
-              //new_expr1.identifier(home_team_id);
-              new_expr1.identifier(home_team_id);
-              new_expr1.name(home_team_name);
-              new_expr1.cmt_lvalue(true);
-              new_expr1.pretty_name(home_team_name);
-              home_team.swap(new_expr1);
-              
-            home_team.id("component");
-            //home_team.type().set("#member_name",home_team_name);    // this is just to represent it in a pretty way. ot has no other implication
-
-            principal_type.components().push_back(home_team);
-          }
-      
-      principal_type.location() = location_begin;
-      addedSymbol.type = principal_type;
-
-      //std::cout <<"Name field " <<principal_type.pretty() <<"\n";
-
-
-      // create an instane of the struct principal
-       { 
-        symbolt principal_instance;
-        std::string principal_instance_name = "myPrincipal";
-        std::string principal_instance_id = "clar:@C@" + current_contractName + "@" + principal_instance_name + "#123";
-        std::string principal_struct_id = "tag-struct principal";   //prefix + "struct " + struct_name
-        typet principal_type;
-        
-        if(context.find_symbol(principal_struct_id) != nullptr)
-        {
-          const symbolt* symbol = context.find_symbol(principal_struct_id);
-          principal_type = symbol->type;
-        }
-          
-        else
-          abort();
-
-        locationt principal_instance_location;
-        principal_instance_location.set_line("555");
-        principal_instance_location.set_file("basicDummy.clar");
-
-        get_default_symbol(principal_instance,"basicDummy.clar",principal_type,principal_instance_name,principal_instance_id,principal_instance_location);
-
-        principal_instance.lvalue = true;
-        principal_instance.static_lifetime = true;
-        principal_instance.file_local = false;
-        principal_instance.is_extern = false;
-
-        symbolt &added_principal_instance = *move_symbol_to_context(principal_instance);
-       }
-   
-
+      principal_type.components().push_back(name_field);
     }
 
-      
+    {
+      struct_typet::componentt home_team;
+      std::string home_team_name = "homeTeam";
+      std::string home_team_id = "clar:@C@" + current_contractName + "@" +
+                                 struct_name + "@" + home_team_name + "#123";
+
+      //exprt new_expr1 ("symbol",string_type);
+      symbol_exprt new_expr1(home_team_name, string_type);
+      //new_expr1.identifier(home_team_id);
+      new_expr1.identifier(home_team_id);
+      new_expr1.name(home_team_name);
+      new_expr1.cmt_lvalue(true);
+      new_expr1.pretty_name(home_team_name);
+      home_team.swap(new_expr1);
+
+      home_team.id("component");
+      //home_team.type().set("#member_name",home_team_name);    // this is just to represent it in a pretty way. ot has no other implication
+
+      principal_type.components().push_back(home_team);
+    }
+
+    principal_type.location() = location_begin;
+    addedSymbol.type = principal_type;
+
+    //std::cout <<"Name field " <<principal_type.pretty() <<"\n";
+
+    // create an instane of the struct principal
+    {
+      symbolt principal_instance;
+      std::string principal_instance_name = "myPrincipal";
+      std::string principal_instance_id = "clar:@C@" + current_contractName +
+                                          "@" + principal_instance_name +
+                                          "#123";
+      std::string principal_struct_id =
+        "tag-struct principal"; //prefix + "struct " + struct_name
+      typet principal_type;
+
+      if (context.find_symbol(principal_struct_id) != nullptr)
+      {
+        const symbolt *symbol = context.find_symbol(principal_struct_id);
+        principal_type = symbol->type;
+      }
+
+      else
+        abort();
+
+      locationt principal_instance_location;
+      principal_instance_location.set_line("555");
+      principal_instance_location.set_file("basicDummy.clar");
+
+      get_default_symbol(
+        principal_instance,
+        "basicDummy.clar",
+        principal_type,
+        principal_instance_name,
+        principal_instance_id,
+        principal_instance_location);
+
+      principal_instance.lvalue = true;
+      principal_instance.static_lifetime = true;
+      principal_instance.file_local = false;
+      principal_instance.is_extern = false;
+
+      symbolt &added_principal_instance =
+        *move_symbol_to_context(principal_instance);
+    }
+  }
 }
 
 void clarity_convertert::convert_dummy_string_literal()
 {
- // a string literal in ESBMC is represented as a character array.
-      // a character is an 8-bit value (unsigned 8 bit value).
-      // in ESBMC arrays are represented as array_typet. 
-      // array_type has a subtype of char (unsignedbv(8)).
-      std::string literalValue = "Ali";
-      typet subType = signed_char_type();
-      typet symbolType = array_typet(subType,from_integer(literalValue.length() + 1, size_type()));
-      std::string varName = "myString";
-      std::string varId = "clar:@C@basicDummy@" + varName + "#123";
+  // a string literal in ESBMC is represented as a character array.
+  // a character is an 8-bit value (unsigned 8 bit value).
+  // in ESBMC arrays are represented as array_typet.
+  // array_type has a subtype of char (unsignedbv(8)).
+  std::string literalValue = "Ali";
+  typet subType = signed_char_type();
+  typet symbolType =
+    array_typet(subType, from_integer(literalValue.length() + 1, size_type()));
+  std::string varName = "myString";
+  std::string varId = "clar:@C@basicDummy@" + varName + "#123";
 
-      locationt locationBegin;
-      locationBegin.set_line("293");
-      locationBegin.set_file("basicDummy.clar");
+  locationt locationBegin;
+  locationBegin.set_line("293");
+  locationBegin.set_file("basicDummy.clar");
 
-      std::string debugModuleName = locationBegin.file().as_string();
+  std::string debugModuleName = locationBegin.file().as_string();
 
-      symbolt symbol;
-      get_default_symbol(symbol,debugModuleName,symbolType,varName,varId,locationBegin);
-      bool is_state_var = true;
+  symbolt symbol;
+  get_default_symbol(
+    symbol, debugModuleName, symbolType, varName, varId, locationBegin);
+  bool is_state_var = true;
 
-      symbol.lvalue = true;
-      symbol.static_lifetime = is_state_var;
-      symbol.file_local = !is_state_var;
-      symbol.is_extern = false;
+  symbol.lvalue = true;
+  symbol.static_lifetime = is_state_var;
+  symbol.file_local = !is_state_var;
+  symbol.is_extern = false;
 
-      symbolt &addedSymbol = *move_symbol_to_context(symbol);
+  symbolt &addedSymbol = *move_symbol_to_context(symbol);
 
-        
-        exprt val;
-        convert_string_literal(literalValue,val);
-        
-       clarity_gen_typecast(ns, val, symbolType);
-        addedSymbol.value = val;
+  exprt val;
+  convert_string_literal(literalValue, val);
+
+  clarity_gen_typecast(ns, val, symbolType);
+  addedSymbol.value = val;
 }
 
 #if 0
@@ -743,140 +713,137 @@ void clarity_convertert::add_function_definition_symboltable()
 
 }
 #endif
-  
-
-
 
 void clarity_convertert::add_dummy_builtin_functionCall()
 {
-    std::string literalA = "My name ";
-        std::string literalB = "Fatima ";
-        BigInt outputSize = literalA.length() + literalB.length() + 1;
+  std::string literalA = "My name ";
+  std::string literalB = "Fatima ";
+  BigInt outputSize = literalA.length() + literalB.length() + 1;
 
-        exprt functionExpression;
-        std::string id_var = "c:@string_concat";
-        std::string id_func = "c:@F@string_concat";
+  exprt functionExpression;
+  std::string id_var = "c:@string_concat";
+  std::string id_func = "c:@F@string_concat";
 
-        typet subType = signed_char_type();
-        typet symbolType = array_typet(subType,from_integer(outputSize,size_type()));
-        std::string varName = "myConcat";
-        std::string varId = "clar:@C@basicDummy@" + varName + "#123";
+  typet subType = signed_char_type();
+  typet symbolType =
+    array_typet(subType, from_integer(outputSize, size_type()));
+  std::string varName = "myConcat";
+  std::string varId = "clar:@C@basicDummy@" + varName + "#123";
 
-        locationt locationBegin;
-        locationBegin.set_line("293");
-        locationBegin.set_file("basicDummy.clar");
+  locationt locationBegin;
+  locationBegin.set_line("293");
+  locationBegin.set_file("basicDummy.clar");
 
-        std::string debugModuleName = locationBegin.file().as_string();
+  std::string debugModuleName = locationBegin.file().as_string();
 
-        symbolt symbol;
-        get_default_symbol(symbol,debugModuleName,symbolType,varName,varId,locationBegin);
+  symbolt symbol;
+  get_default_symbol(
+    symbol, debugModuleName, symbolType, varName, varId, locationBegin);
 
-        bool is_state_var = true;
+  bool is_state_var = true;
 
-        symbol.lvalue = true;
-        symbol.static_lifetime = is_state_var;
-        symbol.file_local = !is_state_var;
-        symbol.is_extern = false;
+  symbol.lvalue = true;
+  symbol.static_lifetime = is_state_var;
+  symbol.file_local = !is_state_var;
+  symbol.is_extern = false;
 
-        symbolt &addedSymbol = *move_symbol_to_context(symbol);
+  symbolt &addedSymbol = *move_symbol_to_context(symbol);
 
-        //check if it's already in the symbol table.
-        // it should be, as all builtin functions and blockchain variables
-        // have been pre-defined and added to symbol table during temp_file() creation
+  //check if it's already in the symbol table.
+  // it should be, as all builtin functions and blockchain variables
+  // have been pre-defined and added to symbol table during temp_file() creation
 
+  // 1 - look for the function name in symbol table.
 
-        // 1 - look for the function name in symbol table.
+  // for global blockchain vars like block_height
+  if (context.find_symbol(id_var) != nullptr)
+  {
+    symbolt &sym = *context.find_symbol(id_var);
 
-        // for global blockchain vars like block_height
-        if (context.find_symbol(id_var) != nullptr)
-          {
-            symbolt &sym = *context.find_symbol(id_var);
+    if (sym.value.is_empty() || sym.value.is_zero())
+    {
+      // update: set the value to rand (default 0）
+      // since all the current support built-in vars are uint type.
+      // we just set the value to c:@F@nondet_uint
+      symbolt &r = *context.find_symbol("c:@F@nondet_uint");
+      sym.value = r.value;
+    }
+    functionExpression = symbol_expr(sym);
+  }
 
-            if (sym.value.is_empty() || sym.value.is_zero())
-            {
-              // update: set the value to rand (default 0）
-              // since all the current support built-in vars are uint type.
-              // we just set the value to c:@F@nondet_uint
-              symbolt &r = *context.find_symbol("c:@F@nondet_uint");
-              sym.value = r.value;
-            }
-            functionExpression = symbol_expr(sym);
-          }
+  // for builtin functions like concat.
+  else if (context.find_symbol(id_func) != nullptr)
+    functionExpression = symbol_expr(*context.find_symbol(id_func));
+  else
+  {
+    std::cout << "ALL HELL BROKE LOSE\n";
+    abort();
+  }
 
-          // for builtin functions like concat.
-          else if (context.find_symbol(id_func) != nullptr)
-            functionExpression = symbol_expr(*context.find_symbol(id_func));
-          else
-          {
-              std::cout <<"ALL HELL BROKE LOSE\n";
-              abort();
-          }
+  // ToDo: check validity of functionExpression first.
+  if (functionExpression.is_nil())
+  {
+    std::cout << "Function expression is nil \n";
+    abort();
+  }
 
-         
-            // ToDo: check validity of functionExpression first.
-            if (functionExpression.is_nil())
-            {
-              std:: cout <<"Function expression is nil \n";
-              abort();
-            }
+  // get type of expression: for a function call, the type is the return type
+  //a functioncall is a code_type expression
+  //a function body is a code_t type expression
+  // not to be confused.
 
-            // get type of expression: for a function call, the type is the return type
-            //a functioncall is a code_type expression
-            //a function body is a code_t type expression
-            // not to be confused.
+  typet returnValSymbolType =
+    to_code_type(functionExpression.type()).return_type();
 
-            typet returnValSymbolType = to_code_type(functionExpression.type()).return_type();
+  side_effect_expr_function_callt call;
+  call.function() = functionExpression;
+  call.type() = returnValSymbolType;
 
-            side_effect_expr_function_callt call;
-            call.function() = functionExpression;
-            call.type() = returnValSymbolType;
+  // populate params
 
-            // populate params
+  //find the number of arguments defined in the template (clarity_template.h)
 
-            //find the number of arguments defined in the template (clarity_template.h)
+  size_t no_of_arguments =
+    to_code_type(functionExpression.type()).arguments().size();
 
-            size_t no_of_arguments = to_code_type(functionExpression.type()).arguments().size();
+  // since this is a test dummy. i am assuming just two fixed params to string_concat function
+  exprt arg1, arg2;
 
-            // since this is a test dummy. i am assuming just two fixed params to string_concat function
-            exprt arg1, arg2;
-           
+  // convert string literals to exprt nodes which are irept nodes.
+  convert_string_literal(literalA, arg1);
+  convert_string_literal(literalB, arg2);
 
-            // convert string literals to exprt nodes which are irept nodes.
-            convert_string_literal(literalA,arg1);
-            convert_string_literal(literalB,arg2);
+  call.arguments().push_back(arg1);
+  call.arguments().push_back(arg2);
 
-            call.arguments().push_back(arg1);
-            call.arguments().push_back(arg2);
+  // std::cout <<"Call node \n";
+  // std::cout <<call.pretty(4);
+  functionExpression = call;
 
-            // std::cout <<"Call node \n";
-            // std::cout <<call.pretty(4);
-            functionExpression = call;
+  // std::cout <<"Functionexpression node \n";
+  // std::cout <<functionExpression.pretty(4);
 
-            // std::cout <<"Functionexpression node \n";
-            // std::cout <<functionExpression.pretty(4);
-
-            clarity_gen_typecast(ns, functionExpression, symbolType);
-            addedSymbol.value = functionExpression;
-            if (addedSymbol.value.is_nil()) {
-              std::cout << "Added symbol value is nil\n";
-              } else {
-                  std::cout << "Added symbol value is assigned\n";
-              }
-            
-            
-
-          
+  clarity_gen_typecast(ns, functionExpression, symbolType);
+  addedSymbol.value = functionExpression;
+  if (addedSymbol.value.is_nil())
+  {
+    std::cout << "Added symbol value is nil\n";
+  }
+  else
+  {
+    std::cout << "Added symbol value is assigned\n";
+  }
 }
 void clarity_convertert::add_dummy_symbol()
 {
   bool experimental = true;
   if (experimental)
   {
-      //translate : define-constant myvar u23
-      //task : create a dummy symbol of 128 bits : unsigned
-      // add reference to that diagram which states all the members of a symbol
+//translate : define-constant myvar u23
+//task : create a dummy symbol of 128 bits : unsigned
+// add reference to that diagram which states all the members of a symbol
 
-      /*
+/*
         typet type;
         exprt value;
         locationt location;
@@ -886,234 +853,245 @@ void clarity_convertert::add_dummy_symbol()
         irep_idt mode;
       
       */
-      #define STRING_CONSTANT_ENABLED
-      #define UNSIGNED_INT_CONSTANT_ENABLED
-      //#define BUILTIN_FUNCTIONCALL_ENABLED
-      #define PUBLIC_FUNCTION_ENABLED
+#define STRING_CONSTANT_ENABLED
+#define UNSIGNED_INT_CONSTANT_ENABLED
+    //#define BUILTIN_FUNCTIONCALL_ENABLED
+    //#define PUBLIC_FUNCTION_ENABLED
 
-      #ifdef UNSIGNED_INT_CONSTANT_ENABLED
-        convert_dummy_uint_literal();
-      #endif
+#ifdef UNSIGNED_INT_CONSTANT_ENABLED
+    convert_dummy_uint_literal();
+#endif
 
-       #ifdef STRING_CONSTANT_ENABLED
-        convert_dummy_string_literal();
-      #endif
+#ifdef STRING_CONSTANT_ENABLED
+    convert_dummy_string_literal();
+#endif
 
-      #ifdef BUILTIN_FUNCTIONCALL_ENABLED
-        add_dummy_builtin_functionCall();
-      #endif
+#ifdef BUILTIN_FUNCTIONCALL_ENABLED
+    add_dummy_builtin_functionCall();
+#endif
 
-      #ifdef PUBLIC_FUNCTION_ENABLED
-      // add a code for adding a public function "add_nums"
-      // takes two arguments as input int x, and int y
-      // return an int
-      // (define-public (add_nums (num1 int) (num2 int)) (+ num1 num2))
-      // + is a binary operator. it should be handled as such.
-      // a binary operator in esbmc assumes an LHS and a RHS and an opcode.
+#ifdef PUBLIC_FUNCTION_ENABLED
+    // add a code for adding a public function "add_nums"
+    // takes two arguments as input int x, and int y
+    // return an int
+    // (define-public (add_nums (num1 int) (num2 int)) (+ num1 num2))
+    // + is a binary operator. it should be handled as such.
+    // a binary operator in esbmc assumes an LHS and a RHS and an opcode.
 
-      // steps :
-      // create symbol add_nums
-      std::string functionName = "add_nums";
-      std::string functionId = "clar:@C@basicDummy@F@" + functionName + "#123";
+    // steps :
+    // create symbol add_nums
+    std::string functionName = "add_nums";
+    std::string functionId = "clar:@C@basicDummy@F@" + functionName + "#123";
 
-      locationt locationBegin;
-      locationBegin.set_line("293");
-      locationBegin.set_file("basicDummy.clar");
+    locationt locationBegin;
+    locationBegin.set_line("293");
+    locationBegin.set_file("basicDummy.clar");
 
-      std::string debugModuleName = locationBegin.file().as_string();
+    std::string debugModuleName = locationBegin.file().as_string();
 
-      //function return type
-      code_typet symbolType;// = signedbv_typet(128);
-      symbolType.return_type() = signedbv_typet(128);
-      
-      symbolt symbol;
-      get_default_symbol(symbol,debugModuleName,symbolType,functionName,functionId,locationBegin);
+    //function return type
+    code_typet symbolType; // = signedbv_typet(128);
+    symbolType.return_type() = signedbv_typet(128);
 
+    symbolt symbol;
+    get_default_symbol(
+      symbol,
+      debugModuleName,
+      symbolType,
+      functionName,
+      functionId,
+      locationBegin);
 
-      symbol.lvalue = true;
-      symbol.file_local = false;
-      symbol.is_extern = false;
+    symbol.lvalue = true;
+    symbol.file_local = false;
+    symbol.is_extern = false;
 
-      symbolt &addedSymbol = *move_symbol_to_context(symbol);
+    symbolt &addedSymbol = *move_symbol_to_context(symbol);
 
-      //till now :  function name has been added to context 
+    //till now :  function name has been added to context
 
-      // get parameters list from AST
-      // for each param, do the following
-      // each param is a code_typet::argumentt type -> this is an exprt type
+    // get parameters list from AST
+    // for each param, do the following
+    // each param is a code_typet::argumentt type -> this is an exprt type
 
-      //argument 1
-      code_typet::argumentt param1;
-      param1.type() = signedbv_typet(128);
-      std::string param1_name = "num1";
-      param1.name(param1_name);
-      std::string param1_id = "clar:@C@basicDummy@F@" + functionName + "@" + param1_name + "#123";
-      //param1.id( param1_id);
-      param1.cmt_base_name(param1_name); 
-      
-      locationt param1_location;
-      param1_location.set_line("111");
-      param1_location.set_file("basicDummy.clar");
-      // we set cmt_identifier instead of type.id for arguments  
-      param1.cmt_identifier(param1_id);
-      param1.location() = param1_location;
+    //argument 1
+    code_typet::argumentt param1;
+    param1.type() = signedbv_typet(128);
+    std::string param1_name = "num1";
+    param1.name(param1_name);
+    std::string param1_id =
+      "clar:@C@basicDummy@F@" + functionName + "@" + param1_name + "#123";
+    //param1.id( param1_id);
+    param1.cmt_base_name(param1_name);
 
-      std::string debug_modulename =
+    locationt param1_location;
+    param1_location.set_line("111");
+    param1_location.set_file("basicDummy.clar");
+    // we set cmt_identifier instead of type.id for arguments
+    param1.cmt_identifier(param1_id);
+    param1.location() = param1_location;
+
+    std::string debug_modulename =
       get_modulename_from_path(param1_location.file().as_string());
 
-      symbolt param1_symbol;
-      get_default_symbol(param1_symbol,debug_modulename,param1.type(),param1_name,param1_id,param1_location);
-      param1_symbol.lvalue = true;
-      param1_symbol.is_parameter=true;
-      param1_symbol.file_local=true;
+    symbolt param1_symbol;
+    get_default_symbol(
+      param1_symbol,
+      debug_modulename,
+      param1.type(),
+      param1_name,
+      param1_id,
+      param1_location);
+    param1_symbol.lvalue = true;
+    param1_symbol.is_parameter = true;
+    param1_symbol.file_local = true;
 
-      symbolt &added_param1_symbol = *move_symbol_to_context(param1_symbol);
+    symbolt &added_param1_symbol = *move_symbol_to_context(param1_symbol);
 
-      //argument 2
-      code_typet::argumentt param2;
-      
-      param2.type() = signedbv_typet(128);
-      std::string param2_name = "num2";
-      param2.name(param2_name);
-      std::string param2_id = "clar:@C@basicDummy@F@" + functionName + "@" + param2_name + "#111";
-      param2.cmt_base_name(param2_name);
+    //argument 2
+    code_typet::argumentt param2;
 
-      locationt param2_location;
-      param2_location.set_line("111");
-      param2_location.set_file("basicDummy.clar");
-      param2.cmt_identifier(param2_id);
-      param2.location() = param2_location;
+    param2.type() = signedbv_typet(128);
+    std::string param2_name = "num2";
+    param2.name(param2_name);
+    std::string param2_id =
+      "clar:@C@basicDummy@F@" + functionName + "@" + param2_name + "#111";
+    param2.cmt_base_name(param2_name);
 
-      symbolt param2_symbol;
-      get_default_symbol(param2_symbol,debug_modulename,param2.type(),param2_name,param2_id,param2_location);
-      param2_symbol.lvalue = true;
-      param2_symbol.is_parameter=true;
-      param2_symbol.file_local=true;
+    locationt param2_location;
+    param2_location.set_line("111");
+    param2_location.set_file("basicDummy.clar");
+    param2.cmt_identifier(param2_id);
+    param2.location() = param2_location;
 
-      symbolt &added_param2_symbol = *move_symbol_to_context(param2_symbol);
+    symbolt param2_symbol;
+    get_default_symbol(
+      param2_symbol,
+      debug_modulename,
+      param2.type(),
+      param2_name,
+      param2_id,
+      param2_location);
+    param2_symbol.lvalue = true;
+    param2_symbol.is_parameter = true;
+    param2_symbol.file_local = true;
 
-      // add parameters to function type
+    symbolt &added_param2_symbol = *move_symbol_to_context(param2_symbol);
 
-      symbolType.arguments().push_back(param1);
-      symbolType.arguments().push_back(param2);
+    // add parameters to function type
 
-  
+    symbolType.arguments().push_back(param1);
+    symbolType.arguments().push_back(param2);
 
-      addedSymbol.type = symbolType;
+    addedSymbol.type = symbolType;
 
+    // create function body
+    // create a codet type exprt
 
-      
-      // create function body
-      // create a codet type exprt
+    //code_blockt functionBody = code_blockt();
+    // create a binary expression
+    //plus_exprt binExpr(symbol_exprt(param1_symbol),symbol_exprt(param2_symbol),signedbv_typet(128));
 
-      //code_blockt functionBody = code_blockt();
-      // create a binary expression
-      //plus_exprt binExpr(symbol_exprt(param1_symbol),symbol_exprt(param2_symbol),signedbv_typet(128));
+    exprt param1_expr = symbol_expr(added_param1_symbol);
+    exprt param2_expr = symbol_expr(added_param2_symbol);
 
-      exprt param1_expr = symbol_expr(added_param1_symbol);
-      exprt param2_expr = symbol_expr(added_param2_symbol);
-      
-      plus_exprt binExpr(param1_expr,param2_expr);
+    plus_exprt binExpr(param1_expr, param2_expr);
 
-      code_returnt returnStatement;
-      returnStatement.return_value() = binExpr;
-      irept param1_irept;
-      irept param2_irept;
-      added_param1_symbol.to_irep(param1_irept);
-      added_param2_symbol.to_irep(param2_irept);
-      // std::cout <<"Param 1 symbol : " << param1_irept.pretty(4) <<"\n";
-      // std::cout <<"Param 2 symbol : " << param2_irept.pretty(4) <<"\n";
-      // std::cout <<"Param 1 expr: " << param1_expr.pretty(4) <<"\n";
-      // std::cout <<"Param 2 expr: " << param2_expr.pretty(4) <<"\n";
-      // std::cout <<"Bin Expr : " << binExpr.pretty(4) <<"\n";
-      // std::cout <<"Return Statement : " <<returnStatement.pretty(4) <<"\n";
-      // std::cout <<"Function Body : " <<functionBody.pretty(4) <<"\n";
-    
-
+    code_returnt returnStatement;
+    returnStatement.return_value() = binExpr;
+    irept param1_irept;
+    irept param2_irept;
+    added_param1_symbol.to_irep(param1_irept);
+    added_param2_symbol.to_irep(param2_irept);
+    // std::cout <<"Param 1 symbol : " << param1_irept.pretty(4) <<"\n";
+    // std::cout <<"Param 2 symbol : " << param2_irept.pretty(4) <<"\n";
+    // std::cout <<"Param 1 expr: " << param1_expr.pretty(4) <<"\n";
+    // std::cout <<"Param 2 expr: " << param2_expr.pretty(4) <<"\n";
+    // std::cout <<"Bin Expr : " << binExpr.pretty(4) <<"\n";
+    // std::cout <<"Return Statement : " <<returnStatement.pretty(4) <<"\n";
+    // std::cout <<"Function Body : " <<functionBody.pretty(4) <<"\n";
 
     //functionBody.swap(returnStatement);
 
     // // refer to get_block function
     //   functionBody.operands().push_back(returnStmt);// .add(to_code_return(returnStmt));
 
-      // add function body to the symbol
-      addedSymbol.value = returnStatement;
-      #endif
-
-
-
+    // add function body to the symbol
+    addedSymbol.value = returnStatement;
+#endif
   }
-  else {
-
+  else
+  {
   }
+}
+
+bool clarity_convertert::check_valid_ast(const nlohmann::json &ast_node)
+{
+  if (
+    !src_ast_json.contains(
+      "identifier")) // check json file contains expression AST nodes as Clarity might change
+    assert(!"JSON file does not contain any expression AST nodes");
+  return true;
 }
 bool clarity_convertert::convert()
 {
-
-  
-
   // This function consists of two parts:
-  //  1. First, we perform pattern-based verificaiton
+  //  1. First, we perform pattern-based verificaiton (ToDo)
   //  2. Then we populate the context with symbols annotated based on the each AST node, and hence prepare for the GOTO conversion.
 
-  if (!src_ast_json.contains(
-        "identifier")) // check json file contains expression AST nodes as Clarity might change
-    assert(!"JSON file does not contain any expression AST nodes");
+  check_valid_ast(src_ast_json);
 
-#if 0
-  FIXME : we need to iterate over nodes to find absolute path
-  if (
-    !src_ast_json.contains(
-      "absolutePath")) // check json file contains AST nodes as Clarity might change
-    assert(!"JSON file does not contain absolutePath");
-    absolute_path = src_ast_json["absolutePath"].get<std::string>();
-#endif
-   absolute_path = current_fileName = "directory/";
-
-  
+  absolute_path = current_fileName =
+    contract_path; // this is set in the constructor
 
   // By now the context should have the symbols of all ESBMC's intrinsics and the dummy main
   // We need to convert Clarity AST nodes to the equivalent symbols and add them to the context
   nlohmann::json &master_node = src_ast_json;
   nlohmann::json &nodes = src_ast_json; //src_ast_json["expressions"];
-  
 
   size_t index = 0;
-  
+
   bool found_contract_def = false;
 
   // find contract_identifier to verify if the ast is valid
 
-
-  if( master_node.contains("identifier") )
-  {  
+  if (master_node.contains("identifier"))
+  {
     //nodes = master_node["identifier"];
     std::string contract_name = master_node["identifier"]["contract_name"];
-    current_contractName = contract_name;
+    set_current_contract_name(contract_name);
     std::string issuer = master_node["identifier"]["issuer_principal"];
+
+    //proper contract definition found
     found_contract_def = true;
+
     current_contract_issuer = issuer;
 
-     if (get_clarity_struct_class(master_node))
-          return true;
-        
-         // add implicit construcor function
-        if (add_implicit_constructor())
-          return true;
+    // not sure what we'd use this for
+    if (get_clarity_struct_class(master_node))
+      return true;
 
-    std::cout <<" Contract : "<< current_contractName <<"\nIssuer :" <<current_contract_issuer <<" found." <<"\n";
- 
+    // add implicit construcor function
+    if (add_implicit_constructor())
+      return true;
+
+    log_status(
+      "Contract\t: {} \nIssuer\t: {}",
+      current_contractName,
+      current_contract_issuer);
   }
   else
   {
-    assert (!"AST JSON does not have contract name");
+    assert(!"AST JSON does not have contract name");
   }
 
   assert(found_contract_def && "No contracts were found in the program.");
-// Pattern based checking e-g Solidity checks for SWC-115
-  
-  log_status("Pattern based checking goes here . Solidity frontend had SWC-115 tested here.\nSkipping for Clarity for now. ");
-  #if 0
+  // Pattern based checking e-g Solidity checks for SWC-115
+
+  log_status(
+    "Pattern based checking goes here . Solidity frontend had SWC-115 tested "
+    "here.\nSkipping for Clarity for now. ");
+#if 0
   FIXME : (m-ali) we need to add pattern checking logic here e-g solidity checks for SVC 115
   for (nlohmann::json::iterator itr = nodes.begin(); itr != nodes.end();
        ++itr, ++index)
@@ -1139,45 +1117,45 @@ bool clarity_convertert::convert()
 
     
   }
-  #endif
-  
+#endif
 
-  log_status("Contract : {} found.",current_contractName);
-
-  
-  // Exported symbols need to be checked here 
+  // Exported symbols need to be checked here
   //
   // FIXME :  (m-ali) @Faried bhai, does Clarity have exported Symbols.
-  log_status("What are exported symbols in Clarity ?\nSkipping for now ");
+  // we have exported symbols in "exported_functions" node in the AST
+  log_status("What are exported symbols in Clarity ?\n ");
 
-  #if 0
-  FIXME: how does it map to clarity?
+  log_status("Exported symbols :");
+  if (!src_ast_json["exported_functions"].is_array())
+    assert(!"Exported functions is not an array");
 
-  for (const auto &itr : src_ast_json["exportedSymbols"].items())
+  for (const auto &itr : src_ast_json["exported_functions"])
   {
     //! Assume it has only one id
-    int c_id = itr.value()[0].get<int>();
-    std::string c_name = itr.key();
-    exportedSymbolsList.insert(std::pair<int, std::string>(c_id, c_name));
+    std::string c_name = itr;
+    log_status("{}", c_name);
+    //exportedSymbolsList.insert(std::pair<int, std::string>(c_id, c_name));
   }
 
-  #endif
+  log_status("---------------------------");
 
   // first round: handle definitions that can be outside of the contract
   // including struct, enum, interface, event, error, library...
   // noted that some can also be inside the contract, e.g. struct, enum...
   index = 0;
 
-  log_status("What are nonContract definitions , definitions outside of the contract in terms of clarity.\nSkipping for now.");
+  log_status(
+    "What are nonContract definitions , definitions outside of the contract in "
+    "terms of clarity.\nSkipping for now.");
   for (nlohmann::json::iterator itr = nodes.begin(); itr != nodes.end();
        ++itr, ++index)
   {
-    #if 0
+#if 0
     
     if (get_noncontract_defition(*itr))
       return true;
-    
-    #endif
+
+#endif
   }
 
   // second round: populate linearizedBaseList
@@ -1189,8 +1167,7 @@ bool clarity_convertert::convert()
   //FIXME : (m-ali) Do we need this for clarity ?
 
   //this is a dummy linearizedBaseList
-  linearizedBaseList[current_contractName].push_back(
-          9999);
+  linearizedBaseList[current_contractName].push_back(9999);
   assert(!linearizedBaseList[current_contractName].empty());
 
   // index = 0;
@@ -1212,39 +1189,34 @@ bool clarity_convertert::convert()
   //   }
   // }
 
-
   // third round: handle contract definition
   // single contract verification: where the option "--contract" is set.
   // multiple contracts verification: essentially verify the whole file.
   index = 0;
-  
 
-  for (nlohmann::json::iterator itr = src_ast_json.begin(); itr != src_ast_json.end();
+  for (nlohmann::json::iterator itr = src_ast_json.begin();
+       itr != src_ast_json.end();
        ++itr, ++index)
   {
-    log_status("Node type {}",itr->type_name());
+    log_status("Node type {}", itr->type_name());
 
     // we got to skip contract_identifier as we have already read that part.
     if (std::string(itr->type_name()) == "object")
     {
-      // this is old logic
-      // FIXME
-      // remove this logic from here. we might not need it with F3 ast
-      std::cout <<"Key "<< itr.key()<<"\n";
+      std::cout << "Key " << itr.key() << "\n";
 
       if (itr.key() == "indentifier")
       {
-       
-        log_status("Skipping contract-identifier as we have already processed it");
+        log_status("Skipping {} as we have already processed it", itr.key());
         continue;
-      } 
+      }
       else
         //log_status("Object not contract_identifier\n{}", itr->flatten());
-        std::cout <<"Object not contract_identifier\n"<< itr->flatten();
+        std::cout << "Object not contract_identifier\n" << itr->flatten();
     }
     else if (std::string(itr->type_name()) == "array")
     {
-      std::cout <<"Key "<<itr.key()<<"\n";
+      std::cout << "Key " << itr.key() << "\n";
 
       /* Expressions Array is an array of Arrays.
         Each array element is an array. Each nested array is a mixed element array 
@@ -1252,58 +1224,51 @@ bool clarity_convertert::convert()
 
       if (itr.key() == "expressions")
       {
-        auto vec_expressions = itr.value();  
+        auto vec_expressions = itr.value();
         // handle expressions here.
         log_status("Found expressions array ...");
-        std::cout <<"Number of expressions in contract " <<current_contractName <<"  : " << vec_expressions.size()<<"\n";
-        
+        std::cout << "Number of expressions in contract "
+                  << current_contractName << "  : " << vec_expressions.size()
+                  << "\n";
+
         //process expression array
         for (auto &expr : vec_expressions)
         {
-           // for each element in expressions array
-           // check if valid expression array
-          if (expr[0] == "constant")
+          log_status(
+            "Parsing {} {} ",
+            expr[0].get<std::string>(),
+            expr[1]["identifier"].get<std::string>());
+
+          add_dummy_symbol();
+          if (ClarityGrammar::parse_expression_element(expr))
           {
-           
-            // process expr node;
-            //process_define_constant(expr);
-            add_dummy_symbol();
-            
-            
+            log_error("Invalid expression element");
+            continue;
           }
-          else if (expr[0] == "data_var")
-          {
-            std::cout <<" define-data-var Not handled yet \n";
-          }
-          else
-          {
-            std::cout <<"Invalid expression type : "<< expr[0]<<"\n";
-          }
+          // for each element in expressions array
+          // check if valid expression array
+
+          if (convert_ast_nodes(expr))
+            return true;
         }
-
-
-
       }
       else if (itr.key() == "exported_functions")
       {
-        std::cout <<" Exported functions not handled yet"<<"\n";
+        std::cout << " Exported functions not handled yet"
+                  << "\n";
         continue;
       }
     }
     else
     {
-      std::cout <<"Key "<< itr.key()<<"\n";
+      std::cout << "Key " << itr.key() << "\n";
       log_status("Unsupported type ...");
       continue;
     }
 
-
-    continue;
-
-
     // reset
-    current_contractName = "";
-    current_functionName = "";
+    //current_contractName = "";
+    //current_functionName = "";
     current_functionDecl = nullptr;
     current_forStmt = nullptr;
     global_scope_id = 0;
@@ -1331,21 +1296,22 @@ bool clarity_convertert::convert()
 bool clarity_convertert::convert_ast_nodes(const nlohmann::json &contract_def)
 {
   size_t index = 0;
-  
-    nlohmann::json ast_node = contract_def;
-    std::string identifier_name = ast_node[1]["identifier"].get<std::string>();
-    std::string identifier_type = get_objtype_type_name(ast_node[1]["objtype"]);    //std::string(ast_node[1]["objtype"][0]; //.type_name());
-    log_debug(
-      "clarity",
-      "@@ Converting node[{}]: name={}, nodeType={} ...",
-      index,
-      identifier_name.c_str(),
-      identifier_type.c_str());
-    exprt dummy_decl;
-    if (get_decl(ast_node, dummy_decl))
-      return true;
- 
-  
+
+  nlohmann::json ast_node = contract_def;
+  std::string identifier_name = ast_node[1]["identifier"].get<std::string>();
+  std::string identifier_type = get_objtype_type_name(
+    ast_node
+      [1]["objtype"]); //std::string(ast_node[1]["objtype"][0]; //.type_name());
+  log_debug(
+    "clarity",
+    "@@ Converting node[{}]: name={}, nodeType={} ...",
+    index,
+    identifier_name.c_str(),
+    identifier_type.c_str());
+  exprt dummy_decl;
+  if (get_decl(ast_node, dummy_decl))
+    return true;
+
   // After converting all AST nodes, current_functionDecl should be restored to nullptr.
   assert(current_functionDecl == nullptr);
 
@@ -1360,7 +1326,7 @@ bool clarity_convertert::get_decl(
 
   // we dont need to look for nodeType in Clarity
   if (!ast_node[1].contains("identifier"))
-    assert(!"Missing \'identifer\' filed in ast_node");
+    assert(!"Missing \'identifer\' field in ast_node");
 
   ClarityGrammar::ContractBodyElementT type =
     ClarityGrammar::get_contract_body_element_t(ast_node);
@@ -1436,25 +1402,8 @@ bool clarity_convertert::get_var_decl(
   // For array, do NOT use ["typeName"]. Otherwise, it will cause problem
   // when populating typet in get_cast
 
-  bool dyn_array = false ; // dyn arrays are not supported in Clarity
-  bool mapping = false ; //is_child_mapping(ast_node);
-  if (dyn_array)
-  {
-    if (ast_node.contains("initialValue"))
-    {
-      // append size expr in typeDescription JSON object
-      const nlohmann::json &type_descriptor =
-        add_dyn_array_size_expr(ast_node["typeDescriptions"], ast_node);
-      if (get_type_description(type_descriptor, t))
-        return true;
-    }
-    else
-    {
-      if (get_type_description(ast_node["typeDescriptions"], t))
-        return true;
-    }
-  }
-  else if (mapping)
+  bool mapping = false; //is_child_mapping(ast_node);
+  if (mapping)
   {
     // the mapping should not handled in var decl, instead
     // it should be an expression inside the function.
@@ -1502,11 +1451,10 @@ bool clarity_convertert::get_var_decl(
   }
 
   //bool is_state_var = ast_node["stateVariable"] == true;
-  bool is_state_var = is_state_variable(ast_node);
+  bool is_state_var = ClarityGrammar::is_state_variable(ast_node);
 
   // 2. populate id and name
   std::string name, id;
-
 
   if (is_state_var)
     get_state_var_decl_name(ast_node, name, id);
@@ -1533,21 +1481,27 @@ bool clarity_convertert::get_var_decl(
   symbolt symbol;
   get_default_symbol(symbol, debug_modulename, t, name, id, location_begin);
 
-  symbol.lvalue = true;
-  symbol.static_lifetime = is_state_var;
-  symbol.file_local = !is_state_var;
-  symbol.is_extern = false;
+  if (ClarityGrammar::is_tuple_declaration(ast_node))
+    symbol.is_type = true;
+  else
+  {
+    symbol.lvalue = true;
+    symbol.static_lifetime = is_state_var;
+    symbol.file_local = !is_state_var;
+    symbol.is_extern = false;
+  }
 
-  // For state var decl, we look for "value".
-  // For local var decl, we look for "initialValue"
+  // initialise with zeroes if no initial value provided.
   bool has_init =
-    (ast_node[1].contains("value") || ast_node[1].contains("initialValue"));  // in clarity we do not use "initialValue"
+    ast_node[1].contains("value"); // in clarity we do not use "initialValue"
   if (symbol.static_lifetime && !symbol.is_extern && !has_init)
   {
     // set default value as zero
     symbol.value = gen_zero(t, true);
     symbol.value.zero_initializer(true);
   }
+
+  // FIXME : add exception for if we don't have value node
 
   // 6. add symbol into the context
   // just like clang-c-frontend, we have to add the symbol before converting the initial assignment
@@ -1558,17 +1512,20 @@ bool clarity_convertert::get_var_decl(
 
   if (has_init)
   {
-    nlohmann::json init_value =  ast_node[1]["value"];  //refer to AST parsing rules : "Rules for reading Value Node"
-    
+    nlohmann::json init_value = ast_node
+      [1]
+      ["value"]; //refer to AST parsing rules : "Rules for reading Value Node"
+
     //this might cause issue
-    nlohmann::json literal_type = get_objtype_type_name(ast_node[1]["objtype"]) ;//ast_node[1]["objtype"][1];
+    nlohmann::json literal_type = get_objtype_type_name(
+      ast_node[1]["objtype"]); //ast_node[1]["objtype"][1];
 
     assert(literal_type != nullptr);
     exprt val;
     // we will pass the whole ast node everywhere.
     // we can then parse inside the sub-functions accordingly.
     // for initial value : consider looking into ast_node[1]["value"]
-    if (get_expr(ast_node, literal_type, val))
+    if (get_expr(ast_node, ast_node[1]["objtype"], val))
       return true;
 
     clarity_gen_typecast(ns, val, t);
@@ -1621,16 +1578,16 @@ bool clarity_convertert::get_var_decl(
 
 // This function handles both contract and struct
 // The contract can be regarded as the class in C++, converting to a struct
-bool clarity_convertert::get_clarity_struct_class(const nlohmann::json &struct_def)
+bool clarity_convertert::get_clarity_struct_class(
+  const nlohmann::json &struct_def)
 {
   // 1. populate name, id
   std::string id, name;
   struct_typet t = struct_typet();
 
-  name = current_contractName; //["name"].get<std::string>();
+  get_current_contract_name(struct_def, name);
   id = prefix + name;
   t.tag(name);
-
 
   // 2. Check if the symbol is already added to the context, do nothing if it is
   // already in the context.
@@ -1639,8 +1596,8 @@ bool clarity_convertert::get_clarity_struct_class(const nlohmann::json &struct_d
 
   // 3. populate location
   locationt location_begin;
-  //get_location_from_decl(struct_def, location_begin);
-  location_begin.set_line(9999);
+
+  location_begin.set_line(0);
   location_begin.set_file(absolute_path);
 
   // 4. populate debug module name
@@ -1657,6 +1614,7 @@ bool clarity_convertert::get_clarity_struct_class(const nlohmann::json &struct_d
   // populate the scope_map
   // this map is used to find reference when there is no decl_ref_id provided in the nodes
   // or replace the find_decl_ref in order to speed up
+  // using 9999 is the top most scope.
   int scp = 9999; //struct_def["id"].get<int>();
   scope_map.insert(std::pair<int, std::string>(scp, name));
 
@@ -1678,7 +1636,7 @@ bool clarity_convertert::get_clarity_struct_class(const nlohmann::json &struct_d
   //   log_warning("Empty contract.");
   // }
 
-  // m-ali : todo . we probably don't need this 
+  // m-ali : todo . we probably don't need this
 
   // for (nlohmann::json::iterator itr = ast_nodes.begin(); itr != ast_nodes.end();
   //      ++itr)
@@ -1727,7 +1685,6 @@ bool clarity_convertert::get_struct_class(const nlohmann::json &struct_def)
   id = prefix + name;
   t.tag(name);
 
-
   // 2. Check if the symbol is already added to the context, do nothing if it is
   // already in the context.
   if (context.find_symbol(id) != nullptr)
@@ -1736,7 +1693,7 @@ bool clarity_convertert::get_struct_class(const nlohmann::json &struct_def)
   // 3. populate location
   locationt location_begin;
   get_location_from_decl(struct_def, location_begin);
-  
+
   // 4. populate debug module name
   std::string debug_modulename =
     get_modulename_from_path(location_begin.file().as_string());
@@ -1758,8 +1715,6 @@ bool clarity_convertert::get_struct_class(const nlohmann::json &struct_def)
   // We have to add fields before methods as the fields are likely to be used
   // in the methods
 
-  
-
   nlohmann::json ast_nodes;
   if (struct_def.contains("nodes"))
     ast_nodes = struct_def["nodes"];
@@ -1771,8 +1726,6 @@ bool clarity_convertert::get_struct_class(const nlohmann::json &struct_def)
     // Contracts can be empty
     log_warning("Empty contract.");
   }
-
-  
 
   for (nlohmann::json::iterator itr = ast_nodes.begin(); itr != ast_nodes.end();
        ++itr)
@@ -2147,15 +2100,15 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
   return false;
 }
 
-
 void clarity_convertert::NewFunction(code_typet &type)
 {
-if (type.arguments().empty())
+  if (type.arguments().empty())
   {
     // assume ellipsis if the function has no parameters
     type.make_ellipsis();
   }
-}bool clarity_convertert::get_function_params(
+}
+bool clarity_convertert::get_function_params(
   const nlohmann::json &pd,
   exprt &param)
 {
@@ -2693,8 +2646,9 @@ bool clarity_convertert::get_expr(const nlohmann::json &expr, exprt &new_expr)
      * @return false iff the conversion was successful
      */
 
-  //FIXME
-  // rignt now , literal_type passed is objtype[0] . which is a std::string
+// FIX ABOVE COMMENTS
+//  literal_type is objtype
+// expr is the whole expression node
 bool clarity_convertert::get_expr(
   const nlohmann::json &expr,
   const nlohmann::json &literal_type,
@@ -2816,287 +2770,306 @@ bool clarity_convertert::get_expr(
   case ClarityGrammar::ExpressionT::Literal:
   {
     // make a type-name json for integer literal conversion
-    std::string the_value = expr[1]["value"].get<std::string>();
     const nlohmann::json &literal = expr[1]["objtype"];
     ClarityGrammar::ElementaryTypeNameT type_name =
       ClarityGrammar::get_elementary_type_name_t(literal);
+    std::string the_value;
+
+    if (type_name == ClarityGrammar::ElementaryTypeNameT::STRING_ASCII)
+    {
+      // for string literal
+      the_value = expr[1]["value"]["lit_ascii"].get<std::string>();
+    }
+    else if (type_name == ClarityGrammar::ElementaryTypeNameT::STRING_UTF8)
+    {
+      //for utf-8 string literals
+      the_value = expr[1]["value"]["lit_utf8"].get<std::string>();
+    }
+    else
+    {
+      the_value = expr[1]["value"].get<std::string>();
+    }
+
     log_debug(
       "clarity",
       "	@@@ got Literal: ClarityGrammar::ElementaryTypeNameT::{}",
       ClarityGrammar::elementary_type_name_to_str(type_name));
 
-    if (
-      literal_type != nullptr ) 
-      // m-ali : we probably do not need to look for type string -> bytes in our AST
-      //&&
-      //literal_type["typeString"].get<std::string>().find("bytes") !=
-      //  std::string::npos)
+    if (literal_type != nullptr)
     {
-      // literal_type["typeString"] could be
-      //    "bytes1" ... "bytes32"
-      //    "bytes storage ref"
-      // e.g.
-      //    bytes1 x = 0x12;
-      //    bytes32 x = "string";
-      //    bytes x = "string";
-      //
+      ClarityGrammar::ElementaryTypeNameT type = type_name;
 
-      ClarityGrammar::ElementaryTypeNameT type =
-        ClarityGrammar::get_elementary_type_name_t(literal);
-
-      int byte_size;
-      // TODO
-      if (type == ClarityGrammar::ElementaryTypeNameT::BUFF)
-        // dynamic bytes array, the type is set to unsignedbv(256);
-        byte_size = 32;
-      else
-        byte_size = bytesn_type_name_to_size(type);
-
-      // convert hex to decimal value and populate
       switch (type_name)
       {
+      case ClarityGrammar::ElementaryTypeNameT::BUFF:
+      {
+        if (
+          the_value.length() >= 2 &&
+          the_value.substr(0, 2) == "0x") // meaning hex-string
+        {
+          the_value.erase(0, 2); //remove the first two characters (0x)
+
+          std::string str_buff_size = literal_type[2];
+          int buff_size = std::stoi(str_buff_size);
+
+          // Buffer is sort of an array of bytes
+          typet type = array_typet(
+            unsigned_char_type(), from_integer(buff_size, size_type()));
+          exprt buff_inits = gen_zero(type);
+
+          // the string value should be 2xbuff_size long
+          // one byte = 2 characters
+
+          int i = 0;
+          int value_length = the_value.length();
+          for (i = 0; i < value_length / 2; i++)
+          {
+            unsigned int buff_elem =
+              std::stoi(the_value.substr(i * 2, 2), nullptr, 16);
+            exprt val = constant_exprt(buff_elem, unsigned_char_type());
+            buff_inits.operands().at(i) = val;
+          }
+
+          // Handle the case where the last byte is not a complete byte
+          if (the_value.length() % 2 != 0)
+          {
+            std::string last_byte_str =
+              the_value.substr(the_value.length() - 1, 1);
+            unsigned int last_byte = std::stoi(last_byte_str, nullptr, 16);
+            exprt last_byte_expr =
+              constant_exprt(last_byte, unsigned_char_type());
+            buff_inits.operands().at(i) = last_byte_expr;
+          }
+
+          new_expr.swap(buff_inits);
+        }
+        else
+        {
+          log_error("Invalid buff value found. Missing 0x prefix");
+          return true;
+        }
+        break;
+      }
+      case ClarityGrammar::ElementaryTypeNameT::UINT:
       case ClarityGrammar::ElementaryTypeNameT::UINT_LITERAL:
       {
-        //ToDo ; how does byte_size map here 
-        //if (convert_hex_literal(the_value, new_expr, byte_size * 8))
         if (convert_uint_literal(literal, the_value, new_expr))
           return true;
         break;
       }
+      case ClarityGrammar::ElementaryTypeNameT::INT:
       case ClarityGrammar::ElementaryTypeNameT::INT_LITERAL:
       {
-        if (convert_hex_literal(the_value, new_expr, byte_size * 8))
+        if (convert_integer_literal(literal, the_value, new_expr))
           return true;
         break;
       }
+      case ClarityGrammar::ElementaryTypeNameT::BOOL:
+      {
+        if (convert_bool_literal(literal, the_value, new_expr))
+          return true;
+        break;
+      }
+      case ClarityGrammar::ElementaryTypeNameT::STRING_ASCII:
       case ClarityGrammar::ElementaryTypeNameT::STRING_ASCII_LITERAL:
       {
-        // TODO: this is likely incorrect
-        std::string hex_val = expr["hexValue"].get<std::string>();
-
-        // add padding
-        for (int i = 0; i < byte_size; i++)
-          hex_val += "00";
-        hex_val.resize(byte_size * 2);
-
-        if (convert_hex_literal(hex_val, new_expr, byte_size * 8))
+        // TODO: figure out how to handle ascii/utf8 strings
+        if (convert_string_literal(the_value, new_expr))
           return true;
         break;
       }
+
+      case ClarityGrammar::ElementaryTypeNameT::STRING_UTF8:
       case ClarityGrammar::ElementaryTypeNameT::STRING_UTF8_LITERAL:
       {
-        // TODO: this is likely incorrect as well
-        std::string hex_val = expr["hexValue"].get<std::string>();
-
-        // add padding
-        for (int i = 0; i < byte_size; i++)
-          hex_val += "00";
-        hex_val.resize(byte_size * 2);
-
-        if (convert_hex_literal(hex_val, new_expr, byte_size * 8))
+        if (convert_string_literal(the_value, new_expr))
           return true;
         break;
       }
+      case ClarityGrammar::ElementaryTypeNameT::PRINCIPAL:
+      {
+        // 20 bytes
+        if (convert_hex_literal(the_value, new_expr, 160))
+          return true;
+        break;
+      }
+
+      // case ClarityGrammar::ElementaryTypeNameT::STRING_UTF8_LITERAL:
+      // {
+      //   // TODO: this is likely incorrect as well
+      //   // look in the next switch case
+      //   std::string hex_val = expr["hexValue"].get<std::string>();
+
+      //   // add padding
+      //   for (int i = 0; i < byte_size; i++)
+      //     hex_val += "00";
+      //   hex_val.resize(byte_size * 2);
+
+      //   if (convert_hex_literal(hex_val, new_expr, byte_size * 8))
+      //     return true;
+      //   break;
+      // }
       default:
         assert(!"Error occurred when handling bytes literal");
       }
       break;
     }
 
-    switch (type_name)
-    {
-    case ClarityGrammar::ElementaryTypeNameT::INT_LITERAL:
-    {
-      assert(literal_type != nullptr);
-      if (
-        the_value.length() >= 2 &&
-        the_value.substr(0, 2) == "0x") // meaning hex-string
-      {
-        if (convert_hex_literal(the_value, new_expr))
-          return true;
-      }
-      else if (convert_integer_literal(literal_type, the_value, new_expr))
-        return true;
-      break;
-    }
-    case ClarityGrammar::ElementaryTypeNameT::BOOL:
-    {
-      if (convert_bool_literal(literal, the_value, new_expr))
-        return true;
-      break;
-    }
-    case ClarityGrammar::ElementaryTypeNameT::STRING_ASCII_LITERAL:
-    {
-      // TODO: figure out how to handle ascii/utf8 strings
-      if (convert_string_literal(the_value, new_expr))
-        return true;
-      break;
-    }
-    case ClarityGrammar::ElementaryTypeNameT::STRING_UTF8_LITERAL:
-    {
-      if (convert_string_literal(the_value, new_expr))
-        return true;
-      break;
-    }
-
-    case ClarityGrammar::ElementaryTypeNameT::ADDRESS:
-    {
-      // 20 bytes
-      if (convert_hex_literal(the_value, new_expr, 160))
-        return true;
-      break;
-    }
-    default:
-      assert(!"Literal not implemented");
-    }
-
     break;
   }
   case ClarityGrammar::ExpressionT::Tuple:
   {
-    // "nodeType": "TupleExpression":
-    //    1. InitList: uint[3] x = [1, 2, 3];
-    //    2. Operator:
-    //        - (x+1) % 2
-    //        - if( x && (y || z) )
-    //    3. TupleExpr:
-    //        - multiple returns: return (x, y);
-    //        - (x, y) = (y, x)
+    /*
+      for each "component" in "objtype[1]"
+      1. get the type of the component
+      2. get the value of the component
+      3. create a new exprt for the component
+      4. add the component to the tuple
+      5. return the tuple
+    
+    */
 
-    assert(expr.contains("components"));
-    ClarityGrammar::TypeNameT type =
-      ClarityGrammar::get_type_name_t(expr["typeDescriptions"]);
+    // 1. construct struct type
+    if (get_tuple_definition(expr))
+      return true;
 
-    switch (type)
-    {
-    // case 1
-    case ClarityGrammar::TypeNameT::ArrayTypeName:
-    {
-      assert(literal_type != nullptr);
+    //2. construct struct_type instance
+    if (get_tuple_instance(expr, new_expr))
+      return true;
 
-      // get elem type
-      nlohmann::json elem_literal_type =
-        make_array_elementary_type(literal_type);
+    // older code : has useful comments to read
+    // assert(expr.contains("components"));
 
-      // get size
-      exprt size;
-      size = constant_exprt(
-        integer2binary(expr["components"].size(), bv_width(int_type())),
-        integer2string(expr["components"].size()),
-        int_type());
+    // switch (type)
+    // {
+    // // case 1
+    // case ClarityGrammar::TypeNameT::ArrayTypeName:
+    // {
+    //   assert(literal_type != nullptr);
 
-      // get array type
-      typet arr_type;
-      if (get_type_description(literal_type, arr_type))
-        return true;
+    //   // get elem type
+    //   nlohmann::json elem_literal_type =
+    //     make_array_elementary_type(literal_type);
 
-      // reallocate array size
-      arr_type = array_typet(arr_type.subtype(), size);
+    //   // get size
+    //   exprt size;
+    //   size = constant_exprt(
+    //     integer2binary(expr["components"].size(), bv_width(int_type())),
+    //     integer2string(expr["components"].size()),
+    //     int_type());
 
-      // declare static array tuple
-      exprt inits;
-      inits = gen_zero(arr_type);
+    //   // get array type
+    //   typet arr_type;
+    //   if (get_type_description(literal_type, arr_type))
+    //     return true;
 
-      // populate array
-      int i = 0;
-      for (const auto &arg : expr["components"].items())
-      {
-        exprt init;
-        if (get_expr(arg.value(), elem_literal_type, init))
-          return true;
+    //   // reallocate array size
+    //   arr_type = array_typet(arr_type.subtype(), size);
 
-        inits.operands().at(i) = init;
-        i++;
-      }
+    //   // declare static array tuple
+    //   exprt inits;
+    //   inits = gen_zero(arr_type);
 
-      new_expr = inits;
-      break;
-    }
+    //   // populate array
+    //   int i = 0;
+    //   for (const auto &arg : expr["components"].items())
+    //   {
+    //     exprt init;
+    //     if (get_expr(arg.value(), elem_literal_type, init))
+    //       return true;
 
-    // case 3
-    case ClarityGrammar::TypeNameT::TupleTypeName: // case 3
-    {
-      /*
-      we assume there are three types of tuple expr:
-      0. dump: (x,y);
-      1. fixed: (x,y) = (y,x);
-      2. function-related:
-          2.1. (x,y) = func();
-          2.2. return (x,y);
+    //     inits.operands().at(i) = init;
+    //     i++;
+    //   }
 
-      case 0:
-        1. create a struct type
-        2. create a struct type instance
-        3. new_expr = instance
-        e.g.
-        (x , y) ==>
-        struct Tuple
-        {
-          uint x,
-          uint y
-        };
-        Tuple tuple;
+    //   new_expr = inits;
+    //   break;
+    // }
 
-      case 1:
-        1. add special handling in binary operation.
-           when matching struct_expr A = struct_expr B,
-           divided into A.operands()[i] = B.operands()[i]
-           and populated into a code_block.
-        2. new_expr = code_block
-        e.g.
-        (x, y) = (1, 2) ==>
-        {
-          tuple.x = 1;
-          tuple.y = 2;
-        }
-        ? any potential scope issue?
+    // // case 3
+    // case ClarityGrammar::TypeNameT::TupleTypeName: // case 3
+    // {
+    //   /*
+    //   we assume there are three types of tuple expr:
+    //   0. dump: (x,y);
+    //   1. fixed: (x,y) = (y,x);
+    //   2. function-related:
+    //       2.1. (x,y) = func();
+    //       2.2. return (x,y);
 
-      case 2:
-        1. when parsing the funciton definition, if the returnParam > 1
-           make the function return void instead, and create a struct type
-        2. when parsing the return statement, if the return value is a tuple,
-           create a struct type instance, do assignments,  and return empty;
-        3. when the lhs is tuple and rhs is func_call, get_tuple_instance_expr based
-           on the func_call, and do case 1.
-        e.g.
-        function test() returns (uint, uint)
-        {
-          return (1,2);
-        }
-        ==>
-        struct Tuple
-        {
-          uint x;
-          uint y;
-        }
-        function test()
-        {
-          Tuple tuple;
-          tuple.x = 1;
-          tuple.y = 2;
-          return;
-        }
-      */
+    //   case 0:
+    //     1. create a struct type
+    //     2. create a struct type instance
+    //     3. new_expr = instance
+    //     e.g.
+    //     (x , y) ==>
+    //     struct Tuple
+    //     {
+    //       uint x,
+    //       uint y
+    //     };
+    //     Tuple tuple;
 
-      // 1. construct struct type
-      if (get_tuple_definition(expr))
-        return true;
+    //   case 1:
+    //     1. add special handling in binary operation.
+    //        when matching struct_expr A = struct_expr B,
+    //        divided into A.operands()[i] = B.operands()[i]
+    //        and populated into a code_block.
+    //     2. new_expr = code_block
+    //     e.g.
+    //     (x, y) = (1, 2) ==>
+    //     {
+    //       tuple.x = 1;
+    //       tuple.y = 2;
+    //     }
+    //     ? any potential scope issue?
 
-      //2. construct struct_type instance
-      if (get_tuple_instance(expr, new_expr))
-        return true;
+    //   case 2:
+    //     1. when parsing the funciton definition, if the returnParam > 1
+    //        make the function return void instead, and create a struct type
+    //     2. when parsing the return statement, if the return value is a tuple,
+    //        create a struct type instance, do assignments,  and return empty;
+    //     3. when the lhs is tuple and rhs is func_call, get_tuple_instance_expr based
+    //        on the func_call, and do case 1.
+    //     e.g.
+    //     function test() returns (uint, uint)
+    //     {
+    //       return (1,2);
+    //     }
+    //     ==>
+    //     struct Tuple
+    //     {
+    //       uint x;
+    //       uint y;
+    //     }
+    //     function test()
+    //     {
+    //       Tuple tuple;
+    //       tuple.x = 1;
+    //       tuple.y = 2;
+    //       return;
+    //     }
+    //   */
 
-      break;
-    }
+    //   // 1. construct struct type
+    //   if (get_tuple_definition(expr))
+    //     return true;
 
-    // case 2
-    default:
-    {
-      if (get_expr(expr["components"][0], literal_type, new_expr))
-        return true;
-      break;
-    }
-    }
+    //   //2. construct struct_type instance
+    //   if (get_tuple_instance(expr, new_expr))
+    //     return true;
+
+    //   break;
+    // }
+
+    // // case 2
+    // default:
+    // {
+    //   if (get_expr(expr["components"][0], literal_type, new_expr))
+    //     return true;
+    //   break;
+    // }
+    // }
 
     break;
   }
@@ -3349,8 +3322,8 @@ bool clarity_convertert::get_expr(
       ClarityGrammar::TypeNameT tname = ClarityGrammar::get_type_name_t(
         expr["baseExpression"]["typeDescriptions"]);
       if (
-        !(tname == ClarityGrammar::ArrayTypeName ||
-          tname == ClarityGrammar::DynArrayTypeName) &&
+        !(tname == ClarityGrammar::ArrayTypeName) &&
+
         expr["baseExpression"].contains("referencedDeclaration"))
       {
         // e.g.
@@ -3618,55 +3591,17 @@ bool clarity_convertert::get_expr(
   return false;
 }
 
+void clarity_convertert::set_current_contract_name(std::string &contract_name)
+{
+  current_contractName = contract_name;
+}
+
 bool clarity_convertert::get_current_contract_name(
   const nlohmann::json &ast_node,
   std::string &contract_name)
 {
-
   contract_name = current_contractName;
   return false;
-
-
-  // check if it is recorded in the scope_map
-  if (ast_node.contains("scope"))
-  {
-    int scope_id = ast_node["scope"];
-
-    if (exportedSymbolsList.count(scope_id))
-    {
-      std::string c_name = exportedSymbolsList[scope_id];
-      if (linearizedBaseList.count(c_name))
-      {
-        contract_name = c_name;
-        return false;
-      }
-    }
-  }
-
-  // implicit constructor
-  if (ast_node.empty())
-  {
-    contract_name = current_contractName;
-    return false;
-  }
-
-  // utilize the find_decl_ref
-  if (ast_node.contains("id"))
-  {
-    const int ref_id = ast_node["id"].get<int>();
-
-    if (exportedSymbolsList.count(ref_id))
-    {
-      // this can be contract, error, et al.
-      // therefore, we utilize the linearizedBaseList to make sure it's really a contract
-      std::string c_name = exportedSymbolsList[ref_id];
-      if (linearizedBaseList.count(c_name))
-        contract_name = exportedSymbolsList[ref_id];
-    }
-    else
-      find_decl_ref(ref_id, contract_name);
-    return false;
-  }
 
   // unexpected
   return true;
@@ -4589,61 +4524,26 @@ bool clarity_convertert::get_type_description(
     // Used for Clarity function parameter or return list
     return get_parameter_list(type_name, new_type);
   }
-  case ClarityGrammar::TypeNameT::Pointer:
+  case ClarityGrammar::TypeNameT::BuffTypeName:
   {
-    // auxiliary type: pointer (FuncToPtr decay)
-    // This part is for FunctionToPointer decay only
-    assert(
-      type_name["typeString"].get<std::string>().find("function") !=
-        std::string::npos ||
-      type_name["typeString"].get<std::string>().find("contract") !=
-        std::string::npos);
+    //it's a buffer of bytes
+    // std::string str_buff_size = type_name[2];
+    // int bit_width = 8 * std::stoi(str_buff_size);
+    // new_type = unsignedbv_typet(bit_width);
 
-    // Since Clarity does not have this, first make a pointee
-    nlohmann::json pointee = make_pointee_type(type_name);
-    typet sub_type;
-    if (get_func_decl_ref_type(pointee, sub_type))
+    if (get_elementary_type_name_buff(type_name, new_type))
       return true;
 
-    if (sub_type.is_struct() || sub_type.is_union())
-      assert(!"struct or union is NOT supported");
-
-    new_type = gen_pointer_type(sub_type);
-    break;
-  }
-  case ClarityGrammar::TypeNameT::PointerArrayToPtr:
-  {
-    // auxiliary type: pointer (FuncToPtr decay)
-    // This part is for FunctionToPointer decay only
-    assert(
-      type_name["typeIdentifier"].get<std::string>().find("ArrayToPtr") !=
-      std::string::npos);
-
-    // Array type descriptor is like:
-    //  "typeIdentifier": "ArrayToPtr",
-    //  "typeString": "uint8[2] memory"
-
-    // Since Clarity does not have this, first make a pointee
-    typet sub_type;
-    if (get_array_to_pointer_type(type_name, sub_type))
-      return true;
-
-    if (
-      sub_type.is_struct() ||
-      sub_type.is_union()) // for "assert(sum > 100)", false || false
-      assert(!"struct or union is NOT supported");
-
-    new_type = gen_pointer_type(sub_type);
     break;
   }
   case ClarityGrammar::TypeNameT::ArrayTypeName:
   {
     // Deal with array with constant size, e.g., int a[2]; Similar to clang::Type::ConstantArray
-    // array's typeDescription is in a compact form, e.g.:
-    //    "typeIdentifier": "t_array$_t_uint8_$2_storage_ptr",
-    //    "typeString": "uint8[2]"
-    // We need to extract the elementary type of array from the information provided above
-    // We want to make it like ["baseType"]["typeDescriptions"]
+    // buff is an array of bytes
+    // list is an array of entry-type
+
+    //it's a list of entry-type
+    // ToDo
     nlohmann::json array_elementary_type =
       make_array_elementary_type(type_name);
     typet the_type;
@@ -4662,75 +4562,11 @@ bool clarity_convertert::get_type_description(
 
     break;
   }
-  case ClarityGrammar::TypeNameT::DynArrayTypeName:
-  {
-    // Dynamic array in Clarity is complicated. We have
-    // 1. dynamic_memory: which will convert to fixed array and
-    //    cannot be modified once got allocated. This can be seen
-    //    as a fixed array whose length will be set later.
-    //    e.g.
-    //      uint[] memory data;
-    //      data = new uint[](10);
-    //    and
-    //      uint[] memory data = new uint[](10);
-    // 2. dynamic_storage: which can be re-allocated or changed at any time.
-    //    e.g.
-    //      uint[] data;
-    //      func(){ data = [1,2,3]; data = new uint[](10); }
-    //    and
-    //      data.pop(); data.push();
-    //    Idealy, this should be set as a vector_type.
-    exprt size_expr;
 
-    if (type_name.contains("sizeExpr"))
-    {
-      // dynamic memory with initial list
-
-      const nlohmann::json &rtn_expr = type_name["sizeExpr"];
-      // wrap it in an ImplicitCastExpr to convert LValue to RValue
-      nlohmann::json implicit_cast_expr =
-        make_implicit_cast_expr(rtn_expr, "LValueToRValue");
-
-      assert(rtn_expr.contains("typeDescriptions"));
-      nlohmann::json l_type = rtn_expr["typeDescriptions"];
-      if (get_expr(implicit_cast_expr, l_type, size_expr))
-        return true;
-      typet subtype;
-      nlohmann::json array_elementary_type =
-        make_array_elementary_type(type_name);
-      if (get_type_description(array_elementary_type, subtype))
-        return true;
-
-      new_type = array_typet(subtype, size_expr);
-    }
-    else
-    {
-      // e.g.
-      // "typeDescriptions": {
-      //     "typeIdentifier": "t_array$_t_uint256_$dyn_memory_ptr",
-      //     "typeString": "uint256[]"
-
-      // 1. rebuild baseType
-      nlohmann::json new_json;
-      std::string temp = type_name["typeString"].get<std::string>();
-      auto pos = temp.find("[]"); // e.g. "uint256[] memory"
-      const std::string typeString = temp.substr(0, pos);
-      const std::string typeIdentifier = "t_" + typeString;
-      new_json["typeString"] = typeString;
-      new_json["typeIdentifier"] = typeIdentifier;
-
-      // 2. get subType
-      typet sub_type;
-      if (get_type_description(new_json, sub_type))
-        return true;
-
-      // 3. make pointer
-      new_type = gen_pointer_type(sub_type);
-    }
-    break;
-  }
   case ClarityGrammar::TypeNameT::ContractTypeName:
   {
+    // ToDo
+    // FIXME
     // e.g. ContractName tmp = new ContractName(Args);
 
     std::string constructor_name = type_name["typeString"].get<std::string>();
@@ -4799,7 +4635,6 @@ bool clarity_convertert::get_type_description(
   }
   case ClarityGrammar::TypeNameT::TupleTypeName:
   {
-    // do nothing as it won't be used
     new_type = struct_typet();
     new_type.set("#cpp_type", "void");
     new_type.set("#clar_type", "tuple");
@@ -4962,34 +4797,29 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node)
   get_default_symbol(symbol, debug_modulename, t, name, id, location_begin);
   symbolt &added_symbol = *move_symbol_to_context(symbol);
 
-  auto &args = ast_node.contains("components")
-                 ? ast_node["components"]
-                 : ast_node["returnParameters"]["parameters"];
-
   // populate params
   //TODO: flatten the nested tuple (e.g. ((x,y),z) = (func(),1); )
   size_t counter = 0;
-  for (const auto &arg : args.items())
-  {
-    if (arg.value().is_null())
-    {
-      ++counter;
-      continue;
-    }
+  nlohmann::json objtype = ast_node[1]["objtype"][1];
+  //std::cout <<objtype.dump(4)<<std::endl;
 
+  //  //for loop to iterate over all keys of objtype
+  for (nlohmann::json::iterator it = objtype.begin(); it != objtype.end(); ++it)
+  {
     struct_typet::componentt comp;
 
     // manually create a member_name
     // follow the naming rule defined in get_var_decl_name
     assert(!current_contractName.empty());
-    const std::string mem_name = "mem" + std::to_string(counter);
+    //const std::string mem_name = "mem" + std::to_string(counter);
+    const std::string mem_name = it.key();
     const std::string mem_id = "clar:@C@" + current_contractName + "@" + name +
                                "@" + mem_name + "#" +
-                               i2string(ast_node["id"].get<std::int16_t>());
+                               i2string(ast_node[1]["cid"].get<std::int16_t>());
 
     // get type
     typet mem_type;
-    if (get_type_description(arg.value()["typeDescriptions"], mem_type))
+    if (get_type_description(it.value(), mem_type))
       return true;
 
     // construct comp
@@ -4999,7 +4829,7 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node)
     comp.cmt_lvalue(true);
     comp.name(mem_name);
     comp.pretty_name(mem_name);
-    comp.set_access("internal");
+    //comp.set_access("internal");
 
     // update struct type component
     t.components().push_back(comp);
@@ -5046,48 +4876,69 @@ bool clarity_convertert::get_tuple_instance(
   // populate struct type symbol
   symbolt symbol;
   get_default_symbol(symbol, debug_modulename, t, name, id, location_begin);
+
+  symbol.lvalue = true;
+  symbol.static_lifetime = true;
+  symbol.file_local = false;
+  symbol.is_extern = false;
   symbolt &added_symbol = *move_symbol_to_context(symbol);
 
-  if (!ast_node.contains("components"))
-  {
-    // assume it's function return parameter list
-    // therefore no initial value
-    new_expr = symbol_expr(added_symbol);
+  // not needed for clarity
+  // keeping for reference purpose only
+  // FIXME
 
-    return false;
-  }
+  // if (!ast_node.contains("components"))
+  // {
+  //   // assume it's function return parameter list
+  //   // therefore no initial value
+  //   new_expr = symbol_expr(added_symbol);
+
+  //   return false;
+  // }
 
   // populate initial value
-  // e.g. (1,2) ==> Tuple tuple = Tuple(1,2);
-  //! since there is no tuple type variable in clarity
-  // we can just convert it as inital value instead of assignment
-  //? should we set the default value as zero?
 
   exprt inits = gen_zero(t);
-  auto &args = ast_node["components"];
+  nlohmann::json objtype = ast_node[1]["objtype"];
 
   size_t i = 0;
-  size_t j = 0;
-  unsigned is = inits.operands().size();
-  unsigned as = args.size();
+  int is = inits.operands().size();
+  int as = objtype[2].get<int>();
   assert(is <= as);
 
-  while (i < is && j < as)
+  for (nlohmann::json::iterator it = objtype[1].begin(); it != objtype[1].end();
+       ++it)
   {
-    if (args.at(j).is_null())
-    {
-      ++j;
-      continue;
-    }
+    //get the type of the component
+    nlohmann::json component_type = it.value();
+    std::string tuple_key = it.key();
+    ClarityGrammar::TypeNameT type =
+      ClarityGrammar::get_type_name_t(component_type);
 
+    //Fixme: right now it only handles elementary types
+    // we will need to pass it the whole get_expr function to handle more complex types.
+    // recursive call to get_expr
+    ClarityGrammar::ElementaryTypeNameT type_name =
+      ClarityGrammar::get_elementary_type_name_t(component_type);
+
+    /* Create a temporary JSON object to ease processing */
+    nlohmann::json temp_expression_node;
+    temp_expression_node["expressionType"] = "Literal";
+    temp_expression_node["span"] = ast_node[1]["span"];
+    temp_expression_node["identifier"] = tuple_key;
+    temp_expression_node["cid"] = ast_node[1]["cid"];
+    temp_expression_node["objtype"] = component_type;
+    temp_expression_node["value"] = ast_node[1]["value"][1][tuple_key];
+
+    nlohmann::json temp_declarative_node = {"tuple", temp_expression_node};
+
+    //std::string the_value = expr[1][tuple_key].get<std::string>();
+    std::cout << temp_declarative_node.dump(4) << std::endl;
     exprt init;
-    const nlohmann::json &litera_type = args.at(j)["typeDescriptions"];
-
-    if (get_expr(args.at(j), litera_type, init))
+    if (get_expr(temp_declarative_node, component_type, init))
       return true;
 
-    const struct_union_typet::componentt *c =
-      &to_struct_type(t).components().at(i);
+    const struct_typet::componentt *c = &to_struct_type(t).components().at(i);
     typet elem_type = c->type();
 
     clarity_gen_typecast(ns, init, elem_type);
@@ -5095,7 +4946,6 @@ bool clarity_convertert::get_tuple_instance(
 
     // update
     ++i;
-    ++j;
   }
 
   added_symbol.value = inits;
@@ -5109,7 +4959,11 @@ void clarity_convertert::get_tuple_name(
   std::string &name,
   std::string &id)
 {
-  name = "tuple" + std::to_string(ast_node["id"].get<int>());
+  name =
+    "tuple_" +
+    ast_node[1]["identifier"]
+      .get<
+        std::string>(); //+ "#" + std::to_string(ast_node[1]["cid"].get<int>());
   id = prefix + "struct " + name;
 }
 
@@ -5124,7 +4978,11 @@ bool clarity_convertert::get_tuple_instance_name(
   if (c_name.empty())
     return true;
 
-  name = "tuple_instance" + std::to_string(ast_node["id"].get<int>());
+  //name = "tuple_instance_" + ast_node[1]["identifier"].get<std::string>(); //+ "#"+ std::to_string(ast_node[1]["cid"].get<int>());
+  name =
+    ast_node[1]["identifier"]
+      .get<
+        std::string>(); //+ "#"+ std::to_string(ast_node[1]["cid"].get<int>());
   id = "clar:@C@" + c_name + "@" + name;
   return false;
 }
@@ -5231,30 +5089,48 @@ bool clarity_convertert::get_elementary_type_name_int(
   return false;
 }
 
-bool clarity_convertert::get_elementary_type_name_bytesn(
-  ClarityGrammar::ElementaryTypeNameT &type,
+bool clarity_convertert::get_elementary_type_name_buff(
+  const nlohmann::json &objtype,
   typet &out)
 {
   /*
     bytes1 has size of 8 bits (possible values 0x00 to 0xff),
     which you can implicitly convert to uint8 (unsigned integer of size 8 bits) but not to int8
   */
-  const unsigned int byte_num = ClarityGrammar::bytesn_type_name_to_size(type);
-  out = unsignedbv_typet(byte_num * 8);
+
+  std::string str_buff_size = objtype[2];
+  const unsigned int bytes = std::stoi(str_buff_size);
+  out = array_typet(unsigned_char_type(), from_integer(bytes, size_type()));
+
+  return false;
+}
+
+bool clarity_convertert::get_elementary_type_name_bytesn(
+  const nlohmann::json &objtype,
+  typet &out)
+{
+  /*
+    bytes1 has size of 8 bits (possible values 0x00 to 0xff),
+    which you can implicitly convert to uint8 (unsigned integer of size 8 bits) but not to int8
+  */
+
+  std::string str_buff_size = objtype[2];
+  const unsigned int bytes = std::stoi(str_buff_size);
+  out = unsignedbv_typet(bytes * 8);
 
   return false;
 }
 
 // input param type_name is objtype node
 bool clarity_convertert::get_elementary_type_name(
-  const nlohmann::json &type_name,
+  const nlohmann::json &objtype,
   typet &new_type)
 {
   // For Clarity rule elementary-type-name:
   // equivalent to clang's get_builtin_type()
   std::string c_type;
   ClarityGrammar::ElementaryTypeNameT type =
-    ClarityGrammar::get_elementary_type_name_t(type_name);
+    ClarityGrammar::get_elementary_type_name_t(objtype);
 
   log_debug(
     "clarity",
@@ -5278,7 +5154,7 @@ bool clarity_convertert::get_elementary_type_name(
       return true;
     break;
   }
-  
+
   case ClarityGrammar::ElementaryTypeNameT::BOOL:
   {
     new_type = bool_type();
@@ -5288,8 +5164,9 @@ bool clarity_convertert::get_elementary_type_name(
   }
   case ClarityGrammar::ElementaryTypeNameT::STRING_ASCII:
   {
-    // TODO: fix this
-    size_t value_length = 128;
+    // obj[2] contains size of object
+    std::string str_value_length = objtype[2];
+    size_t value_length = std::stoi(str_value_length);
 
     new_type = array_typet(
       signed_char_type(),
@@ -5302,7 +5179,8 @@ bool clarity_convertert::get_elementary_type_name(
   case ClarityGrammar::ElementaryTypeNameT::STRING_UTF8:
   {
     // TODO: and this
-    size_t value_length = 128;
+    std::string str_value_length = objtype[2];
+    size_t value_length = std::stoi(str_value_length);
 
     new_type = array_typet(
       signed_char_type(),
@@ -5312,28 +5190,37 @@ bool clarity_convertert::get_elementary_type_name(
         int_type()));
     break;
   }
-  case ClarityGrammar::ElementaryTypeNameT::ADDRESS:
+  case ClarityGrammar::ElementaryTypeNameT::PRINCIPAL:
   {
-    //  An Address is a DataHexString of 20 bytes (uint160)
-    // e.g. 0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984
-    // ops: <=, <, ==, !=, >= and >
+    /// obj[2] contains size of object
+    std::string str_value_length = objtype[2];
+    size_t value_length = std::stoi(str_value_length);
 
-    new_type = unsignedbv_typet(160);
+    if (value_length > 1)
+    {
+      log_error("Principal type can only have one byte");
+      return true;
+    }
+    else
+    {
+      new_type = array_typet(
+        signed_char_type(),
+        constant_exprt(
+          integer2binary(value_length, bv_width(int_type())),
+          integer2string(value_length),
+          int_type()));
 
-    // for type conversion
-    new_type.set("#clar_type", elementary_type_name_to_str(type));
-
-    break;
+      break;
+    }
   }
   case ClarityGrammar::ElementaryTypeNameT::BUFF:
   {
-    // TODO: size
-    if (get_elementary_type_name_bytesn(type, new_type))
+    if (get_elementary_type_name_buff(objtype, new_type))
       return true;
 
     // for type conversion
-    new_type.set("#clar_type", elementary_type_name_to_str(type));
-    new_type.set("#clar_bytes_size", bytesn_type_name_to_size(type));
+    //new_type.set("#clar_type", elementary_type_name_to_str(type));
+    //new_type.set("#clar_bytes_size", bytesn_type_name_to_size(type));
 
     break;
   }
@@ -5423,13 +5310,23 @@ void clarity_convertert::get_state_var_decl_name(
         std::
           string>(); // assume Clarity AST json object has "identifier" field, otherwise throws an exception in nlohmann::json
 
-  // e.g. sol:@C@Base@x#11
+  // e.g. clar:@C@Base@x#11
   // The prefix is used to avoid duplicate names
   if (!contract_name.empty())
-    id = "clar:@C@" + contract_name + "@" + name + "#" +
-         i2string(ast_node[1]["id"].get<std::int16_t>());
+  {
+    if (ClarityGrammar::is_tuple_declaration(ast_node))
+    {
+      get_tuple_name(ast_node, name, id);
+    }
+    else
+    {
+      id = "clar:@C@" + contract_name + "@" + name + "#" +
+           i2string(ast_node[1]["cid"].get<std::int16_t>());
+    }
+  }
   else
-    id = "clar:@" + name + "#" + i2string(ast_node[1]["id"].get<std::int16_t>());
+    id =
+      "clar:@" + name + "#" + i2string(ast_node[1]["cid"].get<std::int16_t>());
 }
 
 // parse the non-state variable
@@ -5568,7 +5465,7 @@ unsigned int clarity_convertert::get_line_number(
   const nlohmann::json &ast_node,
   bool final_position)
 {
- /*
+  /*
  [
       "data-var",
       {
@@ -5602,8 +5499,8 @@ void clarity_convertert::get_location_from_decl(
 
   // To annotate local declaration within a function
   if (
-    is_variable_declaration(ast_node)  &&
-     is_state_variable(ast_node) == false)
+    ClarityGrammar::is_variable_declaration(ast_node) &&
+    ClarityGrammar::is_state_variable(ast_node) == false)
   {
     assert(
       current_functionDecl); // must have a valid current function declaration
@@ -6330,7 +6227,7 @@ bool clarity_convertert::get_default_function(
   const std::string id)
 {
   nlohmann::json ast_node;
-  
+
   auto j2 = R"(
               [
                 "ParameterList",
@@ -6341,9 +6238,9 @@ bool clarity_convertert::get_default_function(
                 }
               ]
             )"_json;
-  
-  ast_node["returnParameters"] = j2 ; 
-  std::cout << std::setw(4) << ast_node["returnParameters"] << "\n";
+
+  ast_node["returnParameters"] = j2;
+  //std::cout << std::setw(4) << ast_node["returnParameters"] << "\n";
 
   code_typet type;
   if (get_type_description(ast_node["returnParameters"], type.return_type()))
@@ -6424,16 +6321,14 @@ static inline void static_lifetime_init(const contextt &context, codet &dest)
   dest = code_blockt();
 
   // call designated "initialization" functions
-  context.foreach_operand_in_order(
-    [&dest](const symbolt &s)
+  context.foreach_operand_in_order([&dest](const symbolt &s) {
+    if (s.type.initialization() && s.type.is_code())
     {
-      if (s.type.initialization() && s.type.is_code())
-      {
-        code_function_callt function_call;
-        function_call.function() = symbol_expr(s);
-        dest.move_to_operands(function_call);
-      }
-    });
+      code_function_callt function_call;
+      function_call.function() = symbol_expr(s);
+      dest.move_to_operands(function_call);
+    }
+  });
 }
 
 // declare an empty array symbol and move it to the context
@@ -6555,11 +6450,11 @@ bool clarity_convertert::multi_transaction_verification(
 
   // 1. get constructor call
 
-
   //for (auto it = id_list.rbegin(); it != id_list.rend(); ++it)
   {
     // 1.1 get contract symbol ("tag-contractName")
-    std::string c_name = current_contractName; //exportedSymbolsList[*it];
+    std::string c_name;
+    get_current_contract_name(nullptr, c_name); //exportedSymbolsList[*it];
     const std::string id = prefix + c_name;
     if (context.find_symbol(id) == nullptr)
       return true;
