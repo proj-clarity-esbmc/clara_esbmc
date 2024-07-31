@@ -16,7 +16,7 @@ bool clarity_convertert::convert_integer_literal(
 {
   // clarity only supports 128 bit signed integers
   typet type = signedbv_typet(128);
-  
+
   exprt the_val;
   // extract the value: signed
   BigInt z_ext_value = string2integer(the_value);
@@ -36,7 +36,7 @@ bool clarity_convertert::convert_unsigned_integer_literal(
 {
   // clarity only supports 128 bit unsigned integers
   typet type = unsignedbv_typet(128);
-  
+
   exprt the_val;
   // extract the value: signed
   BigInt z_ext_value = string2integer(the_value);
@@ -52,11 +52,10 @@ bool clarity_convertert::convert_unsigned_integer_literal(
 // can probably be ignored.
 // use convert_integer_literal instead.
 bool clarity_convertert::convert_integer_literal_with_type(
-  typet & type,
+  typet &type,
   std::string the_value,
   exprt &dest)
 {
-
   if (type != signedbv_typet(128))
   {
     //std::cout <<"invalid type provided. "<<"Expected "<<"signedbv_typet \n";
@@ -75,17 +74,16 @@ bool clarity_convertert::convert_integer_literal_with_type(
 }
 
 bool clarity_convertert::convert_unsigned_integer_literal_with_type(
-  typet & type,
+  typet &type,
   std::string the_value,
   exprt &dest)
 {
-
   if (type != unsignedbv_typet(128))
   {
     //std::cout <<"invalid type provided. "<<"Expected "<<"unsignedbv_typet \n";
     abort();
   }
-    
+
   exprt the_val;
   // extract the value: unsigned
   BigInt z_ext_value = string2integer(the_value);
@@ -97,7 +95,6 @@ bool clarity_convertert::convert_unsigned_integer_literal_with_type(
   dest.swap(the_val);
   return false;
 }
-
 
 bool clarity_convertert::convert_bool_literal(
   const nlohmann::json &bool_literal,
@@ -135,7 +132,7 @@ bool clarity_convertert::convert_string_literal(
   std::string the_value,
   exprt &dest)
 {
-  size_t string_size = the_value.size() + 1;  //to accommodate \0
+  size_t string_size = the_value.size() + 1; //to accommodate \0
   typet type = array_typet(
     signed_char_type(),
     constant_exprt(
@@ -178,7 +175,6 @@ bool clarity_convertert::convert_hex_literal(
   return false;
 }
 
-
 /**
  * convert str-string to uint constant
  * @n: the bit width, default 256 (unsignedbv_typet(256))
@@ -195,7 +191,7 @@ bool clarity_convertert::convert_uint_literal(
     {
       the_value.erase(0, 1);
     }
- 
+
   convert_unsigned_integer_literal(uint_literal, the_value, dest);
   return false;
 }

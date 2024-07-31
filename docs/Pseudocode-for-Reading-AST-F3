@@ -46,6 +46,7 @@ Pseudo code for Reading AST F3
                           - [0] can be a funcion name, which means the following items are function params
                           - [0] can be operator, which means the following items are the operands.
                           - [0] can be "response" which means it will require special handling. Like, it will have two objTypes (sucess type, failure type)
+                          - [0] can be "tuple" and requires special handling
                       [1] type identifer : string //example uint_128
                         - However, if the [0] anything other than a literal type then special handling is needed.
                       [2]  size of identifier
@@ -63,6 +64,7 @@ Pseudo code for Reading AST F3
                               - if [0] is "list" then what follows is the elements of the list as per the size in list objtype node.
                               - if [0] is a a conditional "if" then [1] would be a value node containing expression to test, [2] is "value" node if [1] is true, [3] is "value" if [1] is false
                               - if [0] is a "begin" or "let" then it starts a code_block with one or multiple expressions. each expression is a "value" node.
+                              - if [0] is a "tuple" then [1] will be an object containing "key" : "value" pairs. each value entry against a key is to be read as a "Value" node
                             - [1] to [n] would be the params to the operator or function
 
                   
@@ -77,3 +79,21 @@ Pseudo code for Reading AST F3
 
                 }
 
+==> Special Handling for Optional Types:
+if objtype[0] is "optional" that means objtype[2] would another objtype representing what type of optional value to expect.
+then 
+  if value node is an array 
+  then
+    if value[0] is "some"
+    then 
+      value[1] is the value or an expression that would result in objtype[2] type.
+    else
+      invalid value.
+  else
+    value will be "none" string.
+  
+
+==> Special Handling for Tuple Types:
+objtype[0] = "tuple"
+...[1] will be an object containing keys for members of tuples. each corresponding "value" is an objtype array 
+...[2] will contain the number of keys to expect in the tuple.
