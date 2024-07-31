@@ -68,9 +68,9 @@ If you are building ESBMC-CHERI, skip the following sections and go straight to 
 You can either download and unpack a release manually:
 
 ```
-wget https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.0/clang+llvm-11.0.0-x86_64-linux-gnu-ubuntu-20.04.tar.xz &&
-tar xfJ clang+llvm-11.0.0-x86_64-linux-gnu-ubuntu-20.04.tar.xz &&
-ESBMC_CLANG=$(echo -D{LLVM,Clang}_DIR=$PWD/clang+llvm-11.0.0-x86_64-linux-gnu-ubuntu-20.04) &&
+wget https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.0/clang+llvm-15.0.0-x86_64-linux-gnu-ubuntu-20.04.tar.xz &&
+tar xfJ clang+llvm-15.0.0-x86_64-linux-gnu-ubuntu-20.04.tar.xz &&
+ESBMC_CLANG=$(echo -D{LLVM,Clang}_DIR=$PWD/clang+llvm-15.0.0-x86_64-linux-gnu-ubuntu-20.04) &&
 ESBMC_STATIC=ON
 ```
 
@@ -91,8 +91,8 @@ They are optional.
 For shared builds, it is recommended to use the system's LLVM/Clang, which on
 Ubuntu can be obtained by:
 ```
-apt-get install libclang-cpp11-dev &&
-ESBMC_CLANG="-DLLVM_DIR=/usr/lib/llvm-11/lib/cmake/llvm -DClang_DIR=/usr/lib/cmake/clang-11" &&
+sudo apt-get install libclang-cpp15-dev
+ESBMC_CLANG="-DLLVM_DIR=/usr/lib/llvm-15/lib/cmake/llvm -DClang_DIR=/usr/lib/cmake/clang-15" &&
 ESBMC_STATIC=OFF
 ```
 
@@ -417,6 +417,34 @@ passing the CMake flags
 ```
 e.g. the 'path' should point to `$HOME/cheri/output/rootfs-riscv64-purecap`. As for the `rootfs-riscv64-purecap` part, you may want to use a diffrent directory if you used a different variant in the `cheribuild.py` command above.
 
+# Issues with building with shared clang 15 libraries
+On Ubuntu 22.04.1 LTS when the build was attempted by using both the shared clang 15 version or static clang 15 version as per this document
 
+```
+sudo apt-get install libclang-cpp15-dev
+ESBMC_CLANG="-DLLVM_DIR=/usr/lib/llvm-15/lib/cmake/llvm -DClang_DIR=/usr/lib/cmake/clang-15" &&
+ESBMC_STATIC=OFF
+pip3 install ast2json
+cd build
+cmake .. -GNinja -DBUILD_TESTING=On -DENABLE_REGRESSION=On $ESBMC_CLANG -DBUILD_STATIC=${ESBMC_STATIC:-ON} -DENABLE_Z3=1 -DENABLE_SOLIDITY_FRONTEND=On -DENABLE_CLARITY_FRONTEND=On -DZ3_DIR=$PWD/../../z3 -DCMAKE_INSTALL_PREFIX:PATH=$PWD/../../release
 
+```
 
+Got this error
+```
+CMake Error at scripts/cmake/FindLocalLLVM.cmake:11 (find_package):
+  Could not find a package configuration file provided by "LLVM" with any of
+  the following names:
+
+    LLVMConfig.cmake
+    llvm-config.cmake
+```
+
+The reason for this was that libclang-cpp15-dev installation does not install the make files in the installation directory '/usr/lib/llvm-15/lib/'
+
+Had to manually install the following two packages for clang 15
+```
+sudo apt install clang-15
+sudo apt-get install libclang-15-dev
+
+```
