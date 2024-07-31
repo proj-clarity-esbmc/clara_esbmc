@@ -63,6 +63,9 @@ enum TypeNameT
   // built-in member
   BuiltinTypeName,
 
+  // return type
+  ReturnTypeName,
+
   TypeNameTError
 };
 TypeNameT get_type_name_t(const nlohmann::json &type_name);

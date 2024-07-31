@@ -41,7 +41,7 @@ bool is_state_variable(const nlohmann::json & ast_node)
 {
   const std::vector<std::string> state_node_types {"data-var" , "map" , "trait" , "constant" , "def-ft" , "def-nft"};
   
-  if (std::find(state_node_types.begin(), state_node_types.end(), ast_node[0]) != state_node_types.end())
+  if (std::find(state_node_types.begin(), state_node_types.end(), ast_node) != state_node_types.end())
     return true;
   else
     return false;
@@ -55,9 +55,9 @@ bool is_variable_declaration(const nlohmann::json & ast_node)
 
 bool is_function_definition(const nlohmann::json & ast_node)
 {
-  const std::vector<std::string> state_node_types {"var-get" , "read-only" , "private" , "public"};
+  const std::vector<std::string> state_node_types {"var-get" , "read_only" , "private" , "public"};
   
-  if (std::find(state_node_types.begin(), state_node_types.end(), ast_node[0]) != state_node_types.end())
+  if (std::find(state_node_types.begin(), state_node_types.end(), ast_node) != state_node_types.end())
     return true;
   else
     return false;
@@ -67,7 +67,7 @@ bool operation_is_binary(const nlohmann::json & ast_node)
 {
   const std::vector<std::string> binary_operators {"+", "-", "*", "/", "%", "<<", ">>", "&", "|", ">", "<", ">=", "<=", "!=", "==", "&&", "||", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "|=", "^=", "**"};
   
-  if (std::find(binary_operators.begin(), binary_operators.end(), ast_node[0]) != binary_operators.end())
+  if (std::find(binary_operators.begin(), binary_operators.end(), ast_node) != binary_operators.end())
     return true;
   else
     return false;
@@ -77,7 +77,7 @@ bool operation_is_unary(const nlohmann::json & ast_node)
 {
   const std::vector<std::string> unary_operators {"--", "++", "-", "~", "!"};
   
-  if (std::find(unary_operators.begin(), unary_operators.end(), ast_node[0]) != unary_operators.end())
+  if (std::find(unary_operators.begin(), unary_operators.end(), ast_node) != unary_operators.end())
     return true;
   else
     return false;
@@ -87,7 +87,7 @@ bool operation_is_conditional(const nlohmann::json & ast_node)
 {
   const std::vector<std::string> conditional_operators {"if"};
   
-  if (std::find(conditional_operators.begin(), conditional_operators.end(), ast_node[0]) != conditional_operators.end())
+  if (std::find(conditional_operators.begin(), conditional_operators.end(), ast_node) != conditional_operators.end())
     return true;
   else
     return false;
@@ -97,15 +97,15 @@ bool get_operation_type(nlohmann::json & expression_node)
 {
   nlohmann::json value_node = expression_node[1]["value"];
 
-  if (operation_is_binary(value_node))
+  if (operation_is_binary(value_node[0]))
   {
      expression_node[1]["expressionType"] = "BinaryOperation";
   }
-  else if (operation_is_unary(value_node))
+  else if (operation_is_unary(value_node[0]))
   {
     expression_node[1]["expressionType"] = "UnaryOperation";
   }
-  else if(operation_is_conditional(value_node))
+  else if(operation_is_conditional(value_node[0]))
   {
     expression_node[1]["expressionType"] = "Conditional";
   }
@@ -179,8 +179,8 @@ bool parse_expression_element(nlohmann::json & expr_element_json)
   std::string expression_class = expr_element_json[0];
 
   // determine if it's a variable / constant declaration or a function definition
-  bool var_decl = is_variable_declaration(expr_element_json);
-  bool func_def = is_function_definition(expr_element_json);
+  bool var_decl = is_variable_declaration(expr_element_json[0]);
+  bool func_def = is_function_definition(expr_element_json[0]);
   
   // add a nodeType for easier differenciation down the line.
   if (var_decl)
@@ -193,7 +193,7 @@ bool parse_expression_element(nlohmann::json & expr_element_json)
     //return process_function_definition(expr_element_json);
     expr_element_json[1]["nodeType"] = "FunctionDefinition";
     // do not process yet
-    return true;
+    return false;
   }
   else
   {
@@ -210,12 +210,12 @@ bool parse_expression_element(nlohmann::json & expr_element_json)
 // rule contract-body-element
 ContractBodyElementT get_contract_body_element_t(const nlohmann::json &element)
 {
-  if (element[1]["nodeType"] == "VariableDeclaration") 
+  if (element[1]["type"] == "variable") 
   {
     return VarDecl;
   }
   else if (
-    element[1]["nodeType"] == "FunctionDefinition")
+    element[1]["type"] == "function_name")
   {
     return FunctionDef;
   }
@@ -271,7 +271,7 @@ TypeNameT get_type_name_t(const nlohmann::json &type_name)
     {
       return MappingTypeName;
     }
-    else if (typeString == "buff")
+    else if (typeString == "buffer")
     {
      //buff in clarity can be considered as array of bytes
 
@@ -312,11 +312,15 @@ TypeNameT get_type_name_t(const nlohmann::json &type_name)
     {
       return BuiltinTypeName;
     }
+    else if (typeString.compare(0, 11, "return_type") == 0)
+    {
+      return ReturnTypeName;
+    }
     else
     {
       log_error(
         "Got type-name typeString={}. Unsupported type-name type",
-        type_name["typeString"].get<std::string>());
+        typeString);
       abort();
     }
   }
@@ -351,6 +355,7 @@ const char *type_name_to_str(TypeNameT type)
     ENUM_TO_STR(TupleTypeName)
     ENUM_TO_STR(MappingTypeName)
     ENUM_TO_STR(BuiltinTypeName)
+    ENUM_TO_STR(ReturnTypeName)
     ENUM_TO_STR(TypeNameTError)
   default:
   {
@@ -486,15 +491,15 @@ unsigned int bytesn_type_name_to_size(ElementaryTypeNameT type)
 // rule parameter-list
 ParameterListT get_parameter_list_t(const nlohmann::json &type_name)
 {
-  if (type_name["Parameters"].size() == 0)
+  if (type_name["args"].size() == 0)
   {
     return EMPTY;
   }
-  else if (type_name["Parameters"].size() == 1)
+  else if (type_name["args"].size() == 1)
   {
     return ONE_PARAM;
   }
-  else if (type_name["Parameters"].size() > 1)
+  else if (type_name["args"].size() > 1)
   {
     return MORE_THAN_ONE_PARAM;
   }

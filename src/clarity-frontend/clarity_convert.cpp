@@ -1195,7 +1195,7 @@ bool clarity_convertert::convert()
      
       std::cout <<"Key "<< itr.key()<<"\n";
 
-      if (itr.key() == "indentifier" )
+      if (itr.key() == "identifier" )
       {
        
         log_status("Skipping {} as we have already processed it", itr.key());
@@ -1288,7 +1288,7 @@ bool clarity_convertert::convert_ast_nodes(const nlohmann::json &contract_def)
   
     nlohmann::json ast_node = contract_def;
     std::string identifier_name = ast_node[1]["identifier"].get<std::string>();
-    std::string identifier_type = get_objtype_type_name(ast_node[1]["objtype"]);    //std::string(ast_node[1]["objtype"][0]; //.type_name());
+    std::string identifier_type = ast_node[1]["type"];    //std::string(ast_node[1]["objtype"][0]; //.type_name());
     log_debug(
       "clarity",
       "@@ Converting node[{}]: name={}, nodeType={} ...",
@@ -1440,7 +1440,7 @@ bool clarity_convertert::get_var_decl(
   }
 
   //bool is_state_var = ast_node["stateVariable"] == true;
-  bool is_state_var = ClarityGrammar::is_state_variable(ast_node);
+  bool is_state_var = ClarityGrammar::is_state_variable(ast_node[0]);
 
   // 2. populate id and name
   std::string name, id;
@@ -1461,7 +1461,7 @@ bool clarity_convertert::get_var_decl(
 
   // 3. populate location
   locationt location_begin;
-  get_location_from_decl(ast_node, location_begin);
+  get_location_from_decl(ast_node[0], location_begin);
 
   // 4. populate debug module name
   std::string debug_modulename =
@@ -1585,6 +1585,7 @@ bool clarity_convertert::get_clarity_struct_class(const nlohmann::json &struct_d
   current_fileName = debug_modulename;
 
   symbolt symbol;
+  log_status("get_clarity_struct_class adding symbols {} ",id);
   get_default_symbol(symbol, debug_modulename, t, name, id, location_begin);
 
   symbol.is_type = true;
@@ -1672,7 +1673,7 @@ bool clarity_convertert::get_struct_class(const nlohmann::json &struct_def)
 
   // 3. populate location
   locationt location_begin;
-  get_location_from_decl(struct_def, location_begin);
+  get_location_from_decl(struct_def[0], location_begin);
   
   // 4. populate debug module name
   std::string debug_modulename =
@@ -1868,7 +1869,7 @@ bool clarity_convertert::get_error_definition(const nlohmann::json &ast_node)
   type.return_type() = empty_typet();
 
   locationt location_begin;
-  get_location_from_decl(ast_node, location_begin);
+  get_location_from_decl(ast_node[0], location_begin);
   std::string debug_modulename =
     get_modulename_from_path(location_begin.file().as_string());
 
@@ -1957,6 +1958,9 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
   // Order matters! do not change!
   // 1. Check fd.isImplicit() --- skipped since it's not applicable to Clarity
   // 2. Check fd.isDefined() and fd.isThisDeclarationADefinition()
+  log_status("Entering {} ","get_function_definition");
+  #if 0 
+  // ml- need to check if there is such a thing as intrinsic function
   if (
     !ast_node
       ["implemented"]) // TODO: for interface function, it's just a definition. Add something like "&& isInterface_JustDefinition()"
@@ -1965,7 +1969,7 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
   // Check intrinsic functions
   if (check_intrinsic_function(ast_node))
     return false;
-
+  #endif
   // 3. Set current_scope_var_num, current_functionDecl and old_functionDecl
   current_scope_var_num = 1;
   const nlohmann::json *old_functionDecl = current_functionDecl;
@@ -1973,6 +1977,8 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
 
   current_functionDecl = &ast_node;
   bool is_ctor = false;
+  #if 0 
+  // no option of a constructor type
   if (
     (*current_functionDecl)["name"].get<std::string>() == "" &&
     (*current_functionDecl)["kind"] == "constructor")
@@ -1982,16 +1988,30 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
       return true;
   }
   else
-    current_functionName = (*current_functionDecl)["name"].get<std::string>();
-
+  #endif
+  log_status("Getting current functionName {} ","get_function_definition");
+  
+    current_functionName = (*current_functionDecl)[1]["identifier"].get<std::string>();
+  log_status("Got current functionName {} {}","get_function_definition", current_functionName);
+  
   // 4. Return type
   code_typet type;
-  if (get_type_description(ast_node["returnParameters"], type.return_type()))
+  type.return_type() = struct_typet();
+  type.set("#cpp_type", "void");
+  type.set("#clar_type", "return");
+  #if 0
+  // ml- return_type has been removed
+  code_typet type;
+  if (get_type_description(ast_node[1]["return_type"], type.return_type()))
     return true;
-
-  // special handling for tuple:
+  #endif
+  log_status("get_type_description {} {}","get_function_definition", current_functionName);
+  
+  // special handling for return_type:
+  #if 0
+  // will deel with return types later as these are complex
   // construct a tuple type and a tuple instance
-  if (type.return_type().get("#clar_type") == "tuple")
+  if (type.return_type().get("#clar_type") == "return_type")
   {
     exprt dump;
     if (get_tuple_definition(*current_functionDecl))
@@ -2000,6 +2020,7 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
       return true;
     type.return_type().set("#clar_tuple_id", dump.identifier().as_string());
   }
+  #endif
 
   // 5. Check fd.isVariadic(), fd.isInlined()
   //  Skipped since Clarity does not support variadic (optional args) or inline function.
@@ -2007,12 +2028,16 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
 
   // 6. Populate "locationt location_begin"
   locationt location_begin;
-  get_location_from_decl(ast_node, location_begin);
+  get_location_from_decl(ast_node[0], location_begin);
 
+  log_status("get_location_from_decl {} {}","get_function_definition", current_functionName);
+  
   // 7. Populate "std::string id, name"
   std::string name, id;
   get_function_definition_name(ast_node, name, id);
 
+  log_status("get_function_definition_name {} {}","get_function_definition", current_functionName);
+  
   if (name == "func_dynamic")
     printf("@@ found func_dynamic\n");
 
@@ -2034,6 +2059,8 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
 
   // 11. Convert parameters, if no parameter, assume ellipis
   //  - Convert params before body as they may get referred by the statement in the body
+  #if 0
+  // ml- No need of constructors
   if (is_ctor)
   {
     /* need (type *) as first parameter, this is equivalent to the 'this'
@@ -2041,14 +2068,19 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
     code_typet::argumentt param(pointer_typet(type.return_type()));
     type.arguments().push_back(param);
   }
+  #endif
 
+  log_status("get_parameter_list_t {} {}","get_function_definition", current_functionName);
+  
   ClarityGrammar::ParameterListT params =
-    ClarityGrammar::get_parameter_list_t(ast_node["parameters"]);
+    ClarityGrammar::get_parameter_list_t(ast_node[2]);
+  
+  log_status("get_parameter_list_t {} {}",int(params), current_functionName);
   if (params != ClarityGrammar::ParameterListT::EMPTY)
   {
     // convert parameters if the function has them
     // update the typet, since typet contains parameter annotations
-    for (const auto &decl : ast_node["parameters"]["parameters"].items())
+    for (const auto &decl : ast_node[2]["args"].items())
     {
       const nlohmann::json &func_param_decl = decl.value();
 
@@ -2065,10 +2097,47 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
   added_symbol.type = type;
 
   // 12. Convert body and embed the body into the same symbol
-  if (ast_node.contains("body"))
+  if (ast_node[1].contains("body"))
   {
+    // ml- body can be of three type
+    // 1. single expression ex: "body": "none",
+    // 2. object ex:
+    // "body": {
+    //       "identifier": "num",
+    //       "scope": "local",
+    //       "cid": 35,
+    //       "objtype": [
+    //         "uint",
+    //         "uint_128",
+    //         "128"
+    //       ]
+    //     },
+    // 3. array ex:
+    //     body": [
+    //               "+",
+    //               {
+    //                 "identifier": "num1",
+    //                 "scope": "local",
+    //                 "cid": 37,
+    //                 "objtype": [
+    //                   "uint",
+    //                   "uint_128",
+    //                   "128"
+    //                 ]
+    //               },
+    //               {
+    //                 "identifier": "num2",
+    //                 "scope": "local",
+    //                 "cid": 38,
+    //                 "objtype": [
+    //                   "uint",
+    //                   "uint_128",
+    //                   "128"
+    //                 ]
+    //               }
+    //             ],
     exprt body_exprt;
-    if (get_block(ast_node["body"], body_exprt))
+    if (get_block(ast_node[1]["body"], body_exprt))
       return true;
 
     added_symbol.value = body_exprt;
@@ -2092,13 +2161,16 @@ if (type.arguments().empty())
     // assume ellipsis if the function has no parameters
     type.make_ellipsis();
   }
-}bool clarity_convertert::get_function_params(
+}
+
+
+bool clarity_convertert::get_function_params(
   const nlohmann::json &pd,
   exprt &param)
 {
   // 1. get parameter type
   typet param_type;
-  if (get_type_description(pd["typeDescriptions"], param_type))
+  if (get_type_description(pd["objtype"], param_type))
     return true;
 
   // 2a. get id and name
@@ -2149,12 +2221,18 @@ if (type.arguments().empty())
 
 bool clarity_convertert::get_block(const nlohmann::json &block, exprt &new_expr)
 {
+
+  log_status(
+    "clarity"
+    "	@@@ got Block: ClarityGrammar::BlockT::{}",
+    block.dump());
+
   // For rule block
   locationt location;
   get_start_location_from_stmt(block, location);
 
   ClarityGrammar::BlockT type = ClarityGrammar::get_block_t(block);
-  log_debug(
+  log_status(
     "clarity",
     "	@@@ got Block: ClarityGrammar::BlockT::{}",
     ClarityGrammar::block_to_str(type));
@@ -4494,9 +4572,11 @@ bool clarity_convertert::get_type_description(
   const nlohmann::json &type_name,
   typet &new_type)
 {
+  log_status("Got type description {} {}","get_type_description", type_name.dump());
   // For Clarity rule type-name:
   ClarityGrammar::TypeNameT type = ClarityGrammar::get_type_name_t(type_name);
 
+  log_status("Got current functionName {} {}","get_type_description", int(type));
   switch (type)
   {
   case ClarityGrammar::TypeNameT::ElementaryTypeName:
@@ -4506,6 +4586,8 @@ bool clarity_convertert::get_type_description(
   }
   case ClarityGrammar::TypeNameT::ParameterList:
   {
+    log_status("Got current functionName {} {}","get_type_description", "ParameterList");
+  
     // rule parameter-list
     // Used for Clarity function parameter or return list
     return get_parameter_list(type_name, new_type);
@@ -4628,6 +4710,15 @@ bool clarity_convertert::get_type_description(
     new_type = struct_typet();
     new_type.set("#cpp_type", "void");
     new_type.set("#clar_type", "tuple");
+    break;
+  }
+  case ClarityGrammar::TypeNameT::ReturnTypeName:
+  {
+    log_status("Got current functionName {} {}","get_type_description", "ReturnTypeName");
+    // For now lets create a struct with type return and handle it later
+    new_type = struct_typet();
+    new_type.set("#cpp_type", "void");
+    new_type.set("#clar_type", "return");
     break;
   }
   default:
@@ -4775,7 +4866,7 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node)
 
   // get location
   locationt location_begin;
-  get_location_from_decl(ast_node, location_begin);
+  get_location_from_decl(ast_node[0], location_begin);
 
   // get debug module name
   std::string debug_modulename =
@@ -4861,7 +4952,7 @@ bool clarity_convertert::get_tuple_instance(
 
   // get location
   locationt location_begin;
-  get_location_from_decl(ast_node, location_begin);
+  get_location_from_decl(ast_node[0], location_begin);
 
   // get debug module name
   std::string debug_modulename =
@@ -5100,10 +5191,10 @@ bool clarity_convertert::get_elementary_type_name(
   ClarityGrammar::ElementaryTypeNameT type =
     ClarityGrammar::get_elementary_type_name_t(objtype);
 
-  log_debug(
-    "clarity",
+  log_status(
+    "clarity"
     "	@@@ got ElementaryType: ClarityGrammar::ElementaryTypeNameT::{}",
-    fmt::underlying(type));
+    int(type));
 
   switch (type)
   {
@@ -5293,12 +5384,12 @@ void clarity_convertert::get_var_decl_name(
   }
 
   name =
-    ast_node["name"]
+    ast_node["identifier"]
       .get<
         std::
           string>(); // assume Clarity AST json object has "name" field, otherwise throws an exception in nlohmann::json
 
-  assert(ast_node.contains("id"));
+  assert(ast_node.contains("cid"));
   if (
     current_functionDecl && !contract_name.empty() &&
     !current_functionName.empty())
@@ -5309,7 +5400,7 @@ void clarity_convertert::get_var_decl_name(
 
     // As the local variable inside the function will not be inherited, we can use current_functionName
     id = "clar:@C@" + contract_name + "@F@" + current_functionName + "@" +
-         name + "#" + i2string(ast_node["id"].get<std::int16_t>());
+         name + "#" + i2string(ast_node["cid"].get<std::int16_t>());
   }
   else if (ast_node.contains("scope"))
   {
@@ -5345,13 +5436,15 @@ void clarity_convertert::get_function_definition_name(
   //  - For function name, just use the ast_node["name"]
   // assume Clarity AST json object has "name" field, otherwise throws an exception in nlohmann::json
   std::string contract_name;
-  assert(ast_node.contains("scope"));
+  assert(ast_node[1].contains("identifier"));
   if (get_current_contract_name(ast_node, contract_name))
   {
     log_error("Internal error when obtaining the contract name. Aborting...");
     abort();
   }
 
+  #if 0
+  // ml-no such thing as constructor for now
   if (ast_node["kind"].get<std::string>() == "constructor")
   {
     name = contract_name;
@@ -5360,10 +5453,11 @@ void clarity_convertert::get_function_definition_name(
     id = "clar:@C@" + contract_name + "@F@" + name + "#";
   }
   else
+  #endif
   {
-    name = ast_node["name"].get<std::string>();
+    name = ast_node[1]["identifier"].get<std::string>();
     id = "clar:@C@" + contract_name + "@F@" + name + "#" +
-         i2string(ast_node["id"].get<std::int16_t>());
+         i2string(ast_node[1]["cid"].get<std::int16_t>());
   }
 }
 
@@ -5435,7 +5529,13 @@ unsigned int clarity_convertert::get_line_number(
       }
     ]
     */
-  unsigned int loc = ast_node[1]["span"]["start_line"].get<int>();
+  unsigned int loc = -1;
+  if (ast_node.is_array()) {
+    ast_node[1]["span"]["start_line"].get<int>();
+  }
+  else if (ast_node.is_object()) {
+    ast_node["span"]["start_line"].get<int>();
+  }
   return loc;
 }
 
@@ -5470,7 +5570,13 @@ void clarity_convertert::get_start_location_from_stmt(
 
   // The src manager of Clarity AST JSON is too encryptic.
   // For the time being we are setting it to "1".
-  location.set_line(get_line_number(ast_node));
+
+  // ml- if we are working on function expressions then they do not have the line numbers in the 
+  // statements. so use the function decleration and its line number
+  if (!function_name.empty())
+    location.set_line(get_line_number(*current_functionDecl));
+  else
+    location.set_line(get_line_number(ast_node));
   location.set_file(
     absolute_path); // assume absolute_path is the name of the contrace file, since we ran solc in the same directory
 
@@ -6184,7 +6290,7 @@ bool clarity_convertert::get_default_function(
                 "ParameterList",
                 0,
                 {
-                  "Parameters" : []
+                  "args" : []
                 }
               ]
             )"_json;
@@ -6311,7 +6417,7 @@ bool clarity_convertert::get_empty_array_ref(
 
   // Get Location
   locationt location_begin;
-  get_location_from_decl(callee_expr_json, location_begin);
+  get_location_from_decl(callee_expr_json[0], location_begin);
 
   // Get Debug Module Name
   std::string debug_modulename =
@@ -6531,6 +6637,7 @@ bool clarity_convertert::multi_transaction_verification(
   main_type.return_type() = empty_typet();
   const std::string clar_name = "clar_main_" + contractName;
   const std::string clar_id = "clar:@C@" + contractName + "@F@" + clar_name;
+  log_status("multi_transaction_verification\t: {} \nIssuer\t: {}",contractName,prefix);
   const symbolt &contract = *context.find_symbol(prefix + contractName);
   new_symbol.location = contract.location;
   std::string debug_modulename =
