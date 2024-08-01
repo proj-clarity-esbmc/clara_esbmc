@@ -1996,15 +1996,12 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
   
   // 4. Return type
   code_typet type;
-  type.return_type() = struct_typet();
-  type.set("#cpp_type", "void");
-  type.set("#clar_type", "return");
-  #if 0
-  // ml- return_type has been removed
-  code_typet type;
-  if (get_type_description(ast_node[1]["return_type"], type.return_type()))
+  // ml- [TODO] Need to add assertions at the start of the function
+  //(ast_node.size() < 4) || 
+  //(!ast_node[3].contains("return_type")) ||
+      
+  if ((get_type_description(ast_node[4]["return_type"], type.return_type())))
     return true;
-  #endif
   log_status("get_type_description {} {}","get_function_definition", current_functionName);
   
   // special handling for return_type:
@@ -2028,7 +2025,7 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
 
   // 6. Populate "locationt location_begin"
   locationt location_begin;
-  get_location_from_decl(ast_node[0], location_begin);
+  get_location_from_decl(ast_node[1], location_begin);
 
   log_status("get_location_from_decl {} {}","get_function_definition", current_functionName);
   
@@ -2097,7 +2094,7 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
   added_symbol.type = type;
 
   // 12. Convert body and embed the body into the same symbol
-  if (ast_node[1].contains("body"))
+  if (false && ast_node[3].contains("body"))
   {
     // ml- body can be of three type
     // 1. single expression ex: "body": "none",
@@ -2137,7 +2134,7 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
     //               }
     //             ],
     exprt body_exprt;
-    if (get_block(ast_node[1]["body"], body_exprt))
+    if (get_block(ast_node[3]["body"], body_exprt))
       return true;
 
     added_symbol.value = body_exprt;
@@ -4712,15 +4709,18 @@ bool clarity_convertert::get_type_description(
     new_type.set("#clar_type", "tuple");
     break;
   }
-  case ClarityGrammar::TypeNameT::ReturnTypeName:
-  {
-    log_status("Got current functionName {} {}","get_type_description", "ReturnTypeName");
-    // For now lets create a struct with type return and handle it later
-    new_type = struct_typet();
-    new_type.set("#cpp_type", "void");
-    new_type.set("#clar_type", "return");
-    break;
-  }
+  // ml-returntype is handled for a function in another mechanism. 
+  // case ClarityGrammar::TypeNameT::ReturnTypeName:
+  // {
+  //   log_status("Got current functionName {} {}","get_type_description", "ReturnTypeName");
+  //   // For now lets create a struct with type return and handle it later
+  //   // new_type = struct_typet();
+  //   // new_type.set("#cpp_type", "void");
+  //   // new_type.set("#clar_type", "return");
+  //   if (get_type_description(ast_node[1]["objtype"], new_type))
+  //     return true;
+  //   break;
+  // }
   default:
   {
     log_debug(

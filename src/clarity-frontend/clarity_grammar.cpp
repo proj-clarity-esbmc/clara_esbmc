@@ -55,7 +55,7 @@ bool is_variable_declaration(const nlohmann::json & ast_node)
 
 bool is_function_definition(const nlohmann::json & ast_node)
 {
-  const std::vector<std::string> state_node_types {"var-get" , "read_only" , "private" , "public"};
+  const std::vector<std::string> state_node_types {"var-get" , "read-only" , "private" , "public"};
   
   if (std::find(state_node_types.begin(), state_node_types.end(), ast_node) != state_node_types.end())
     return true;
