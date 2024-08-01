@@ -70,21 +70,22 @@ const struct group_opt_templ all_cmd_options[] = {
 #endif
 #ifdef ENABLE_CLARITY_FRONTEND
   {"Clarity frontend",
-   {{"clar",
-     boost::program_options::value<std::string>()->value_name("path"),
-     ".clarast file name"},
-    {"clar_contract",
-     boost::program_options::value<std::string>()->value_name("cname"),
-     "set contract name"},
-#if 0
+   {
+     {"clar",
+      boost::program_options::value<std::string>()->value_name("path"),
+      ".clarast file name"},
+     {"clar_contract",
+      boost::program_options::value<std::string>()->value_name("cname"),
+      "set contract name"},
+#  if 0
     TODO
 
     {"no-visibility",
      NULL,
      "force to verify every function, even it's an unreachable "
      "internal/private function"}
-#endif
-    }},
+#  endif
+   }},
 #endif
   {"Frontend",
    {{"include,I",

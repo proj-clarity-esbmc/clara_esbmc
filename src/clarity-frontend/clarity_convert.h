@@ -24,25 +24,24 @@ public:
     const std::string &_contract_path);
   virtual ~clarity_convertert() = default;
 
-
   bool convert();
 
 protected:
-
   //m-ali
-  bool process_expr_node(nlohmann::json & ast_node); 
-  bool process_define_data_var(nlohmann::json & ast_node);
-  bool process_define_constant(nlohmann::json & ast_node);
-  bool process_define_map(nlohmann::json & ast_node);
+  bool process_expr_node(nlohmann::json &ast_node);
+  bool process_define_data_var(nlohmann::json &ast_node);
+  bool process_define_constant(nlohmann::json &ast_node);
+  bool process_define_map(nlohmann::json &ast_node);
 
-
-  std::string get_objtype_type_name(const nlohmann::json & objtype_node);
-  std::string get_objtype_type_identifier(const nlohmann::json & objtype_node);
-  std::string get_objtype_type_size(const nlohmann::json & objtype_node);
-  void get_objtype_node(const nlohmann::json & ast_node, nlohmann::json & objtype_node);
-  bool check_valid_ast(const nlohmann::json & ast_node);
+  std::string get_objtype_type_name(const nlohmann::json &objtype_node);
+  std::string get_objtype_type_identifier(const nlohmann::json &objtype_node);
+  std::string get_objtype_type_size(const nlohmann::json &objtype_node);
+  void get_objtype_node(
+    const nlohmann::json &ast_node,
+    nlohmann::json &objtype_node);
+  bool check_valid_ast(const nlohmann::json &ast_node);
   void set_current_contract_name(std::string &contract_name);
-  bool parse_expression_element(const nlohmann::json & expr_element_json);
+  bool parse_expression_element(const nlohmann::json &expr_element_json);
 
   // dummy functions for learning
   void add_dummy_symbol();
@@ -51,7 +50,7 @@ protected:
   void add_dummy_builtin_functionCall();
   void add_function_definition_symboltable();
   // end-m-ali
-  
+
   bool convert_ast_nodes(const nlohmann::json &contract_def);
 
   // conversion functions
@@ -61,7 +60,7 @@ protected:
   bool get_var_decl_stmt(const nlohmann::json &ast_node, exprt &new_expr);
   bool get_var_decl(const nlohmann::json &ast_node, exprt &new_expr);
   bool get_function_definition(const nlohmann::json &ast_node);
-void NewFunction(code_typet &type);
+  void NewFunction(code_typet &type);
   bool get_function_params(const nlohmann::json &pd, exprt &param);
   bool get_default_function(const std::string name, const std::string id);
 
@@ -111,8 +110,7 @@ void NewFunction(code_typet &type);
   bool get_type_description(const nlohmann::json &type_name, typet &new_type);
   bool get_func_decl_ref_type(const nlohmann::json &decl, typet &new_type);
   bool get_array_to_pointer_type(const nlohmann::json &decl, typet &new_type);
-  bool
-  get_elementary_type_name(const nlohmann::json &objtype, typet &new_type);
+  bool get_elementary_type_name(const nlohmann::json &objtype, typet &new_type);
   bool get_parameter_list(const nlohmann::json &type_name, typet &new_type);
   void get_state_var_decl_name(
     const nlohmann::json &ast_node,
@@ -212,14 +210,19 @@ void NewFunction(code_typet &type);
   std::string the_value,
   exprt &dest);
 
+  bool convert_unsigned_integer_literal(
+    const nlohmann::json &unsigned_integer_literal,
+    std::string the_value,
+    exprt &dest);
+
   bool convert_integer_literal_with_type(
-  typet & type,
-  std::string the_value,
-  exprt &dest);
+    typet &type,
+    std::string the_value,
+    exprt &dest);
   bool convert_unsigned_integer_literal_with_type(
-  typet & type,
-  std::string the_value,
-  exprt &dest);
+    typet &type,
+    std::string the_value,
+    exprt &dest);
 
   bool convert_bool_literal(
     const nlohmann::json &bool_literal,
@@ -233,7 +236,6 @@ void NewFunction(code_typet &type);
     const nlohmann::json &integer_literal,
     std::string the_value,
     exprt &dest);
-
 
   // check if it's a bytes type
   bool is_bytes_type(const typet &t);
@@ -299,13 +301,10 @@ private:
   bool get_elementary_type_name_int(
     ClarityGrammar::ElementaryTypeNameT &type,
     typet &out);
-  bool get_elementary_type_name_bytesn(
-    const nlohmann::json &objtype,
-    typet &out);
-  
-bool get_elementary_type_name_buff(
-  const nlohmann::json &objtype,
-  typet &out);
+  bool
+  get_elementary_type_name_bytesn(const nlohmann::json &objtype, typet &out);
+
+  bool get_elementary_type_name_buff(const nlohmann::json &objtype, typet &out);
 };
 
 #endif /* CLARITY_FRONTEND_CLARITY_CONVERT_H_ */
