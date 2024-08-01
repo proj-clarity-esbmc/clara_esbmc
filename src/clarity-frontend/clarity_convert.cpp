@@ -1239,7 +1239,7 @@ bool clarity_convertert::convert()
             expr[0].get<std::string>(),
             expr[1]["identifier"].get<std::string>());
 
-          add_dummy_symbol();
+          //add_dummy_symbol();
           if (ClarityGrammar::parse_expression_element(expr))
           {
             log_error("Invalid expression element");
