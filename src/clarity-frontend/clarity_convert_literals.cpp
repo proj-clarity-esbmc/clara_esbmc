@@ -16,6 +16,7 @@ bool clarity_convertert::convert_integer_literal(
 {
   // clarity only supports 128 bit signed integers
   typet type = signedbv_typet(128);
+
   exprt the_val;
   // extract the value: signed
   BigInt z_ext_value = string2integer(the_value);

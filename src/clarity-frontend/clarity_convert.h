@@ -206,11 +206,6 @@ protected:
     exprt &dest);
   
   bool convert_unsigned_integer_literal(
-  const nlohmann::json &unsigned_integer_literal,
-  std::string the_value,
-  exprt &dest);
-
-  bool convert_unsigned_integer_literal(
     const nlohmann::json &unsigned_integer_literal,
     std::string the_value,
     exprt &dest);
