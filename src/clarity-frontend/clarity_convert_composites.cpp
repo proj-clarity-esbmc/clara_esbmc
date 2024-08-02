@@ -6,7 +6,7 @@
 #include <util/ieee_float.h>
 #include <util/string_constant.h>
 #include <util/std_expr.h>
-
+#include <iostream>
 // Composite data types
 /**
  * struct principal
@@ -47,6 +47,8 @@ bool clarity_convertert::define_principal_struct()
   // populate struct type symbol
   symbolt symbol;
   get_default_symbol(symbol, debug_modulename, t, name, id, location_begin);
+
+  symbol.is_type = true;
   symbolt &added_symbol = *move_symbol_to_context(symbol);
 
 
@@ -63,12 +65,12 @@ struct principal
   }
 */
 std::unordered_map<std::string, nlohmann::json> principal_struct_members = {
-    {"contract_is_principal", {{"bool", "bool", 1}}},
-    {"contract_is_standard", {{ "bool", "bool", 1}}},
-    {"contract_name", {{ "string-ascii", "string-ascii", 128}}},
-    {"issuer_principal_bytes", {{ "string-utf8", "string-utf8", 20}}},
-    {"version", {{ "string-utf8", "string-utf8", 1}}},
-    {"issuer_principal_str", {{ "string-ascii", "string-ascii", 41}}}
+    {"contract_is_principal", {"bool", "bool", "1"}},
+    {"contract_is_standard", { "bool", "bool", "1"}},
+    {"contract_name", { "string-ascii", "string-ascii", "128"}},
+    {"issuer_principal_bytes", { "string-utf8", "string-utf8", "20"}},
+    {"version", { "string-utf8", "string-utf8", "1"}},
+    {"issuer_principal_str", { "string-ascii", "string-ascii", "41"}}
   };
   for (auto& [key, value]: principal_struct_members)
   {
@@ -81,8 +83,8 @@ std::unordered_map<std::string, nlohmann::json> principal_struct_members = {
 
     // get type
     typet mem_type;
-    nlohmann::json objtype = {value[1],value[1],1};
-    
+    nlohmann::json objtype = {value[0],value[0],value[2]};
+    std::cout <<objtype.dump()<<std::endl;
     if (get_type_description(objtype, mem_type))
       return true;
 
