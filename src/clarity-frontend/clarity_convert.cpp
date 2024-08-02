@@ -4870,7 +4870,7 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node)
 
   // get location
   locationt location_begin;
-  get_location_from_decl(ast_node[0], location_begin);
+  get_location_from_decl(ast_node[1], location_begin);
 
   // get debug module name
   std::string debug_modulename =
@@ -4889,7 +4889,9 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node)
   //std::cout <<objtype.dump(4)<<std::endl;
 
   //  //for loop to iterate over all keys of objtype
-  for (nlohmann::json::iterator it = objtype.begin(); it != objtype.end(); ++it)
+  // ml- this is an array. need to traverse the array
+  //for (nlohmann::json::iterator it = objtype.begin(); it != objtype.end(); ++it)
+  for (auto &it : objtype)
   {
     struct_typet::componentt comp;
 
@@ -4897,14 +4899,15 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node)
     // follow the naming rule defined in get_var_decl_name
     assert(!current_contractName.empty());
     //const std::string mem_name = "mem" + std::to_string(counter);
-    const std::string mem_name = it.key();
+    const std::string mem_name = it[0];//it.key();
     const std::string mem_id = "clar:@C@" + current_contractName + "@" + name +
                                "@" + mem_name + "#" +
                                i2string(ast_node[1]["cid"].get<std::int16_t>());
 
     // get type
     typet mem_type;
-    if (get_type_description(it.value(), mem_type))
+    //if (get_type_description(it.value(), mem_type))
+    if (get_type_description(it[1], mem_type))
       return true;
 
     // construct comp
@@ -4951,7 +4954,7 @@ bool clarity_convertert::get_tuple_instance(
 
   // get location
   locationt location_begin;
-  get_location_from_decl(ast_node[0], location_begin);
+  get_location_from_decl(ast_node[1], location_begin);
 
   // get debug module name
   std::string debug_modulename =
@@ -4988,15 +4991,22 @@ bool clarity_convertert::get_tuple_instance(
 
   size_t i = 0;
   int is = inits.operands().size();
-  int as = objtype[2].get<int>();
+  int as = std::stoi(objtype[2].get<std::string>());
   assert(is <= as);
 
-  for (nlohmann::json::iterator it = objtype[1].begin(); it != objtype[1].end();
-       ++it)
+  // for (nlohmann::json::iterator it = objtype[1].begin(); it != objtype[1].end();
+  //      ++it)
+  nlohmann::json tupleElements = ast_node[1]["objtype"][1];
+  //std::cout <<objtype.dump(4)<<std::endl;
+
+  //  //for loop to iterate over all keys of objtype
+  // ml- this is an array. need to traverse the array
+  //for (nlohmann::json::iterator it = objtype.begin(); it != objtype.end(); ++it)
+  for (auto &it : tupleElements)
   {
     //get the type of the component
-    nlohmann::json component_type = it.value();
-    std::string tuple_key = it.key();
+    nlohmann::json component_type = it[1];//it.value();
+    std::string tuple_key = it[0];//it.key();
     ClarityGrammar::TypeNameT type =
       ClarityGrammar::get_type_name_t(component_type);
 
