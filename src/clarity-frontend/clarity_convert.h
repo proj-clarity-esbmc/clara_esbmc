@@ -49,6 +49,9 @@ protected:
   void convert_dummy_string_literal();
   void add_dummy_builtin_functionCall();
   void add_function_definition_symboltable();
+
+  // conversion functions for composite types e-g principa, response , optional etc
+  bool define_principal_struct();
   // end-m-ali
 
   bool convert_ast_nodes(const nlohmann::json &contract_def);

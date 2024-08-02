@@ -1193,6 +1193,7 @@ bool clarity_convertert::convert()
   // single contract verification: where the option "--contract" is set.
   // multiple contracts verification: essentially verify the whole file.
   index = 0;
+  //define_principal_struct();
 
   for (nlohmann::json::iterator itr = src_ast_json.begin();
        itr != src_ast_json.end();
@@ -1245,6 +1246,7 @@ bool clarity_convertert::convert()
             log_error("Invalid expression element");
             continue;
           }
+          
           // for each element in expressions array
           // check if valid expression array
 
