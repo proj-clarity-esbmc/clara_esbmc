@@ -57,6 +57,14 @@ bool is_tuple_declaration(const nlohmann::json &ast_node)
     return false;
 }
 
+bool is_principal_declaration(const nlohmann::json &ast_node)
+{
+  if (ast_node[1]["objtype"][0] == "principal")
+    return true;
+  else
+    return false;
+}
+
 bool is_variable_declaration(const nlohmann::json &ast_node)
 {
   return is_state_variable(ast_node);
@@ -194,6 +202,36 @@ bool parse_value_node(nlohmann::json &expression_node)
   }
   else if (value_type == "array")
   {
+
+    //exceptions for principal
+    if (value_node[0] == "principal")
+    {
+      expression_node[1]["expressionType"] = "Literal";
+      
+      auto principal_value = value_node[3]["value"];
+      std::string principal_value_str ;
+      if (principal_value.size() > 22)    //indicates it's a contract principal
+      {
+        // confirming contract principal by looking for "." in the principal string name
+        principal_value_str = value_node[3]["value"][22];
+        if (principal_value_str.find(".") != std::string::npos) {
+          expression_node[1]["principalType"] = "contract";
+          expression_node[1]["contractName"] = value_node[3]["value"][21];
+          expression_node[1]["issuerPrincipal"] = value_node[3]["value"][22];
+        } else {
+          
+          return true;
+        }
+      }
+      else
+      {
+        expression_node[1]["principalType"] = "standard";
+        expression_node[1]["issuerPrincipal"] = value_node[3]["value"][21];
+        expression_node[1]["contractName"] = "Not a contract principal";
+      }
+      return false;
+    }
+
     // it's a function call with arguments
 
     if (get_operation_type(expression_node))
@@ -340,11 +378,7 @@ TypeNameT get_type_name_t(const nlohmann::json &type_name)
       // For Literal, their typeString is like "int_const 100".
       return ElementaryTypeName;
     }
-    // for Special Variables and Functions
-    else if (typeIdentifier.compare(0, 7, "t_magic") == 0)
-    {
-      return BuiltinTypeName;
-    }
+   
     else
     {
       log_error(

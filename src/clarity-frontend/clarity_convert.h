@@ -151,6 +151,10 @@ protected:
   void get_tuple_assignment(code_blockt &_block, const exprt &lop, exprt rop);
   void get_tuple_function_call(code_blockt &_block, const exprt &op);
 
+
+  bool get_principal_instance(
+  const nlohmann::json &ast_node,
+  exprt &new_expr);
   // line number and locations
   void
   get_location_from_decl(const nlohmann::json &ast_node, locationt &location);

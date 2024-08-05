@@ -1195,6 +1195,9 @@ bool clarity_convertert::convert()
   index = 0;
   define_principal_struct();
   define_optional_type("int");
+  define_optional_type("uint");
+  //define_optional_type("string-ascii");
+  //define_optional_type("string-utf8");
 
   for (nlohmann::json::iterator itr = src_ast_json.begin();
        itr != src_ast_json.end();
@@ -1484,15 +1487,10 @@ bool clarity_convertert::get_var_decl(
   symbolt symbol;
   get_default_symbol(symbol, debug_modulename, t, name, id, location_begin);
 
-  if (ClarityGrammar::is_tuple_declaration(ast_node))
-    symbol.is_type = true;
-  else
-  {
-    symbol.lvalue = true;
-    symbol.static_lifetime = is_state_var;
-    symbol.file_local = !is_state_var;
-    symbol.is_extern = false;
-  }
+  symbol.lvalue = true;
+  symbol.static_lifetime = is_state_var;
+  symbol.file_local = !is_state_var;
+  symbol.is_extern = false;
 
   // initialise with zeroes if no initial value provided.
   bool has_init =
@@ -2788,6 +2786,11 @@ bool clarity_convertert::get_expr(
       //for utf-8 string literals
       the_value = expr[1]["value"]["lit_utf8"].get<std::string>();
     }
+    else if (type_name == ClarityGrammar::ElementaryTypeNameT::PRINCIPAL)
+    {
+      // for principal literals
+      the_value = expr[1]["value"][3]["value"][21];
+    }
     else
     {
       the_value = expr[1]["value"].get<std::string>();
@@ -2892,8 +2895,7 @@ bool clarity_convertert::get_expr(
       case ClarityGrammar::ElementaryTypeNameT::PRINCIPAL:
       {
         // 20 bytes
-        if (convert_hex_literal(the_value, new_expr, 160))
-          return true;
+        get_principal_instance(expr, new_expr);
         break;
       }
 
@@ -4798,6 +4800,7 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node)
   // populate struct type symbol
   symbolt symbol;
   get_default_symbol(symbol, debug_modulename, t, name, id, location_begin);
+  symbol.is_type = true;
   symbolt &added_symbol = *move_symbol_to_context(symbol);
 
   // populate params
@@ -4843,7 +4846,159 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node)
 
   t.location() = location_begin;
   added_symbol.type = t;
+  added_symbol.is_type = true;
 
+  return false;
+}
+
+
+bool clarity_convertert::get_principal_instance(
+  const nlohmann::json &ast_node,
+  exprt &new_expr)
+{
+  std::string name, id;
+  id = "tag-struct principal";
+
+  if (context.find_symbol(id) == nullptr)
+    return true;
+  const symbolt &sym = *context.find_symbol(id);
+
+  // get type
+  typet t = sym.type;
+  t.set("#clar_type", "principal_instance");
+  assert(t.id() == typet::id_struct);
+
+  // get instance name,id
+  //if (get_tuple_instance_name(ast_node, name, id))
+  //  return true;
+  get_state_var_decl_name(ast_node, name, id);
+
+  // get location
+  locationt location_begin;
+  get_location_from_decl(ast_node, location_begin);
+
+  // get debug module name
+  std::string debug_modulename =
+    get_modulename_from_path(location_begin.file().as_string());
+  current_fileName = debug_modulename;
+
+  // populate struct type symbol
+  symbolt symbol;
+
+  if (context.find_symbol(id) != nullptr)
+  {
+    log_status("Symbol {} already exists in the context", id);
+    symbol = *context.find_symbol(id);
+  }
+  else
+  {
+    // the symbol should already be in the space. this is an error if you don't find the symbol already defined.
+    // get_default_symbol(symbol, debug_modulename, t, name, id, location_begin);
+    // symbol.lvalue = true;
+    // symbol.static_lifetime = true;
+    // symbol.file_local = false;
+    // symbol.is_extern = false;
+    // symbolt &added_symbol = *move_symbol_to_context(symbol);
+    return true;
+  }
+
+  symbolt &added_symbol = symbol;
+
+  // populate initial value
+
+  exprt inits = gen_zero(t);
+  nlohmann::json objtype = ast_node[1]["objtype"];
+
+    //fixme : get this from a common location. do not define the struct skeleton at multuple places in the code.
+   std::unordered_map<std::string, nlohmann::json> principal_struct_members = {
+        {"contract_is_principal", {"bool", "bool", "1"}},
+        {"contract_is_standard", { "bool", "bool", "1"}},
+        {"contract_name", { "string-ascii", "string-ascii", "128"}},
+        {"issuer_principal_bytes", { "string-utf8", "string-utf8", "20"}},
+        {"version", { "string-utf8", "string-utf8", "1"}},
+        {"issuer_principal_str", { "string-ascii", "string-ascii", "41"}}
+      };
+
+  size_t i = 0;
+  int is = inits.operands().size();
+  int as = principal_struct_members.size();   //principal struct has 6 members check "define_principal_struct()"
+  assert(is <= as);
+
+
+ for (auto& [key, value]: principal_struct_members)
+  {
+   
+
+     struct_typet::componentt comp;
+
+    // manually create a member_name
+    const std::string mem_name = key;//it.key();
+    const std::string mem_id = "clar:@C@" + current_contractName + "@" + name +
+                               "@" + mem_name;
+
+    // get type
+    typet mem_type;
+    nlohmann::json objtype = {value[0],value[0],value[2]};
+ 
+   
+ /* Create a temporary JSON object to ease processing */
+    nlohmann::json temp_expression_node;
+    temp_expression_node["expressionType"] = "Literal";
+    temp_expression_node["span"] = ast_node[1]["span"];
+    temp_expression_node["identifier"] = mem_name;
+    temp_expression_node["cid"] = ast_node[1]["cid"];
+    temp_expression_node["objtype"] = objtype;
+
+    // adjust value node accordingly.
+    if (key == "contract_is_principal")
+    {
+      temp_expression_node["value"] =  (ast_node[1]["principalType"]=="contract"?"true":"false");
+    }
+    else if (key == "contract_is_standard")
+    {
+      temp_expression_node["value"] =  (ast_node[1]["principalType"]=="standard"?"true":"false");
+    }
+    else if (key == "contract_name")
+    {
+      temp_expression_node["value"]["lit_ascii"] =  ast_node[1]["contractName"];
+    }
+    else if (key == "issuer_principal_bytes")
+    {
+      temp_expression_node["value"]["lit_utf8"] =   ast_node[1]["issuerPrincipal"];
+    }
+    else if (key == "version")
+    {
+      temp_expression_node["value"]["lit_utf8"] =   "1";
+    }
+    else if (key == "issuer_principal_str")
+    {
+      temp_expression_node["value"]["lit_ascii"] =  "issuerPrincipalStr";
+    }
+
+
+    //std::cout <<temp_expression_node.dump(4)<<std::endl;
+
+    nlohmann::json temp_declarative_node = {"principal", temp_expression_node};
+
+    
+
+    exprt init;
+    if (get_expr(temp_declarative_node, objtype, init))
+      return true;
+
+    const struct_typet::componentt *c = &to_struct_type(t).components().at(i);
+    typet elem_type = c->type();
+
+    clarity_gen_typecast(ns, init, elem_type);
+    inits.operands().at(i) = init;
+
+    // update
+    ++i;
+  }
+
+  added_symbol.value = inits;
+  new_expr = added_symbol.value;
+  new_expr.identifier(id);
   return false;
 }
 
@@ -4936,7 +5091,7 @@ bool clarity_convertert::get_tuple_instance(
     nlohmann::json temp_declarative_node = {"tuple", temp_expression_node};
 
     //std::string the_value = expr[1][tuple_key].get<std::string>();
-    std::cout << temp_declarative_node.dump(4) << std::endl;
+    //std::cout << temp_declarative_node.dump(4) << std::endl;
     exprt init;
     if (get_expr(temp_declarative_node, component_type, init))
       return true;
@@ -5196,25 +5351,16 @@ bool clarity_convertert::get_elementary_type_name(
   case ClarityGrammar::ElementaryTypeNameT::PRINCIPAL:
   {
     /// obj[2] contains size of object
-    std::string str_value_length = objtype[2];
-    size_t value_length = std::stoi(str_value_length);
-
-    if (value_length > 1)
+    std::string symbol_id = "tag-struct principal";
+    if ( context.find_symbol(symbol_id) == nullptr )
     {
-      log_error("Principal type can only have one byte");
-      return true;
+      log_error("Principal struct not found in the symbol table. Aborting...");
     }
-    else
-    {
-      new_type = array_typet(
-        signed_char_type(),
-        constant_exprt(
-          integer2binary(value_length, bv_width(int_type())),
-          integer2string(value_length),
-          int_type()));
-
-      break;
+    else{
+      const symbolt &sym = *context.find_symbol(symbol_id);
+      new_type = sym.type;
     }
+   break;
   }
   case ClarityGrammar::ElementaryTypeNameT::BUFF:
   {
