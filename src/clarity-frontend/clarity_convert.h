@@ -52,6 +52,7 @@ protected:
 
   // conversion functions for composite types e-g principa, response , optional etc
   bool define_principal_struct();
+  bool define_optional_type(std::string optional_type);
   // end-m-ali
 
   bool convert_ast_nodes(const nlohmann::json &contract_def);

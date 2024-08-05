@@ -1194,6 +1194,7 @@ bool clarity_convertert::convert()
   // multiple contracts verification: essentially verify the whole file.
   index = 0;
   define_principal_struct();
+  define_optional_type("int");
 
   for (nlohmann::json::iterator itr = src_ast_json.begin();
        itr != src_ast_json.end();
