@@ -1193,9 +1193,9 @@ bool clarity_convertert::convert()
   // single contract verification: where the option "--contract" is set.
   // multiple contracts verification: essentially verify the whole file.
   index = 0;
-  define_principal_struct();
-  define_optional_type("int");
-  define_optional_type("uint");
+  //define_principal_struct();
+  define_optional_type("int128_t");   //for some reason, ESBMC doesn't allow BitInt inside template, but it allows the same if i define it here
+  define_optional_type("uint128_t");
   //define_optional_type("string-ascii");
   //define_optional_type("string-utf8");
 

@@ -154,39 +154,39 @@ bool clarity_convertert::define_optional_type(std::string optional_type)
 
 std::unordered_map<std::string, nlohmann::json> optional_struct_members ;
 
-if (optional_type == "int")
+if (optional_type == "int128_t")
 {
   optional_struct_members= {
     {"is_none", {"bool", "bool", "1"}},
-    {"val", { "int", "int", "1"}}
+    {"value", { "int", "int", "1"}}
   };
 }
-else if( optional_type == "uint")
+else if( optional_type == "uint128_t")
 {
   optional_struct_members= {
     {"is_none", {"bool", "bool", "1"}},
-    {"val", { "uint", "uint", "1"}}
+    {"value", { "uint", "uint", "1"}}
   };
 }
 else if( optional_type == "bool")
 {
   optional_struct_members= {
     {"is_none", {"bool", "bool", "1"}},
-    {"val", { "bool", "bool", "1"}}
+    {"value", { "bool", "bool", "1"}}
   };
 }
 else if( optional_type == "string-ascii")
 {
   optional_struct_members= {
     {"is_none", {"bool", "bool", "1"}},
-    {"val", { "string-ascii", "string-ascii", "1"}}   //size would be changed here
+    {"value", { "string-ascii", "string-ascii", "1"}}   //size would be changed here
   };
 }
 else if( optional_type == "string-utf8")
 {
     optional_struct_members= {
     {"is_none", {"bool", "bool", "1"}},
-    {"val", { "string-utf8", "string-utf8", "1"}}   //size would be changed here
+    {"value", { "string-utf8", "string-utf8", "1"}}   //size would be changed here
   };
 }
 else
