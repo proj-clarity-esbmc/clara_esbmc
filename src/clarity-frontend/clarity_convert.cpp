@@ -1193,11 +1193,8 @@ bool clarity_convertert::convert()
   // single contract verification: where the option "--contract" is set.
   // multiple contracts verification: essentially verify the whole file.
   index = 0;
-  //define_principal_struct();
   define_optional_type("int128_t");   //for some reason, ESBMC doesn't allow BitInt inside template, but it allows the same if i define it here
   define_optional_type("uint128_t");
-  //define_optional_type("string-ascii");
-  //define_optional_type("string-utf8");
 
   for (nlohmann::json::iterator itr = src_ast_json.begin();
        itr != src_ast_json.end();
@@ -2894,26 +2891,9 @@ bool clarity_convertert::get_expr(
       }
       case ClarityGrammar::ElementaryTypeNameT::PRINCIPAL:
       {
-        // 20 bytes
         get_principal_instance(expr, new_expr);
         break;
       }
-
-      // case ClarityGrammar::ElementaryTypeNameT::STRING_UTF8_LITERAL:
-      // {
-      //   // TODO: this is likely incorrect as well
-      //   // look in the next switch case
-      //   std::string hex_val = expr["hexValue"].get<std::string>();
-
-      //   // add padding
-      //   for (int i = 0; i < byte_size; i++)
-      //     hex_val += "00";
-      //   hex_val.resize(byte_size * 2);
-
-      //   if (convert_hex_literal(hex_val, new_expr, byte_size * 8))
-      //     return true;
-      //   break;
-      // }
       default:
         assert(!"Error occurred when handling bytes literal");
       }
@@ -4887,18 +4867,13 @@ bool clarity_convertert::get_principal_instance(
 
   if (context.find_symbol(id) != nullptr)
   {
-    log_status("Symbol {} already exists in the context", id);
+    //log_status("Symbol {} already exists in the context", id);
     symbol = *context.find_symbol(id);
   }
   else
   {
-    // the symbol should already be in the space. this is an error if you don't find the symbol already defined.
-    // get_default_symbol(symbol, debug_modulename, t, name, id, location_begin);
-    // symbol.lvalue = true;
-    // symbol.static_lifetime = true;
-    // symbol.file_local = false;
-    // symbol.is_extern = false;
-    // symbolt &added_symbol = *move_symbol_to_context(symbol);
+    // the symbol should already be in the space. this is an error if you don't find the symbol already defined
+    
     return true;
   }
 

@@ -215,9 +215,10 @@ bool parse_value_node(nlohmann::json &expression_node)
         // confirming contract principal by looking for "." in the principal string name
         principal_value_str = value_node[3]["value"][22];
         if (principal_value_str.find(".") != std::string::npos) {
+          size_t period_pos = principal_value_str.find(".");
           expression_node[1]["principalType"] = "contract";
           expression_node[1]["contractName"] = value_node[3]["value"][21];
-          expression_node[1]["issuerPrincipal"] = value_node[3]["value"][22];
+          expression_node[1]["issuerPrincipal"] = principal_value_str.substr(0,period_pos);
         } else {
           
           return true;

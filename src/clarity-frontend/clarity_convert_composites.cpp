@@ -14,8 +14,8 @@
   {
     bool contract_is_principal;
     bool contract_is_standard;      //if contract_is_principal is true, then contract_is_standard will be false
-    char contract_name[128]; //128 bytes long contract name
-    char issuer_principal_bytes[20];
+    char contract_name[128];        //128 bytes long contract name
+    char issuer_principal_bytes[20];//20 bytes long issuer principal
     char version;
     char issuer_principal_str[41];
   

@@ -80,13 +80,13 @@ Pseudo code for Reading AST F3
                 }
 
 ==> Special Handling for Optional Types:
-if objtype[0] is "optional" that means objtype[2] would another objtype representing what type of optional value to expect.
+if objtype[0] is "optional" that means objtype[3] would another objtype representing what type of optional value to expect.
 then 
   if value node is an array 
   then
     if value[0] is "some"
     then 
-      value[1] is the value or an expression that would result in objtype[2] type.
+      value[1] is the value or an expression that would result in objtype[3] type.
     else
       invalid value.
   else
