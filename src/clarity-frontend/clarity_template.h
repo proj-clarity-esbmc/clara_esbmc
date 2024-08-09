@@ -73,20 +73,39 @@ const std::string clar_optionals = R"(
 #define DEFINE_OPTIONAL(type) struct optional_##type { bool is_none; type value; }
 
 
+// optional string requires special handling
+typedef struct optional_string optional_string;
+
+struct optional_string {
+	bool is_none;
+	char *value;
+	int size;
+};
+
+char* some_string(optional_string x)
+{
+	assert (!x.is_none);
+	return x.value;
+}
+
+
 TYPEDEF_OPTIONAL(int128_t);
 TYPEDEF_OPTIONAL(uint128_t);
 TYPEDEF_OPTIONAL(bool);
 TYPEDEF_OPTIONAL(principal);
+//TYPEDEF_OPTIONAL(char*);
 
 DEFINE_OPTIONAL(int128_t);
 DEFINE_OPTIONAL(uint128_t);
 DEFINE_OPTIONAL(bool);
 DEFINE_OPTIONAL(principal);
+//DEFINE_OPTIONAL(char*);
 
 DEFINE_SOME(int128_t);
 DEFINE_SOME(uint128_t);
 DEFINE_SOME(bool);
 DEFINE_SOME(principal);
+//DEFINE_SOME(char*);
 
 )";
 

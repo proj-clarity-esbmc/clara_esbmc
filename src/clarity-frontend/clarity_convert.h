@@ -151,7 +151,9 @@ protected:
   void get_tuple_assignment(code_blockt &_block, const exprt &lop, exprt rop);
   void get_tuple_function_call(code_blockt &_block, const exprt &op);
 
-
+bool get_optional_instance(const nlohmann::json &ast_node,
+  exprt &new_expr);
+  
   bool get_principal_instance(
   const nlohmann::json &ast_node,
   exprt &new_expr);

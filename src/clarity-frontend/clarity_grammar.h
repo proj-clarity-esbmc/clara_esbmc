@@ -30,6 +30,9 @@ bool get_operation_type(nlohmann::json &expression_node);
 bool operation_is_conditional(const nlohmann::json &ast_node);
 bool operation_is_unary(const nlohmann::json &ast_node);
 bool operation_is_binary(const nlohmann::json &ast_node);
+bool operation_is_optional_decl(const nlohmann::json &ast_node);
+nlohmann::json get_optional_type(const nlohmann::json &objtype);
+std::string get_optional_symbolId(const nlohmann::json &optional_type);
 
 /* end m-ali*/
 
@@ -50,8 +53,8 @@ enum TypeNameT
   // contract type
   ContractTypeName,
 
-  // typecast
-  TypeConversionName,
+  // Optional
+  OptionalTypeName,
 
   // tuple
   TupleTypeName,
@@ -218,6 +221,9 @@ enum ExpressionT
 
   // rule Tuple
   Tuple,
+
+  //rule optional
+  Optional,
 
   // rule Mapping
   Mapping,

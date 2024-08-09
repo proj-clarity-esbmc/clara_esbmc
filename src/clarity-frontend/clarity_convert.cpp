@@ -1193,8 +1193,10 @@ bool clarity_convertert::convert()
   // single contract verification: where the option "--contract" is set.
   // multiple contracts verification: essentially verify the whole file.
   index = 0;
+  //define_principal_struct();
   define_optional_type("int128_t");   //for some reason, ESBMC doesn't allow BitInt inside template, but it allows the same if i define it here
   define_optional_type("uint128_t");
+  //define_optional_type("bool");
 
   for (nlohmann::json::iterator itr = src_ast_json.begin();
        itr != src_ast_json.end();
@@ -3058,6 +3060,12 @@ bool clarity_convertert::get_expr(
 
     break;
   }
+  case ClarityGrammar::ExpressionT::Optional:
+  {
+    get_optional_instance(expr, new_expr);
+
+    break;
+  }
   case ClarityGrammar::ExpressionT::Mapping:
   {
     // convert
@@ -4566,42 +4574,47 @@ bool clarity_convertert::get_type_description(
 
     break;
   }
-  case ClarityGrammar::TypeNameT::TypeConversionName:
+  case ClarityGrammar::TypeNameT::OptionalTypeName:
   {
-    // e.g.
-    // uint32 a = 0x432178;
-    // uint16 b = uint16(a); // b will be 0x2178 now
-    // "nodeType": "ElementaryTypeNameExpression",
-    //             "src": "155:6:0",
-    //             "typeDescriptions": {
-    //                 "typeIdentifier": "t_type$_t_uint16_$",
-    //                 "typeString": "type(uint16)"
-    //             },
-    //             "typeName": {
-    //                 "id": 10,
-    //                 "name": "uint16",
-    //                 "nodeType": "ElementaryTypeName",
-    //                 "src": "155:6:0",
-    //                 "typeDescriptions": {}
-    //             }
+    nlohmann::json optional_type = ClarityGrammar::get_optional_type(type_name);
+    std::string symbol_id = ClarityGrammar::get_optional_symbolId(optional_type); //"tag-struct optional_int128_t";
+    // ClarityGrammar::ElementaryTypeNameT optional_typet = ClarityGrammar::get_elementary_type_name_t(optional_type);
 
-    nlohmann::json new_json;
-    std::string typeIdentifier = type_name["typeIdentifier"].get<std::string>();
-    std::string typeString = type_name["typeString"].get<std::string>();
+    // switch (optional_typet)
+    // {
+    //   case ClarityGrammar::ElementaryTypeNameT::INT:
+    //     symbol_id = "tag-struct optional_int128_t";
+    //     break;
+    //   case ClarityGrammar::ElementaryTypeNameT::UINT:
+    //     symbol_id = "tag-struct optional_uint128_t";
+    //     break;
+    //   case ClarityGrammar::ElementaryTypeNameT::BOOL:
+    //     symbol_id = "tag-struct optional_bool";
+    //     break;
+    //   case ClarityGrammar::ElementaryTypeNameT::STRING_ASCII:
+    //     symbol_id = "tag-struct optional_string_ascii";
+    //     break;
+    //   case ClarityGrammar::ElementaryTypeNameT::STRING_UTF8:
+    //     symbol_id = "tag-struct optional_string_utf8";
+    //     break;
+    //   case ClarityGrammar::ElementaryTypeNameT::BUFF:
+    //     symbol_id = "tag-struct optional_buff";
+    //     break;
+    //   default : 
+    //     log_error("Unimplemented optional type");
+    //     return true;
+    // }
 
-    // convert it back to ElementaryTypeName by removing the "type" prefix
-    std::size_t begin = typeIdentifier.find("$_");
-    std::size_t end = typeIdentifier.rfind("_$");
-    typeIdentifier = typeIdentifier.substr(begin + 2, end - begin - 2);
-
-    begin = typeString.find("type(");
-    end = typeString.rfind(")");
-    typeString = typeString.substr(begin + 5, end - begin - 5);
-
-    new_json["typeIdentifier"] = typeIdentifier;
-    new_json["typeString"] = typeString;
-
-    get_elementary_type_name(new_json, new_type);
+    if ( context.find_symbol(symbol_id) == nullptr )
+    {
+      log_error("Principal struct not found in the symbol table. Aborting...");
+      return true;
+    }
+    else{
+      const symbolt &sym = *context.find_symbol(symbol_id);
+      new_type = sym.type;
+    }
+   break;
 
     break;
   }
@@ -4831,6 +4844,150 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node)
   return false;
 }
 
+bool clarity_convertert::get_optional_instance(const nlohmann::json &ast_node,
+  exprt &new_expr)
+{
+  nlohmann::basic_json objtype = ClarityGrammar::get_optional_type(ast_node[1]["objtype"]);
+  std::string id = ClarityGrammar::get_optional_symbolId(objtype);
+  std::string name;
+
+  // we should be able to find the intance of the optional type in the symbol table
+  if (context.find_symbol(id) == nullptr)
+    return true;
+
+  const symbolt &sym = *context.find_symbol(id);
+
+  // get type
+  typet t = sym.type;
+  assert(t.id() == typet::id_struct);
+  
+  // get instance name,id
+  get_state_var_decl_name(ast_node, name, id);
+  
+  // get location
+  locationt location_begin;
+  get_location_from_decl(ast_node, location_begin);
+
+   // get debug module name
+  std::string debug_modulename =
+    get_modulename_from_path(location_begin.file().as_string());
+  current_fileName = debug_modulename;
+
+  // populate struct type symbol
+  symbolt symbol;
+
+  if (context.find_symbol(id) != nullptr)
+  {
+    //log_status("Symbol {} already exists in the context", id);
+    symbol = *context.find_symbol(id);
+  }
+  else
+  {
+    // the symbol should already be in the space. this is an error if you don't find the symbol already defined
+    
+    return true;
+  }
+
+  symbolt &added_symbol = symbol;
+
+  // populate initial value
+
+  exprt inits = gen_zero(t);
+ 
+  std::string value_type = inits.operands().at(1).type().pretty();
+
+  std::unordered_map<std::string, nlohmann::json> optional_struct_members = {
+        {"is_none", {"bool", "bool", "1"}},
+        {"value", ast_node[1]["objtype"][3]},
+      };
+
+  //{ value_type, value_type, "1"}
+  
+  size_t i = 0;
+  int is = inits.operands().size();
+  int as = optional_struct_members.size();   
+  assert(is <= as);
+
+  //std::cout <<inits.pretty()<<std::endl;
+  
+  // for (auto& opds: (to_struct_type(t).components()))
+  // {
+  //   std::cout <<opds.name()<<std::endl;
+  //   std::cout <<opds.type().get("#cpp_type")<<std::endl;  
+  // }
+
+ //for (auto& [key, value]: optional_struct_members)
+ for (auto& opds: (to_struct_type(t).components()))
+  {
+   
+
+     struct_typet::componentt comp;
+
+    // manually create a member_name
+    std::string key = opds.name().as_string();
+    std::string val_type = opds.type().get("#cpp_type").as_string();
+
+    const std::string mem_name =key;//it.key();
+    const std::string mem_id = "clar:@C@" + current_contractName + "@" + name +
+                               "@" + mem_name;
+
+    // get type
+    typet mem_type;
+    nlohmann::json objtype = {val_type,val_type,"1"};
+
+ 
+   
+ /* Create a temporary JSON object to ease processing */
+    nlohmann::json temp_expression_node;
+    temp_expression_node["expressionType"] = "Literal";
+    temp_expression_node["span"] = ast_node[1]["span"];
+    temp_expression_node["identifier"] = mem_name;
+    temp_expression_node["cid"] = ast_node[1]["cid"];
+    temp_expression_node["objtype"] = objtype;
+
+    // adjust value node accordingly.
+    if (key == "is_none")
+    {
+      temp_expression_node["value"] =   (ast_node[1]["value"][0] == "none")?"true":"false";
+    }
+    else if (key == "value")
+    {
+      // if optional was set as none, then we don't need to set any value for the value field.
+      if (ast_node[1]["value"][0] == "none")
+      {
+        continue;
+      }
+
+      
+      temp_expression_node["value"] =  ast_node[1]["value"][1];
+      
+    }
+
+    // the first argument of this declarative node is meaningless to the code that reads it.
+    nlohmann::json temp_declarative_node = {"optional", temp_expression_node};
+
+    //std::cout <<temp_declarative_node.dump(4)<<std::endl;
+
+    exprt init;
+    if (get_expr(temp_declarative_node, objtype, init))
+      return true;
+
+    const struct_typet::componentt *c = &to_struct_type(t).components().at(i);
+    typet elem_type = c->type();
+
+    clarity_gen_typecast(ns, init, elem_type);
+    inits.operands().at(i) = init;
+
+    // update
+    ++i;
+  }
+
+  added_symbol.value = inits;
+  new_expr = added_symbol.value;
+  new_expr.identifier(id);
+  return false;
+}
+
 
 bool clarity_convertert::get_principal_instance(
   const nlohmann::json &ast_node,
@@ -4885,70 +5042,91 @@ bool clarity_convertert::get_principal_instance(
   nlohmann::json objtype = ast_node[1]["objtype"];
 
     //fixme : get this from a common location. do not define the struct skeleton at multuple places in the code.
-   std::unordered_map<std::string, nlohmann::json> principal_struct_members = {
-        {"contract_is_principal", {"bool", "bool", "1"}},
-        {"contract_is_standard", { "bool", "bool", "1"}},
-        {"contract_name", { "string-ascii", "string-ascii", "128"}},
-        {"issuer_principal_bytes", { "string-utf8", "string-utf8", "20"}},
-        {"version", { "string-utf8", "string-utf8", "1"}},
-        {"issuer_principal_str", { "string-ascii", "string-ascii", "41"}}
-      };
+  //  std::unordered_map<std::string, nlohmann::json> principal_struct_members = {
+  //       {"contract_is_principal", {"bool", "bool", "1"}},
+  //       {"contract_is_standard", { "bool", "bool", "1"}},
+  //       {"contract_name", { "string-ascii", "string-ascii", "128"}},
+  //       {"issuer_principal_bytes", { "string-utf8", "string-utf8", "20"}},
+  //       {"version", { "string-utf8", "string-utf8", "1"}},
+  //       {"issuer_principal_str", { "string-ascii", "string-ascii", "41"}}
+  //     };
 
   size_t i = 0;
   int is = inits.operands().size();
-  int as = principal_struct_members.size();   //principal struct has 6 members check "define_principal_struct()"
+  int as = to_struct_type(t).components().size(); //principal_struct_members.size();   //principal struct has 6 members check "define_principal_struct()"
   assert(is <= as);
 
-
- for (auto& [key, value]: principal_struct_members)
+ //for (auto& [key, value]: principal_struct_members)
+ for (auto& opds: to_struct_type(t).components())
   {
    
 
      struct_typet::componentt comp;
+     std::string key = opds.name().as_string();
+     //std::string value_type = "bool";
+     std::string value_type = opds.type().get("#cpp_type").as_string(); //this is unreliable way to get the type of the member.
+     std::string value_size = "1";
+     std::string cformat_value = opds.type().find("size").find("#cformat").pretty();
+     if(cformat_value == "nil")
+     {
+      value_size = "1";
+     }
+     else
+     {
+      value_size = cformat_value;
+     }
 
     // manually create a member_name
     const std::string mem_name = key;//it.key();
     const std::string mem_id = "clar:@C@" + current_contractName + "@" + name +
                                "@" + mem_name;
 
+    /* Create a temporary JSON object to ease processing */
+    nlohmann::json temp_expression_node;
+
+    // adjust value node accordingly.
+    if (key == "contract_is_principal")
+    {
+      temp_expression_node["value"] =  (ast_node[1]["principalType"]=="contract"?"true":"false");
+      value_type = "bool";
+    }
+    else if (key == "contract_is_standard")
+    {
+      temp_expression_node["value"] =  (ast_node[1]["principalType"]=="standard"?"true":"false");
+      value_type = "bool";
+    }
+    else if (key == "contract_name")
+    {
+      temp_expression_node["value"]["lit_ascii"] =  ast_node[1]["contractName"];
+      value_type = "string-ascii";
+    }
+    else if (key == "issuer_principal_bytes")
+    {
+      temp_expression_node["value"]["lit_utf8"] =   ast_node[1]["issuerPrincipal"];
+      value_type = "string-utf8";
+    }
+    else if (key == "version")
+    {
+      temp_expression_node["value"]["lit_utf8"] =   "1";
+      value_type = "string-utf8";
+    }
+    else if (key == "issuer_principal_str")
+    {
+      temp_expression_node["value"]["lit_ascii"] =  "issuerPrincipalStr";
+      value_type = "string-ascii";
+    }
+
     // get type
     typet mem_type;
-    nlohmann::json objtype = {value[0],value[0],value[2]};
+    nlohmann::json objtype = {value_type,value_type,value_size};//{value[0],value[0],value[2]};
  
-   
- /* Create a temporary JSON object to ease processing */
-    nlohmann::json temp_expression_node;
     temp_expression_node["expressionType"] = "Literal";
     temp_expression_node["span"] = ast_node[1]["span"];
     temp_expression_node["identifier"] = mem_name;
     temp_expression_node["cid"] = ast_node[1]["cid"];
     temp_expression_node["objtype"] = objtype;
 
-    // adjust value node accordingly.
-    if (key == "contract_is_principal")
-    {
-      temp_expression_node["value"] =  (ast_node[1]["principalType"]=="contract"?"true":"false");
-    }
-    else if (key == "contract_is_standard")
-    {
-      temp_expression_node["value"] =  (ast_node[1]["principalType"]=="standard"?"true":"false");
-    }
-    else if (key == "contract_name")
-    {
-      temp_expression_node["value"]["lit_ascii"] =  ast_node[1]["contractName"];
-    }
-    else if (key == "issuer_principal_bytes")
-    {
-      temp_expression_node["value"]["lit_utf8"] =   ast_node[1]["issuerPrincipal"];
-    }
-    else if (key == "version")
-    {
-      temp_expression_node["value"]["lit_utf8"] =   "1";
-    }
-    else if (key == "issuer_principal_str")
-    {
-      temp_expression_node["value"]["lit_ascii"] =  "issuerPrincipalStr";
-    }
+    
 
 
     //std::cout <<temp_expression_node.dump(4)<<std::endl;
@@ -5325,11 +5503,11 @@ bool clarity_convertert::get_elementary_type_name(
   }
   case ClarityGrammar::ElementaryTypeNameT::PRINCIPAL:
   {
-    /// obj[2] contains size of object
     std::string symbol_id = "tag-struct principal";
     if ( context.find_symbol(symbol_id) == nullptr )
     {
       log_error("Principal struct not found in the symbol table. Aborting...");
+      return true;
     }
     else{
       const symbolt &sym = *context.find_symbol(symbol_id);
