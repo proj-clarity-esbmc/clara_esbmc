@@ -75,14 +75,28 @@ const std::string clar_optionals = R"(
 
 // optional string requires special handling
 typedef struct optional_string optional_string;
+typedef struct optional_buff	optional_buff;
 
 struct optional_string {
 	bool is_none;
 	char *value;
-	int size;
 };
 
+struct optional_buff {
+	bool is_none;
+	unsigned char *value;
+};
+
+
+
 char* some_string(optional_string x)
+{
+	assert (!x.is_none);
+	return x.value;
+}
+
+
+unsigned char* some_buff(optional_buff x)
 {
 	assert (!x.is_none);
 	return x.value;

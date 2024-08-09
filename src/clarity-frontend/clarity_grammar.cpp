@@ -171,10 +171,10 @@ std::string get_optional_symbolId(const nlohmann::json &optional_type)
         symbol_id = "tag-struct optional_bool";
         break;
       case ElementaryTypeNameT::STRING_ASCII:
-        symbol_id = "tag-struct optional_string_ascii";
+        symbol_id = "tag-struct optional_string";
         break;
       case ElementaryTypeNameT::STRING_UTF8:
-        symbol_id = "tag-struct optional_string_utf8";
+        symbol_id = "tag-struct optional_string";
         break;
       case ElementaryTypeNameT::BUFF:
         symbol_id = "tag-struct optional_buff";

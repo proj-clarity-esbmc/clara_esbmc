@@ -4580,34 +4580,9 @@ bool clarity_convertert::get_type_description(
     std::string symbol_id = ClarityGrammar::get_optional_symbolId(optional_type); //"tag-struct optional_int128_t";
     // ClarityGrammar::ElementaryTypeNameT optional_typet = ClarityGrammar::get_elementary_type_name_t(optional_type);
 
-    // switch (optional_typet)
-    // {
-    //   case ClarityGrammar::ElementaryTypeNameT::INT:
-    //     symbol_id = "tag-struct optional_int128_t";
-    //     break;
-    //   case ClarityGrammar::ElementaryTypeNameT::UINT:
-    //     symbol_id = "tag-struct optional_uint128_t";
-    //     break;
-    //   case ClarityGrammar::ElementaryTypeNameT::BOOL:
-    //     symbol_id = "tag-struct optional_bool";
-    //     break;
-    //   case ClarityGrammar::ElementaryTypeNameT::STRING_ASCII:
-    //     symbol_id = "tag-struct optional_string_ascii";
-    //     break;
-    //   case ClarityGrammar::ElementaryTypeNameT::STRING_UTF8:
-    //     symbol_id = "tag-struct optional_string_utf8";
-    //     break;
-    //   case ClarityGrammar::ElementaryTypeNameT::BUFF:
-    //     symbol_id = "tag-struct optional_buff";
-    //     break;
-    //   default : 
-    //     log_error("Unimplemented optional type");
-    //     return true;
-    // }
-
     if ( context.find_symbol(symbol_id) == nullptr )
     {
-      log_error("Principal struct not found in the symbol table. Aborting...");
+      log_error("Optional struct {} not found in the symbol table. Aborting...",symbol_id);
       return true;
     }
     else{
@@ -4894,18 +4869,19 @@ bool clarity_convertert::get_optional_instance(const nlohmann::json &ast_node,
 
   exprt inits = gen_zero(t);
  
+  // Fixme : this is not bullet proof. order of operand at index 1 is not guaranteed
   std::string value_type = inits.operands().at(1).type().pretty();
 
-  std::unordered_map<std::string, nlohmann::json> optional_struct_members = {
-        {"is_none", {"bool", "bool", "1"}},
-        {"value", ast_node[1]["objtype"][3]},
-      };
+  // std::unordered_map<std::string, nlohmann::json> optional_struct_members = {
+  //       {"is_none", {"bool", "bool", "1"}},
+  //       {"value", ast_node[1]["objtype"][3]},
+  //     };
 
   //{ value_type, value_type, "1"}
   
   size_t i = 0;
   int is = inits.operands().size();
-  int as = optional_struct_members.size();   
+  int as = to_struct_type(t).components().size(); //optional_struct_members.size();   
   assert(is <= as);
 
   //std::cout <<inits.pretty()<<std::endl;
@@ -4925,7 +4901,34 @@ bool clarity_convertert::get_optional_instance(const nlohmann::json &ast_node,
 
     // manually create a member_name
     std::string key = opds.name().as_string();
-    std::string val_type = opds.type().get("#cpp_type").as_string();
+    std::string val_type = opds.type().get("#cpp_type").as_string();    //fixme : unreliable way of getting type
+    std::string val_size = "1";
+
+    // buff is missing for translation
+    // it it looks like that should match the same methodology as for string-xxx types
+    if (val_type == "")
+    {
+        val_type = ast_node[1]["objtype"][3][0];
+        val_size = ast_node[1]["objtype"][3][2];
+
+        // if (ast_node[1]["objtype"][3][0] == "string-ascii")
+        // {
+        //   val_type = "string-ascii";
+        //   val_size = ast_node[1]["objtype"][3][2];
+          
+        // }
+        // else if (ast_node[1]["objtype"][3][0] == "string-utf8")
+        // {
+        //   val_type = "string-utf8";
+        //   val_size = ast_node[1]["objtype"][3][2];
+        // }
+        //  else if (ast_node[1]["objtype"][3][0] == "buff")
+        // {
+        //   val_type = "string-utf8";
+        //   val_size = ast_node[1]["objtype"][3][2];
+        // }
+    }
+    
 
     const std::string mem_name =key;//it.key();
     const std::string mem_id = "clar:@C@" + current_contractName + "@" + name +
@@ -4933,13 +4936,13 @@ bool clarity_convertert::get_optional_instance(const nlohmann::json &ast_node,
 
     // get type
     typet mem_type;
-    nlohmann::json objtype = {val_type,val_type,"1"};
+    nlohmann::json objtype = {val_type,val_type,val_size};
 
  
    
  /* Create a temporary JSON object to ease processing */
     nlohmann::json temp_expression_node;
-    temp_expression_node["expressionType"] = "Literal";
+    temp_expression_node["expressionType"] = "Literal";     //fixme: gotta map this for non-literal values as well
     temp_expression_node["span"] = ast_node[1]["span"];
     temp_expression_node["identifier"] = mem_name;
     temp_expression_node["cid"] = ast_node[1]["cid"];
@@ -4958,8 +4961,9 @@ bool clarity_convertert::get_optional_instance(const nlohmann::json &ast_node,
         continue;
       }
 
+        temp_expression_node["value"] =  ast_node[1]["value"][1];
       
-      temp_expression_node["value"] =  ast_node[1]["value"][1];
+      
       
     }
 
@@ -5506,7 +5510,7 @@ bool clarity_convertert::get_elementary_type_name(
     std::string symbol_id = "tag-struct principal";
     if ( context.find_symbol(symbol_id) == nullptr )
     {
-      log_error("Principal struct not found in the symbol table. Aborting...");
+      log_error("Principal struct {} not found in the symbol table. Aborting...",symbol_id);
       return true;
     }
     else{
