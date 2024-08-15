@@ -228,7 +228,6 @@ enum ExpressionT
   // rule list
   List,
 
-
   // rule Mapping
   Mapping,
 

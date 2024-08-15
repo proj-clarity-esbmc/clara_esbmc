@@ -25,7 +25,7 @@
 bool clarity_convertert::define_principal_struct()
 
 {
- struct_typet t = struct_typet();
+  struct_typet t = struct_typet();
 
   // get name/id:
   std::string name, id;
@@ -52,8 +52,7 @@ bool clarity_convertert::define_principal_struct()
   symbol.is_type = true;
   symbolt &added_symbol = *move_symbol_to_context(symbol);
 
-
-/*
+  /*
 struct principal
 {
     bool contract_is_principal;
@@ -65,27 +64,26 @@ struct principal
   
   }
 */
-std::unordered_map<std::string, nlohmann::json> principal_struct_members = {
+  std::unordered_map<std::string, nlohmann::json> principal_struct_members = {
     {"contract_is_principal", {"bool", "bool", "1"}},
-    {"contract_is_standard", { "bool", "bool", "1"}},
-    {"contract_name", { "string-ascii", "string-ascii", "128"}},
-    {"issuer_principal_bytes", { "string-utf8", "string-utf8", "20"}},
-    {"version", { "string-utf8", "string-utf8", "1"}},
-    {"issuer_principal_str", { "string-ascii", "string-ascii", "41"}}
-  };
-  for (auto& [key, value]: principal_struct_members)
+    {"contract_is_standard", {"bool", "bool", "1"}},
+    {"contract_name", {"string-ascii", "string-ascii", "128"}},
+    {"issuer_principal_bytes", {"string-utf8", "string-utf8", "20"}},
+    {"version", {"string-utf8", "string-utf8", "1"}},
+    {"issuer_principal_str", {"string-ascii", "string-ascii", "41"}}};
+  for (auto &[key, value] : principal_struct_members)
   {
     struct_typet::componentt comp;
 
     // manually create a member_name
-    const std::string mem_name = key;//it.key();
-    const std::string mem_id = "clar:@C@" + current_contractName + "@" + name +
-                               "@" + mem_name;
+    const std::string mem_name = key; //it.key();
+    const std::string mem_id =
+      "clar:@C@" + current_contractName + "@" + name + "@" + mem_name;
 
     // get type
     typet mem_type;
-    nlohmann::json objtype = {value[0],value[0],value[2]};
-    std::cout <<objtype.dump()<<std::endl;
+    nlohmann::json objtype = {value[0], value[0], value[2]};
+    std::cout << objtype.dump() << std::endl;
     if (get_type_description(objtype, mem_type))
       return true;
 
@@ -100,8 +98,6 @@ std::unordered_map<std::string, nlohmann::json> principal_struct_members = {
 
     // update struct type component
     t.components().push_back(comp);
-
-    
   }
 
   t.location() = location_begin;
@@ -109,7 +105,6 @@ std::unordered_map<std::string, nlohmann::json> principal_struct_members = {
 
   return false;
 }
-
 
 /**
  * struct optional_T
@@ -124,7 +119,7 @@ std::unordered_map<std::string, nlohmann::json> principal_struct_members = {
 bool clarity_convertert::define_optional_type(std::string optional_type)
 
 {
- struct_typet t = struct_typet();
+  struct_typet t = struct_typet();
 
   // get name/id:
   std::string name, id;
@@ -151,64 +146,59 @@ bool clarity_convertert::define_optional_type(std::string optional_type)
   symbol.is_type = true;
   symbolt &added_symbol = *move_symbol_to_context(symbol);
 
+  std::unordered_map<std::string, nlohmann::json> optional_struct_members;
 
-std::unordered_map<std::string, nlohmann::json> optional_struct_members ;
+  if (optional_type == "int128_t")
+  {
+    optional_struct_members = {
+      {"is_none", {"bool", "bool", "1"}}, {"value", {"int", "int", "1"}}};
+  }
+  else if (optional_type == "uint128_t")
+  {
+    optional_struct_members = {
+      {"is_none", {"bool", "bool", "1"}}, {"value", {"uint", "uint", "1"}}};
+  }
+  else if (optional_type == "bool")
+  {
+    optional_struct_members = {
+      {"is_none", {"bool", "bool", "1"}}, {"value", {"bool", "bool", "1"}}};
+  }
+  else if (optional_type == "string-ascii")
+  {
+    optional_struct_members = {
+      {"is_none", {"bool", "bool", "1"}},
+      {"value",
+       {"string-ascii", "string-ascii", "1"}} //size would be changed here
+    };
+  }
+  else if (optional_type == "string-utf8")
+  {
+    optional_struct_members = {
+      {"is_none", {"bool", "bool", "1"}},
+      {"value",
+       {"string-utf8", "string-utf8", "1"}} //size would be changed here
+    };
+  }
+  else
+  {
+    //std::cerr << "Unsupported optional type: " << optional_type << std::endl;
+    log_error("Unsupported optional type: ");
+    return true;
+  }
 
-if (optional_type == "int128_t")
-{
-  optional_struct_members= {
-    {"is_none", {"bool", "bool", "1"}},
-    {"value", { "int", "int", "1"}}
-  };
-}
-else if( optional_type == "uint128_t")
-{
-  optional_struct_members= {
-    {"is_none", {"bool", "bool", "1"}},
-    {"value", { "uint", "uint", "1"}}
-  };
-}
-else if( optional_type == "bool")
-{
-  optional_struct_members= {
-    {"is_none", {"bool", "bool", "1"}},
-    {"value", { "bool", "bool", "1"}}
-  };
-}
-else if( optional_type == "string-ascii")
-{
-  optional_struct_members= {
-    {"is_none", {"bool", "bool", "1"}},
-    {"value", { "string-ascii", "string-ascii", "1"}}   //size would be changed here
-  };
-}
-else if( optional_type == "string-utf8")
-{
-    optional_struct_members= {
-    {"is_none", {"bool", "bool", "1"}},
-    {"value", { "string-utf8", "string-utf8", "1"}}   //size would be changed here
-  };
-}
-else
-{
-  //std::cerr << "Unsupported optional type: " << optional_type << std::endl;
-  log_error("Unsupported optional type: ");
-  return true;
-}
-
-  for (auto& [key, value]: optional_struct_members)
+  for (auto &[key, value] : optional_struct_members)
   {
     struct_typet::componentt comp;
 
     // manually create a member_name
-    const std::string mem_name = key;//it.key();
-    const std::string mem_id = "clar:@C@" + current_contractName + "@" + name +
-                               "@" + mem_name;
+    const std::string mem_name = key; //it.key();
+    const std::string mem_id =
+      "clar:@C@" + current_contractName + "@" + name + "@" + mem_name;
 
     // get type
     typet mem_type;
-    nlohmann::json objtype = {value[0],value[0],value[2]};
-    std::cout <<objtype.dump()<<std::endl;
+    nlohmann::json objtype = {value[0], value[0], value[2]};
+    std::cout << objtype.dump() << std::endl;
     if (get_type_description(objtype, mem_type))
       return true;
 
@@ -223,8 +213,6 @@ else
 
     // update struct type component
     t.components().push_back(comp);
-
-    
   }
 
   t.location() = location_begin;

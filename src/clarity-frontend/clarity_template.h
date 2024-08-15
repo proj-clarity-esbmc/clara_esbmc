@@ -236,7 +236,7 @@ void byte_concat();
 )";
 
 const std::string clar_funcs =
-   blockhash + gasleft + clar_abi + clar_math + clar_string + clar_byte;
+  blockhash + gasleft + clar_abi + clar_math + clar_string + clar_byte;
 
 /// data structure
 
@@ -506,8 +506,9 @@ const char *map_next_(map_base_t *m, map_iter_t *iter)
 )";
 
 // combination
-const std::string clar_library =
-  clar_header + clar_typedef + clar_optionals + clar_lists + clar_vars + clar_funcs + clar_mapping;
+const std::string clar_library = clar_header + clar_typedef + clar_optionals +
+                                 clar_lists + clar_vars + clar_funcs +
+                                 clar_mapping;
 
 }; // namespace ClarityTemplate
 

@@ -83,10 +83,9 @@ bool is_function_definition(const nlohmann::json &ast_node)
     return false;
 }
 
-
 bool operation_is_optional_decl(const nlohmann::json &ast_node)
 {
-  const std::vector<std::string> optional_operators{"some","none"};
+  const std::vector<std::string> optional_operators{"some", "none"};
 
   if (
     std::find(
@@ -156,34 +155,35 @@ bool operation_is_conditional(const nlohmann::json &ast_node)
 // returns symbolid of the optional struct w.r.t to the objtype passed
 std::string get_optional_symbolId(const nlohmann::json &optional_type)
 {
-  ElementaryTypeNameT optional_typet = get_elementary_type_name_t(optional_type);
+  ElementaryTypeNameT optional_typet =
+    get_elementary_type_name_t(optional_type);
   std::string symbol_id;
 
   switch (optional_typet)
-    {
-      case ElementaryTypeNameT::INT:
-        symbol_id = "tag-struct optional_int128_t";
-        break;
-      case ElementaryTypeNameT::UINT:
-        symbol_id = "tag-struct optional_uint128_t";
-        break;
-      case ElementaryTypeNameT::BOOL:
-        symbol_id = "tag-struct optional_bool";
-        break;
-      case ElementaryTypeNameT::STRING_ASCII:
-        symbol_id = "tag-struct optional_string";
-        break;
-      case ElementaryTypeNameT::STRING_UTF8:
-        symbol_id = "tag-struct optional_string";
-        break;
-      case ElementaryTypeNameT::BUFF:
-        symbol_id = "tag-struct optional_buff";
-        break;
-      default : 
-        log_error("Unimplemented optional type");
-        abort();
-    }
-    return symbol_id;
+  {
+  case ElementaryTypeNameT::INT:
+    symbol_id = "tag-struct optional_int128_t";
+    break;
+  case ElementaryTypeNameT::UINT:
+    symbol_id = "tag-struct optional_uint128_t";
+    break;
+  case ElementaryTypeNameT::BOOL:
+    symbol_id = "tag-struct optional_bool";
+    break;
+  case ElementaryTypeNameT::STRING_ASCII:
+    symbol_id = "tag-struct optional_string";
+    break;
+  case ElementaryTypeNameT::STRING_UTF8:
+    symbol_id = "tag-struct optional_string";
+    break;
+  case ElementaryTypeNameT::BUFF:
+    symbol_id = "tag-struct optional_buff";
+    break;
+  default:
+    log_error("Unimplemented optional type");
+    abort();
+  }
+  return symbol_id;
 }
 
 // takes objtype as input
@@ -222,20 +222,23 @@ bool get_operation_type(nlohmann::json &expression_node)
   else if (value_node[0] == "principal")
   {
     expression_node[1]["expressionType"] = "Literal";
-    
+
     auto principal_value = value_node[3]["value"];
-    std::string principal_value_str ;
-    if (principal_value.size() > 22)    //indicates it's a contract principal
+    std::string principal_value_str;
+    if (principal_value.size() > 22) //indicates it's a contract principal
     {
       // confirming contract principal by looking for "." in the principal string name
       principal_value_str = value_node[3]["value"][22];
-      if (principal_value_str.find(".") != std::string::npos) {
+      if (principal_value_str.find(".") != std::string::npos)
+      {
         size_t period_pos = principal_value_str.find(".");
         expression_node[1]["principalType"] = "contract";
         expression_node[1]["contractName"] = value_node[3]["value"][21];
-        expression_node[1]["issuerPrincipal"] = principal_value_str.substr(0,period_pos);
-      } else {
-        
+        expression_node[1]["issuerPrincipal"] =
+          principal_value_str.substr(0, period_pos);
+      }
+      else
+      {
         return true;
       }
     }
@@ -295,8 +298,6 @@ bool parse_value_node(nlohmann::json &expression_node)
   }
   else if (value_type == "array")
   {
- 
-
     // it's a function call with arguments
 
     if (get_operation_type(expression_node))
@@ -433,7 +434,7 @@ TypeNameT get_type_name_t(const nlohmann::json &type_name)
     {
       return ContractTypeName;
     }
-    else if (typeString =="optional")
+    else if (typeString == "optional")
     {
       // For type conversion
       return OptionalTypeName;
@@ -443,7 +444,7 @@ TypeNameT get_type_name_t(const nlohmann::json &type_name)
       // For Literal, their typeString is like "int_const 100".
       return ElementaryTypeName;
     }
-   
+
     else
     {
       log_error(
@@ -544,12 +545,10 @@ ElementaryTypeNameT get_elementary_type_name_t(const nlohmann::json &type_name)
   }
   if (typeString == "string-ascii")
   {
-    
     return STRING_ASCII;
   }
   if (typeString == "string-utf8")
   {
-    
     return STRING_UTF8;
   }
   if (typeString == "principal")
@@ -806,7 +805,7 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
   {
     return Optional;
   }
-  else if (nodeType =="List")
+  else if (nodeType == "List")
   {
     return List;
   }
