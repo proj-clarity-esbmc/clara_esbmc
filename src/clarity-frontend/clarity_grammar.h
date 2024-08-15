@@ -46,7 +46,7 @@ enum TypeNameT
   ParameterList,
 
   // static array type
-  ArrayTypeName,
+  ListTypeName,
 
   BuffTypeName,
 
@@ -224,6 +224,10 @@ enum ExpressionT
 
   //rule optional
   Optional,
+
+  // rule list
+  List,
+
 
   // rule Mapping
   Mapping,

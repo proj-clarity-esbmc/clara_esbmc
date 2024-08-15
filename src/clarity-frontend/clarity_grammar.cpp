@@ -247,6 +247,10 @@ bool get_operation_type(nlohmann::json &expression_node)
     }
     return false;
   }
+  else if (value_node[0] == "list")
+  {
+    expression_node[1]["expressionType"] = "List";
+  }
   else
   {
     ///log_error("Unsupported operation type: {}", value_node[0]);
@@ -414,7 +418,7 @@ TypeNameT get_type_name_t(const nlohmann::json &type_name)
     {
       //list in clarity can be considered as array of bytes
 
-      return ArrayTypeName;
+      return ListTypeName;
     }
     else if (
       uint_string_to_type_map.count(typeString) ||
@@ -473,7 +477,7 @@ const char *type_name_to_str(TypeNameT type)
   {
     ENUM_TO_STR(ElementaryTypeName)
     ENUM_TO_STR(ParameterList)
-    ENUM_TO_STR(ArrayTypeName)
+    ENUM_TO_STR(ListTypeName)
     ENUM_TO_STR(ContractTypeName)
     ENUM_TO_STR(OptionalTypeName)
     ENUM_TO_STR(TupleTypeName)
@@ -802,6 +806,11 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
   {
     return Optional;
   }
+  else if (nodeType =="List")
+  {
+    return List;
+  }
+
   else if (nodeType == "Mapping")
   {
     return Mapping;
@@ -1083,6 +1092,7 @@ const char *expression_to_str(ExpressionT type)
     ENUM_TO_STR(NullExpr)
     ENUM_TO_STR(ExpressionTError)
     ENUM_TO_STR(Optional)
+    ENUM_TO_STR(List)
   default:
   {
     assert(!"Unknown expression type");

@@ -3315,7 +3315,7 @@ bool clarity_convertert::get_expr(
       ClarityGrammar::TypeNameT tname = ClarityGrammar::get_type_name_t(
         expr["baseExpression"]["typeDescriptions"]);
       if (
-        !(tname == ClarityGrammar::ArrayTypeName) &&
+        !(tname == ClarityGrammar::ListTypeName) &&
 
         expr["baseExpression"].contains("referencedDeclaration"))
       {
@@ -3460,76 +3460,12 @@ bool clarity_convertert::get_expr(
   }
   case ClarityGrammar::ExpressionT::ContractMemberCall:
   case ClarityGrammar::ExpressionT::StructMemberCall:
-  case ClarityGrammar::ExpressionT::EnumMemberCall:
+  
+  case ClarityGrammar::ExpressionT::List:
   {
-    // 1. ContractMemberCall: contractInstance.call()
-    //                        contractInstanceArray[0].call()
-    //                        contractInstance.x
-    // 2. StructMemberCall: struct.member
-    // 3. EnumMemberCall: enum.member
-    // 4. (?)internal property: tx.origin, msg.sender, ...
-
-    // Function symbol id is clar:@C@referenced_function_contract_name@F@function_name#referenced_function_id
-    // Using referencedDeclaration will point us to the original declared function. This works even for inherited function and overrided functions.
-    assert(expr.contains("expression"));
-    const nlohmann::json callee_expr_json = expr["expression"];
-
-    const int caller_id = callee_expr_json["referencedDeclaration"].get<int>();
-
-    const nlohmann::json caller_expr_json = find_decl_ref(caller_id);
-    if (caller_expr_json == empty_json)
-      return true;
-
-    switch (type)
-    {
-    case ClarityGrammar::ExpressionT::StructMemberCall:
-    {
-      exprt base;
-      if (get_expr(callee_expr_json, base))
-        return true;
-
-      const int struct_var_id = expr["referencedDeclaration"].get<int>();
-      const nlohmann::json struct_var_ref = find_decl_ref(struct_var_id);
-      if (struct_var_ref == empty_json)
-        return true;
-
-      exprt comp;
-      if (get_var_decl_ref(struct_var_ref, comp))
-        return true;
-
-      assert(comp.name() == expr["memberName"]);
-      new_expr = member_exprt(base, comp.name(), comp.type());
-
+    
+      get_list_of_entry_type(expr, new_expr);
       break;
-    }
-    case ClarityGrammar::ExpressionT::ContractMemberCall:
-    {
-      // this should be handled in CallExprClass
-      log_error("Unexpected ContractMemberCall");
-      return true;
-    }
-    case ClarityGrammar::ExpressionT::EnumMemberCall:
-    {
-      const int enum_id = expr["referencedDeclaration"].get<int>();
-      const nlohmann::json enum_member_ref = find_decl_ref(enum_id);
-      if (enum_member_ref == empty_json)
-        return true;
-
-      if (get_enum_member_ref(enum_member_ref, new_expr))
-        return true;
-
-      break;
-    }
-    default:
-    {
-      if (get_expr(callee_expr_json, literal_type, new_expr))
-        return true;
-
-      break;
-    }
-    }
-
-    break;
   }
   case ClarityGrammar::ExpressionT::BuiltinMemberCall:
   {
@@ -3579,10 +3515,12 @@ bool clarity_convertert::get_expr(
     return true;
   }
   }
+  
 
   new_expr.location() = location;
   return false;
 }
+
 
 void clarity_convertert::set_current_contract_name(std::string &contract_name)
 {
@@ -4520,6 +4458,7 @@ bool clarity_convertert::get_type_description(
   case ClarityGrammar::TypeNameT::BuffTypeName:
   {
     //it's a buffer of bytes
+    // buff is an array of bytes
     // std::string str_buff_size = type_name[2];
     // int bit_width = 8 * std::stoi(str_buff_size);
     // new_type = unsignedbv_typet(bit_width);
@@ -4529,29 +4468,15 @@ bool clarity_convertert::get_type_description(
 
     break;
   }
-  case ClarityGrammar::TypeNameT::ArrayTypeName:
+  case ClarityGrammar::TypeNameT::ListTypeName:
   {
     // Deal with array with constant size, e.g., int a[2]; Similar to clang::Type::ConstantArray
-    // buff is an array of bytes
+    
     // list is an array of entry-type
-
     //it's a list of entry-type
-    // ToDo
-    nlohmann::json array_elementary_type =
-      make_array_elementary_type(type_name);
-    typet the_type;
-    if (get_type_description(array_elementary_type, the_type))
-      return true;
 
-    assert(the_type.is_unsignedbv()); // assuming array size is unsigned bv
-    std::string the_size = get_array_size(type_name);
-    unsigned z_ext_value = std::stoul(the_size, nullptr);
-    new_type = array_typet(
-      the_type,
-      constant_exprt(
-        integer2binary(z_ext_value, bv_width(int_type())),
-        integer2string(z_ext_value),
-        int_type()));
+
+    get_list_type(type_name, new_type);
 
     break;
   }
@@ -4591,7 +4516,6 @@ bool clarity_convertert::get_type_description(
     }
    break;
 
-    break;
   }
   case ClarityGrammar::TypeNameT::MappingTypeName:
   {
@@ -4815,6 +4739,138 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node)
   t.location() = location_begin;
   added_symbol.type = t;
   added_symbol.is_type = true;
+
+  return false;
+}
+
+bool clarity_convertert::get_list_of_entry_type(const nlohmann::json &ast_node, exprt &new_expr)
+{
+  std::string id = get_list_struct_id(ast_node[1]["objtype"]);
+  std::string name;
+  if (context.find_symbol(id) == nullptr)
+      {
+        log_error("Type {} not found in the symbol table. Aborting...",id);
+        return true;
+      }
+    
+  const symbolt &sym = *context.find_symbol(id);
+
+   // get type
+  typet t = sym.type;
+  assert(t.id() == typet::id_struct);
+
+  // get instance name,id
+  get_state_var_decl_name(ast_node, name, id);
+  
+  // get location
+  locationt location_begin;
+  get_location_from_decl(ast_node, location_begin);
+
+   // get debug module name
+  std::string debug_modulename =
+    get_modulename_from_path(location_begin.file().as_string());
+  current_fileName = debug_modulename;
+
+  // populate struct type symbol
+  symbolt symbol;
+
+  if (context.find_symbol(id) != nullptr)
+  {
+    //log_status("Symbol {} already exists in the context", id);
+    symbol = *context.find_symbol(id);
+  }
+  else
+  {
+    // the symbol should already be in the space. this is an error if you don't find the symbol already defined
+    
+    return true;
+  }
+
+  symbolt &added_symbol = symbol;
+
+  // populate initial value
+
+  exprt inits = gen_zero(t);
+  
+  size_t i = 0;
+  int is = inits.operands().size();
+  int as = to_struct_type(t).components().size();  
+  assert(is <= as);
+
+  for (auto& opds: to_struct_type(t).components())
+  {
+   
+
+     struct_typet::componentt comp;
+
+    // manually create a member_name
+    std::string key = opds.name().as_string();
+    std::string val_type = opds.type().get("#cpp_type").as_string();    //fixme : unreliable way of getting type
+    std::string val_size = "1";
+    nlohmann::json value_node = ast_node[1]["value"];
+
+    if (key == "size")
+    {
+      // there is no need to translate size for list because there is no way to "get-size" of the list
+      i++;     
+      continue;
+    }
+
+    if (val_type == "")
+    {
+        val_type = ast_node[1]["objtype"][3]["objtype"][0];
+        val_size = ast_node[1]["objtype"][2];
+    }
+    
+
+    const std::string mem_name =key;
+    const std::string mem_id = "clar:@C@" + current_contractName + "@" + name +
+                               "@" + mem_name;
+
+    // get type
+    typet subtype = opds.type();
+    typet type =  array_typet(subtype, from_integer(std::stoi(val_size), size_type())); //opds.type();
+    // is array_typet(entryType as subtype, from_integer(size of list, size_type()))
+    exprt buff_inits = gen_zero(type);
+
+    nlohmann::json objtype = {val_type,val_type,val_size};
+
+    int entry_indx = 0;
+    int value_length = std::stoi(val_size);
+    for (entry_indx = 0; entry_indx < value_length; entry_indx++)
+    {
+      nlohmann::json temp_expression_node;
+      temp_expression_node["expressionType"] = "Literal";
+      temp_expression_node["span"] = ast_node[1]["span"];
+      temp_expression_node["identifier"] = mem_name;
+      temp_expression_node["cid"] = ast_node[1]["cid"];
+      temp_expression_node["objtype"] = objtype;
+      temp_expression_node["value"] =  ast_node[1]["value"][entry_indx + 1];    //+1 because [0] index contains "list" identifier
+
+      
+       nlohmann::json temp_declarative_node = {"list", temp_expression_node};
+       exprt init;
+      if (get_expr(temp_declarative_node, objtype, init))
+        return true;
+
+      buff_inits.operands().at(entry_indx) = init;
+    }
+
+   
+
+    const struct_typet::componentt *c = &to_struct_type(t).components().at(i);
+    typet elem_type = c->type();
+
+    clarity_gen_typecast(ns, buff_inits, elem_type);
+    inits.operands().at(i) = buff_inits;
+
+    // update
+    ++i;
+  }
+
+  added_symbol.value = inits;
+  new_expr = added_symbol.value;
+  new_expr.identifier(id);
 
   return false;
 }
@@ -5402,6 +5458,44 @@ bool clarity_convertert::get_elementary_type_name_int(
   out = signedbv_typet(int_size);
 
   return false;
+}
+
+// get the id of the struct that represents the list
+// takes parent objtype as input
+// Parent_objtype contains ["list", "list", size_of_list, {"objtype": [entry_type, entry_type, size per entry]}]
+std::string clarity_convertert::get_list_struct_id(const nlohmann::json &objtype)
+{
+  // get the id of the struct that represents the list
+  // e.g. list_uint128_t
+  return "tag-struct " + objtype[0].get<std::string>() + "_" +
+         objtype[3]["objtype"][0].get<std::string>();
+}
+
+bool clarity_convertert::get_list_type(const nlohmann::json &parent_objtype, typet &out)
+{
+    // For Clarity rule entry-type-list:
+
+    // retrieve relevant list_type
+    
+    // e-g list_bool , list_uint128_t etc
+
+    // parent_objtype contains ["list", "list", size_of_list, {"objtype": [entry_type, entry_type, size per entry]}]
+
+    //nlohmann::json child_objtype = parent_objtype[3]["objtype"];
+    
+    // get types
+    std::string id = get_list_struct_id(parent_objtype);  //"tag-struct " + parent_objtype[0].get<std::string>() + "_" + child_objtype[0].get<std::string>();
+    if (context.find_symbol(id) == nullptr)
+      {
+        log_error("Type {} not found in the symbol table. Aborting...",id);
+        return true;
+      }
+    
+    const symbolt &sym = *context.find_symbol(id);
+    out = sym.type;
+      
+    return false;
+    // is array_typet(entryType as subtype, from_integer(size of list, size_type()))
 }
 
 bool clarity_convertert::get_elementary_type_name_buff(

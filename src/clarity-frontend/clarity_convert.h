@@ -68,6 +68,10 @@ protected:
   bool get_function_params(const nlohmann::json &pd, exprt &param);
   bool get_default_function(const std::string name, const std::string id);
 
+  std::string get_list_struct_id(const nlohmann::json &objtype);
+  bool get_list_type(const nlohmann::json &parent_objtype, typet &out);
+  bool get_list_of_entry_type(const nlohmann::json &ast_node, exprt &new_expr);
+
   // handle the non-contract definition, including struct/enum/error/event/abstract/...
   bool get_noncontract_defition(nlohmann::json &ast_node);
   bool get_clarity_struct_class(const nlohmann::json &struct_def);

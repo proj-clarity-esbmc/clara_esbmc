@@ -36,6 +36,7 @@ typedef signed _BitInt(128) int128_t;
 typedef unsigned _BitInt(128) uint128_t;
 typedef _Bool bool;
 
+
 #define CLARITY_ADDRESS_TYPE_STANDARD 1
 #define CLARITY_ADDRESS_TYPE_CONTRACT 2
 
@@ -107,19 +108,40 @@ TYPEDEF_OPTIONAL(int128_t);
 TYPEDEF_OPTIONAL(uint128_t);
 TYPEDEF_OPTIONAL(bool);
 TYPEDEF_OPTIONAL(principal);
-//TYPEDEF_OPTIONAL(char*);
+
 
 DEFINE_OPTIONAL(int128_t);
 DEFINE_OPTIONAL(uint128_t);
 DEFINE_OPTIONAL(bool);
 DEFINE_OPTIONAL(principal);
-//DEFINE_OPTIONAL(char*);
+
 
 DEFINE_SOME(int128_t);
 DEFINE_SOME(uint128_t);
 DEFINE_SOME(bool);
 DEFINE_SOME(principal);
-//DEFINE_SOME(char*);
+
+
+
+
+)";
+
+const std::string clar_lists = R"(
+
+	#define TYPEDEF_LIST(type) typedef struct list_##type list_##type;
+
+	#define DEFINE_LIST(type) struct list_##type { int size; type* items; }
+
+
+	TYPEDEF_LIST(int128_t);
+	TYPEDEF_LIST(uint128_t);
+	TYPEDEF_LIST(bool);
+	TYPEDEF_LIST(principal);
+
+	DEFINE_LIST(int128_t);
+	DEFINE_LIST(uint128_t);
+	DEFINE_LIST(bool);
+	DEFINE_LIST(principal);
 
 )";
 
@@ -485,7 +507,7 @@ const char *map_next_(map_base_t *m, map_iter_t *iter)
 
 // combination
 const std::string clar_library =
-  clar_header + clar_typedef + clar_optionals + clar_vars + clar_funcs + clar_mapping;
+  clar_header + clar_typedef + clar_optionals + clar_lists + clar_vars + clar_funcs + clar_mapping;
 
 }; // namespace ClarityTemplate
 
