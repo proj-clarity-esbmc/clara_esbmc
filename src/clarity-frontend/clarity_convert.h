@@ -73,7 +73,13 @@ protected:
   bool get_list_of_entry_type(const nlohmann::json &ast_node, exprt &new_expr);
 
   // handle the non-contract definition, including struct/enum/error/event/abstract/...
-  bool process_c_defined_structs(std::string &id, const nlohmann::json &ast_node, locationt &location_begin, symbolt &added_symbol,exprt &inits ,typet &t);
+  bool process_c_defined_structs(
+    std::string &id,
+    const nlohmann::json &ast_node,
+    locationt &location_begin,
+    symbolt &added_symbol,
+    exprt &inits,
+    typet &t);
   bool get_noncontract_defition(nlohmann::json &ast_node);
   bool get_clarity_struct_class(const nlohmann::json &struct_def);
   bool get_struct_class(const nlohmann::json &ast_node);

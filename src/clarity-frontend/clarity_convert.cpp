@@ -4744,7 +4744,7 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node)
 }
 
 // this function performs the pre-processing required to use a symbol defined in C template.
-// takes input : 
+// takes input :
 //  id -> prefilled to id of struct to look for in the symbol table
 // ast_node -> the ast node containing the declaration info
 // outputs:
@@ -4754,7 +4754,13 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node)
 // returns :
 //  false for success
 //  true for failure
-bool clarity_convertert::process_c_defined_structs(std::string &id, const nlohmann::json &ast_node, locationt &location_begin, symbolt &added_symbol, exprt &inits , typet &t)
+bool clarity_convertert::process_c_defined_structs(
+  std::string &id,
+  const nlohmann::json &ast_node,
+  locationt &location_begin,
+  symbolt &added_symbol,
+  exprt &inits,
+  typet &t)
 {
   std::string name;
 
@@ -4766,7 +4772,7 @@ bool clarity_convertert::process_c_defined_structs(std::string &id, const nlohma
 
   const symbolt &sym = *context.find_symbol(id);
 
-   // get type
+  // get type
   t = sym.type;
   assert(t.id() == typet::id_struct);
 
@@ -4807,21 +4813,23 @@ bool clarity_convertert::process_c_defined_structs(std::string &id, const nlohma
   assert(is <= as);
 
   return false;
-
 }
 
-bool clarity_convertert::get_list_of_entry_type(const nlohmann::json &ast_node, exprt &new_expr)
+bool clarity_convertert::get_list_of_entry_type(
+  const nlohmann::json &ast_node,
+  exprt &new_expr)
 {
   std::string id = get_list_struct_id(ast_node[1]["objtype"]);
   locationt location_begin;
   symbolt added_symbol;
   exprt inits;
   typet t;
-  process_c_defined_structs(id, ast_node,location_begin, added_symbol , inits, t);
-  
+  process_c_defined_structs(
+    id, ast_node, location_begin, added_symbol, inits, t);
+
   size_t i = 0;
 
-  for (auto& opds: to_struct_type(t).components())
+  for (auto &opds : to_struct_type(t).components())
   {
     struct_typet::componentt comp;
 
@@ -4847,7 +4855,7 @@ bool clarity_convertert::get_list_of_entry_type(const nlohmann::json &ast_node, 
       val_size = ast_node[1]["objtype"][2];
     }
 
-    const std::string mem_name =key;
+    const std::string mem_name = key;
 
     // get type
     typet subtype = opds.type();
@@ -4909,10 +4917,10 @@ bool clarity_convertert::get_optional_instance(
   symbolt added_symbol;
   exprt inits;
   typet t;
-  process_c_defined_structs(id, ast_node,location_begin, added_symbol , inits, t);
-  
+  process_c_defined_structs(
+    id, ast_node, location_begin, added_symbol, inits, t);
+
   size_t i = 0;
- 
 
   //for (auto& [key, value]: optional_struct_members)
   for (auto &opds : (to_struct_type(t).components()))
@@ -4933,10 +4941,9 @@ bool clarity_convertert::get_optional_instance(
     {
       val_type = ast_node[1]["objtype"][3][0];
       val_size = ast_node[1]["objtype"][3][2];
-
     }
 
-    const std::string mem_name =key;//it.key();
+    const std::string mem_name = key; //it.key();
 
     // get type
     typet mem_type;
@@ -5004,26 +5011,27 @@ bool clarity_convertert::get_principal_instance(
   symbolt added_symbol;
   exprt inits;
   typet t;
-  process_c_defined_structs(id, ast_node,location_begin, added_symbol , inits, t);
+  process_c_defined_structs(
+    id, ast_node, location_begin, added_symbol, inits, t);
   t.set("#clar_type", "principal_instance");
- 
 
   size_t i = 0;
- 
 
   //for (auto& [key, value]: principal_struct_members)
   for (auto &opds : to_struct_type(t).components())
   {
-   
+    struct_typet::componentt comp;
+    std::string key = opds.name().as_string();
 
-     struct_typet::componentt comp;
-     std::string key = opds.name().as_string();
-   
-     std::string value_type = opds.type().get("#cpp_type").as_string(); //this is unreliable way to get the type of the member.
-     std::string value_size = "1";
-     std::string cformat_value = opds.type().find("size").find("#cformat").pretty();
-     if(cformat_value == "nil")
-     {
+    std::string value_type =
+      opds.type()
+        .get("#cpp_type")
+        .as_string(); //this is unreliable way to get the type of the member.
+    std::string value_size = "1";
+    std::string cformat_value =
+      opds.type().find("size").find("#cformat").pretty();
+    if (cformat_value == "nil")
+    {
       value_size = "1";
     }
     else
@@ -5032,7 +5040,7 @@ bool clarity_convertert::get_principal_instance(
     }
 
     // manually create a member_name
-    const std::string mem_name = key;//it.key();
+    const std::string mem_name = key; //it.key();
 
     /* Create a temporary JSON object to ease processing */
     nlohmann::json temp_expression_node;
@@ -5145,7 +5153,6 @@ bool clarity_convertert::get_tuple_instance(
   symbol.file_local = false;
   symbol.is_extern = false;
   symbolt &added_symbol = *move_symbol_to_context(symbol);
-
 
   // populate initial value
 
