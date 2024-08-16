@@ -4743,12 +4743,21 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node)
   return false;
 }
 
-bool clarity_convertert::get_list_of_entry_type(
-  const nlohmann::json &ast_node,
-  exprt &new_expr)
+// this function performs the pre-processing required to use a symbol defined in C template.
+// takes input : 
+//  id -> prefilled to id of struct to look for in the symbol table
+// ast_node -> the ast node containing the declaration info
+// outputs:
+// location as location_begin
+// symbol as added_symbol
+// struct type as t
+// returns :
+//  false for success
+//  true for failure
+bool clarity_convertert::process_c_defined_structs(std::string &id, const nlohmann::json &ast_node, locationt &location_begin, symbolt &added_symbol, exprt &inits , typet &t)
 {
-  std::string id = get_list_struct_id(ast_node[1]["objtype"]);
   std::string name;
+
   if (context.find_symbol(id) == nullptr)
   {
     log_error("Type {} not found in the symbol table. Aborting...", id);
@@ -4757,15 +4766,15 @@ bool clarity_convertert::get_list_of_entry_type(
 
   const symbolt &sym = *context.find_symbol(id);
 
-  // get type
-  typet t = sym.type;
+   // get type
+  t = sym.type;
   assert(t.id() == typet::id_struct);
 
   // get instance name,id
   get_state_var_decl_name(ast_node, name, id);
 
   // get location
-  locationt location_begin;
+  //locationt location_begin;
   get_location_from_decl(ast_node, location_begin);
 
   // get debug module name
@@ -4788,18 +4797,31 @@ bool clarity_convertert::get_list_of_entry_type(
     return true;
   }
 
-  symbolt &added_symbol = symbol;
+  //symbolt &added_symbol = symbol;
+  added_symbol = symbol;
 
-  // populate initial value
+  inits = gen_zero(t);
 
-  exprt inits = gen_zero(t);
-
-  size_t i = 0;
   int is = inits.operands().size();
   int as = to_struct_type(t).components().size();
   assert(is <= as);
 
-  for (auto &opds : to_struct_type(t).components())
+  return false;
+
+}
+
+bool clarity_convertert::get_list_of_entry_type(const nlohmann::json &ast_node, exprt &new_expr)
+{
+  std::string id = get_list_struct_id(ast_node[1]["objtype"]);
+  locationt location_begin;
+  symbolt added_symbol;
+  exprt inits;
+  typet t;
+  process_c_defined_structs(id, ast_node,location_begin, added_symbol , inits, t);
+  
+  size_t i = 0;
+
+  for (auto& opds: to_struct_type(t).components())
   {
     struct_typet::componentt comp;
 
@@ -4825,9 +4847,7 @@ bool clarity_convertert::get_list_of_entry_type(
       val_size = ast_node[1]["objtype"][2];
     }
 
-    const std::string mem_name = key;
-    const std::string mem_id =
-      "clar:@C@" + current_contractName + "@" + name + "@" + mem_name;
+    const std::string mem_name =key;
 
     // get type
     typet subtype = opds.type();
@@ -4885,74 +4905,14 @@ bool clarity_convertert::get_optional_instance(
   nlohmann::basic_json objtype =
     ClarityGrammar::get_optional_type(ast_node[1]["objtype"]);
   std::string id = ClarityGrammar::get_optional_symbolId(objtype);
-  std::string name;
-
-  // we should be able to find the intance of the optional type in the symbol table
-  if (context.find_symbol(id) == nullptr)
-    return true;
-
-  const symbolt &sym = *context.find_symbol(id);
-
-  // get type
-  typet t = sym.type;
-  assert(t.id() == typet::id_struct);
-
-  // get instance name,id
-  get_state_var_decl_name(ast_node, name, id);
-
-  // get location
   locationt location_begin;
-  get_location_from_decl(ast_node, location_begin);
-
-  // get debug module name
-  std::string debug_modulename =
-    get_modulename_from_path(location_begin.file().as_string());
-  current_fileName = debug_modulename;
-
-  // populate struct type symbol
-  symbolt symbol;
-
-  if (context.find_symbol(id) != nullptr)
-  {
-    //log_status("Symbol {} already exists in the context", id);
-    symbol = *context.find_symbol(id);
-  }
-  else
-  {
-    // the symbol should already be in the space. this is an error if you don't find the symbol already defined
-
-    return true;
-  }
-
-  symbolt &added_symbol = symbol;
-
-  // populate initial value
-
-  exprt inits = gen_zero(t);
-
-  // Fixme : this is not bullet proof. order of operand at index 1 is not guaranteed
-  std::string value_type = inits.operands().at(1).type().pretty();
-
-  // std::unordered_map<std::string, nlohmann::json> optional_struct_members = {
-  //       {"is_none", {"bool", "bool", "1"}},
-  //       {"value", ast_node[1]["objtype"][3]},
-  //     };
-
-  //{ value_type, value_type, "1"}
-
+  symbolt added_symbol;
+  exprt inits;
+  typet t;
+  process_c_defined_structs(id, ast_node,location_begin, added_symbol , inits, t);
+  
   size_t i = 0;
-  int is = inits.operands().size();
-  int as =
-    to_struct_type(t).components().size(); //optional_struct_members.size();
-  assert(is <= as);
-
-  //std::cout <<inits.pretty()<<std::endl;
-
-  // for (auto& opds: (to_struct_type(t).components()))
-  // {
-  //   std::cout <<opds.name()<<std::endl;
-  //   std::cout <<opds.type().get("#cpp_type")<<std::endl;
-  // }
+ 
 
   //for (auto& [key, value]: optional_struct_members)
   for (auto &opds : (to_struct_type(t).components()))
@@ -4974,27 +4934,9 @@ bool clarity_convertert::get_optional_instance(
       val_type = ast_node[1]["objtype"][3][0];
       val_size = ast_node[1]["objtype"][3][2];
 
-      // if (ast_node[1]["objtype"][3][0] == "string-ascii")
-      // {
-      //   val_type = "string-ascii";
-      //   val_size = ast_node[1]["objtype"][3][2];
-
-      // }
-      // else if (ast_node[1]["objtype"][3][0] == "string-utf8")
-      // {
-      //   val_type = "string-utf8";
-      //   val_size = ast_node[1]["objtype"][3][2];
-      // }
-      //  else if (ast_node[1]["objtype"][3][0] == "buff")
-      // {
-      //   val_type = "string-utf8";
-      //   val_size = ast_node[1]["objtype"][3][2];
-      // }
     }
 
-    const std::string mem_name = key; //it.key();
-    const std::string mem_id =
-      "clar:@C@" + current_contractName + "@" + name + "@" + mem_name;
+    const std::string mem_name =key;//it.key();
 
     // get type
     typet mem_type;
@@ -5058,84 +5000,30 @@ bool clarity_convertert::get_principal_instance(
   std::string name, id;
   id = "tag-struct principal";
 
-  if (context.find_symbol(id) == nullptr)
-    return true;
-  const symbolt &sym = *context.find_symbol(id);
-
-  // get type
-  typet t = sym.type;
-  t.set("#clar_type", "principal_instance");
-  assert(t.id() == typet::id_struct);
-
-  // get instance name,id
-  //if (get_tuple_instance_name(ast_node, name, id))
-  //  return true;
-  get_state_var_decl_name(ast_node, name, id);
-
-  // get location
   locationt location_begin;
-  get_location_from_decl(ast_node, location_begin);
-
-  // get debug module name
-  std::string debug_modulename =
-    get_modulename_from_path(location_begin.file().as_string());
-  current_fileName = debug_modulename;
-
-  // populate struct type symbol
-  symbolt symbol;
-
-  if (context.find_symbol(id) != nullptr)
-  {
-    //log_status("Symbol {} already exists in the context", id);
-    symbol = *context.find_symbol(id);
-  }
-  else
-  {
-    // the symbol should already be in the space. this is an error if you don't find the symbol already defined
-
-    return true;
-  }
-
-  symbolt &added_symbol = symbol;
-
-  // populate initial value
-
-  exprt inits = gen_zero(t);
-  nlohmann::json objtype = ast_node[1]["objtype"];
-
-  //fixme : get this from a common location. do not define the struct skeleton at multuple places in the code.
-  //  std::unordered_map<std::string, nlohmann::json> principal_struct_members = {
-  //       {"contract_is_principal", {"bool", "bool", "1"}},
-  //       {"contract_is_standard", { "bool", "bool", "1"}},
-  //       {"contract_name", { "string-ascii", "string-ascii", "128"}},
-  //       {"issuer_principal_bytes", { "string-utf8", "string-utf8", "20"}},
-  //       {"version", { "string-utf8", "string-utf8", "1"}},
-  //       {"issuer_principal_str", { "string-ascii", "string-ascii", "41"}}
-  //     };
+  symbolt added_symbol;
+  exprt inits;
+  typet t;
+  process_c_defined_structs(id, ast_node,location_begin, added_symbol , inits, t);
+  t.set("#clar_type", "principal_instance");
+ 
 
   size_t i = 0;
-  int is = inits.operands().size();
-  int as =
-    to_struct_type(t)
-      .components()
-      .size(); //principal_struct_members.size();   //principal struct has 6 members check "define_principal_struct()"
-  assert(is <= as);
+ 
 
   //for (auto& [key, value]: principal_struct_members)
   for (auto &opds : to_struct_type(t).components())
   {
-    struct_typet::componentt comp;
-    std::string key = opds.name().as_string();
-    //std::string value_type = "bool";
-    std::string value_type =
-      opds.type()
-        .get("#cpp_type")
-        .as_string(); //this is unreliable way to get the type of the member.
-    std::string value_size = "1";
-    std::string cformat_value =
-      opds.type().find("size").find("#cformat").pretty();
-    if (cformat_value == "nil")
-    {
+   
+
+     struct_typet::componentt comp;
+     std::string key = opds.name().as_string();
+   
+     std::string value_type = opds.type().get("#cpp_type").as_string(); //this is unreliable way to get the type of the member.
+     std::string value_size = "1";
+     std::string cformat_value = opds.type().find("size").find("#cformat").pretty();
+     if(cformat_value == "nil")
+     {
       value_size = "1";
     }
     else
@@ -5144,9 +5032,7 @@ bool clarity_convertert::get_principal_instance(
     }
 
     // manually create a member_name
-    const std::string mem_name = key; //it.key();
-    const std::string mem_id =
-      "clar:@C@" + current_contractName + "@" + name + "@" + mem_name;
+    const std::string mem_name = key;//it.key();
 
     /* Create a temporary JSON object to ease processing */
     nlohmann::json temp_expression_node;
@@ -5260,18 +5146,6 @@ bool clarity_convertert::get_tuple_instance(
   symbol.is_extern = false;
   symbolt &added_symbol = *move_symbol_to_context(symbol);
 
-  // not needed for clarity
-  // keeping for reference purpose only
-  // FIXME
-
-  // if (!ast_node.contains("components"))
-  // {
-  //   // assume it's function return parameter list
-  //   // therefore no initial value
-  //   new_expr = symbol_expr(added_symbol);
-
-  //   return false;
-  // }
 
   // populate initial value
 
