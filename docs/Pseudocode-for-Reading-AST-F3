@@ -53,19 +53,22 @@ Pseudo code for Reading AST F3
 
                       Example : "objtype" : ["uint", "uint_128", 128]
                       Example : "objtype" : ["optional","optional", object(objtype)]
-                  "value": // can be a string literal or an object or a list 
-                        -string literal: if string literal then it is the valueof type int/uint or hex-string 0xaaaa for buff value or principal string for Principal.
-                        -object: if object then it contains either of the two:
-                            - "lit_ascii"
-                            - "lit_utf8"
+                  "value": 
                         -list: the "value" key contains a list
-                            - the [0] element has to be an operator e-g "+", "-", "*", "/", ">" , "==" etc or a function name or a known keyword that takes params
-                              - if [0] is "some" then the value could be an Nan or an int/uint for integers, or null or a string for string values.
-                              - if [0] is "list" then what follows is the elements of the list as per the size in list objtype node.
-                              - if [0] is a a conditional "if" then [1] would be a value node containing expression to test, [2] is "value" node if [1] is true, [3] is "value" if [1] is false
-                              - if [0] is a "begin" or "let" then it starts a code_block with one or multiple expressions. each expression is a "value" node.
-                              - if [0] is a "tuple" then [1] will be an object containing "key" : "value" pairs. each value entry against a key is to be read as a "Value" node
-                            - [1] to [n] would be the params to the operator or function
+                            - the [0] element has to be an object that describes the operator 
+                              {
+                                "id": integer representing the operation id,
+                                "type": could be "native_function", "declared_function", "keyword", "literal",
+                                "span": span details
+                                "identifier": e-g "+", "-", "*", "/", ">" , "==" etc or a function name or a known keyword that takes params
+                                "args": [- [0] to [n] would be the params to the operator or function]
+                              },
+                              - if [0].identifier is "some" then the value could be an Nan or an int/uint for integers, or null or a string for string values.
+                              - if [0].identifier is "list" then what follows is the elements of the list as per the size in list objtype node.
+                              - if [0].identifier is a conditional "if" then [1] would be a value node containing expression to test, [2] is "value" node if [1] is true, [3] is "value" if [1] is false
+                              - if [0].identifier is a "begin" or "let" then it starts a code_block with one or multiple expressions. each expression is a "value" node.
+                              - if [0].identifier is a "tuple" then [1] will be an object containing "key" : "value" pairs. each value entry against a key is to be read as a "Value" node
+                            
 
                   
                   "keytype" : ONLY FOR MAPS --- follows objtype structure for type of "keys" of maps

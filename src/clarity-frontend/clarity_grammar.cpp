@@ -83,7 +83,7 @@ bool operation_is_binary(const nlohmann::json &ast_node)
     "/=", "%=", "<<=", ">>=", "&=", "|=", "^=", "**"};
 
   if (
-    std::find(binary_operators.begin(), binary_operators.end(), ast_node) !=
+    std::find(binary_operators.begin(), binary_operators.end(), ast_node["identifier"]) !=
     binary_operators.end())
     return true;
   else
@@ -245,12 +245,13 @@ bool parse_expression_element(nlohmann::json &expr_element_json)
 // rule contract-body-element
 ContractBodyElementT get_contract_body_element_t(const nlohmann::json &element)
 {
-  if (element[1]["type"] == "variable") 
+  if ((element["type"] == "variable_declaration") ||
+      (element["type"] == "constant_declaration") )
   {
     return VarDecl;
   }
   else if (
-    element[1]["type"] == "function_name")
+    element["type"] == "function_declaration")
   {
     return FunctionDef;
   }
@@ -557,6 +558,49 @@ const char *parameter_list_to_str(ParameterListT type)
 }
 
 // rule block
+FuncBlockT get_function_block_t(const nlohmann::json &block)
+{
+  return SingleStatement;
+  if (block.is_string())
+  {
+    return SingleStatement;
+  }
+  else if (block.is_object())
+  {
+    return SingleObject;
+  }
+  else if (block.is_array())
+  {
+    return MultipleStatement;
+  }
+  else
+  {
+    log_error(
+      "Got function block nodeType={}. Unsupported block type",
+      block.dump());
+    abort();
+  }
+  return FuncBlockTError;
+}
+
+const char *function_block_to_str(FuncBlockT type)
+{
+  switch (type)
+  {
+    ENUM_TO_STR(SingleStatement)
+    ENUM_TO_STR(SingleObject)
+    ENUM_TO_STR(MultipleStatement)
+    ENUM_TO_STR(FuncBlockTError)
+  default:
+  {
+    assert(!"Unknown function block type");
+    return "UNKNOWN";
+  }
+  }
+}
+
+
+// rule block
 BlockT get_block_t(const nlohmann::json &block)
 {
   if (block["nodeType"] == "Block" && block.contains("statements"))
@@ -683,67 +727,79 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
     return NullExpr;
   }
 
-  std::string nodeType = expr[1]["expressionType"];
+  std::string nodeType = expr["type"];
 
-  if (nodeType == "Assignment" || nodeType == "BinaryOperation")
-  {
-    return BinaryOperatorClass;
-  }
-  else if (nodeType == "UnaryOperation")
-  {
-    return UnaryOperatorClass;
-  }
-  else if (nodeType == "Conditional")
-  {
-    return ConditionalOperatorClass;
-  }
-  else if (nodeType == "Identifier" && expr.contains("referencedDeclaration"))
-  {
-    return DeclRefExprClass;
-  }
-  else if (nodeType == "Literal")
+  // if (nodeType == "Assignment" || nodeType == "BinaryOperation")
+  // {
+  //   return BinaryOperatorClass;
+  // }
+  // else if (nodeType == "UnaryOperation")
+  // {
+  //   return UnaryOperatorClass;
+  // }
+  // else if (nodeType == "Conditional")
+  // {
+  //   return ConditionalOperatorClass;
+  // }
+  // else if (nodeType == "Identifier" && expr.contains("referencedDeclaration"))
+  // {
+  //   return DeclRefExprClass;
+  // }
+  // //else if (nodeType == "Literal")
+  // if (nodeType == "native_function") {
+  //   if (operation_is_binary(expr)){
+  //     return BinaryOperatorClass;
+  //   }
+  // }
+  // else 
+  if ((nodeType == "lit_uint") ||
+           (nodeType == "lit_ascii") ||
+           (nodeType == "lit_bool")||
+           (nodeType == "lit_buff")||
+           (nodeType == "lit_utf8")
+          )
   {
     return Literal;
   }
-  else if (nodeType == "TupleExpression")
-  {
-    return Tuple;
-  }
-  else if (nodeType == "Mapping")
-  {
-    return Mapping;
-  }
-  else if (nodeType == "FunctionCall")
-  {
-    if (expr["expression"]["nodeType"] == "NewExpression")
-      return NewExpression;
-    if (
-      expr["expression"]["nodeType"] == "ElementaryTypeNameExpression" &&
-      expr["kind"] == "typeConversion")
-      return ElementaryTypeNameExpression;
-    return CallExprClass;
-  }
-  else if (nodeType == "MemberAccess")
-  {
-    assert(expr.contains("expression"));
-    ClarityGrammar::TypeNameT type_name =
-      get_type_name_t(expr["expression"]["typeDescriptions"]);
-    if (type_name == ClarityGrammar::TypeNameT::ContractTypeName)
-      return ContractMemberCall;
-    else
-      //TODO Assume it's a builtin member
-      // due to that the BuiltinTypeName cannot cover all the builtin member
-      // e.g. string.concat ==> TypeConversionName
-      return BuiltinMemberCall;
-  }
+  // else if (nodeType == "TupleExpression")
+  // {
+  //   return Tuple;
+  // }
+  // else if (nodeType == "Mapping")
+  // {
+  //   return Mapping;
+  // }
+  // else if (nodeType == "FunctionCall")
+  // {
+  //   if (expr["expression"]["nodeType"] == "NewExpression")
+  //     return NewExpression;
+  //   if (
+  //     expr["expression"]["nodeType"] == "ElementaryTypeNameExpression" &&
+  //     expr["kind"] == "typeConversion")
+  //     return ElementaryTypeNameExpression;
+  //   return CallExprClass;
+  // }
+  // else if (nodeType == "MemberAccess")
+  // {
+  //   assert(expr.contains("expression"));
+  //   ClarityGrammar::TypeNameT type_name =
+  //     get_type_name_t(expr["expression"]["typeDescriptions"]);
+  //   if (type_name == ClarityGrammar::TypeNameT::ContractTypeName)
+  //     return ContractMemberCall;
+  //   else
+  //     //TODO Assume it's a builtin member
+  //     // due to that the BuiltinTypeName cannot cover all the builtin member
+  //     // e.g. string.concat ==> TypeConversionName
+  //     return BuiltinMemberCall;
+  // }
   else if (nodeType == "ImplicitCastExprClass")
   {
     return ImplicitCastExprClass;
   }
-  else if (nodeType == "IndexAccess")
-  {
-    return IndexAccess;
-  }
+  // else if (nodeType == "IndexAccess")
+  // {
+  //   return IndexAccess;
+  // }
   else
   {
     log_error(

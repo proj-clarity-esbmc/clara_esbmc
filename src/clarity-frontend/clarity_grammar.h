@@ -138,6 +138,18 @@ enum BlockT
 BlockT get_block_t(const nlohmann::json &block);
 const char *block_to_str(BlockT type);
 
+
+// rule block
+enum FuncBlockT
+{
+  SingleStatement = 0,
+  SingleObject,
+  MultipleStatement,
+  FuncBlockTError
+};
+FuncBlockT get_function_block_t(const nlohmann::json &block);
+const char *function_block_to_str(FuncBlockT type);
+
 // rule statement
 enum StatementT
 {

@@ -43,6 +43,9 @@ protected:
   void set_current_contract_name(std::string &contract_name);
   bool parse_expression_element(const nlohmann::json &expr_element_json);
 
+  // ml
+  bool get_function_block(const nlohmann::json &block, exprt &new_expr, typet &return_type, const nlohmann::json &return_ast);
+
   // dummy functions for learning
   void add_dummy_symbol();
   void convert_dummy_uint_literal();
