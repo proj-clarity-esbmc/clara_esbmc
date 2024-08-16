@@ -24,11 +24,15 @@ bool is_state_variable(const nlohmann::json &ast_node);
 bool is_variable_declaration(const nlohmann::json &ast_node);
 bool is_function_definitionn(const nlohmann::json &ast_node);
 bool is_tuple_declaration(const nlohmann::json &ast_node);
+bool is_principal_declaration(const nlohmann::json &ast_node);
 bool parse_expression_element(nlohmann::json &expr_element_json);
 bool get_operation_type(nlohmann::json &expression_node);
 bool operation_is_conditional(const nlohmann::json &ast_node);
 bool operation_is_unary(const nlohmann::json &ast_node);
 bool operation_is_binary(const nlohmann::json &ast_node);
+bool operation_is_optional_decl(const nlohmann::json &ast_node);
+nlohmann::json get_optional_type(const nlohmann::json &objtype);
+std::string get_optional_symbolId(const nlohmann::json &optional_type);
 
 /* end m-ali*/
 
@@ -42,15 +46,15 @@ enum TypeNameT
   ParameterList,
 
   // static array type
-  ArrayTypeName,
+  ListTypeName,
 
   BuffTypeName,
 
   // contract type
   ContractTypeName,
 
-  // typecast
-  TypeConversionName,
+  // Optional
+  OptionalTypeName,
 
   // tuple
   TupleTypeName,
@@ -232,6 +236,12 @@ enum ExpressionT
 
   // rule Tuple
   Tuple,
+
+  //rule optional
+  Optional,
+
+  // rule list
+  List,
 
   // rule Mapping
   Mapping,

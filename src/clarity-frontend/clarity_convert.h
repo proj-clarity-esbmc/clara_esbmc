@@ -52,6 +52,10 @@ protected:
   void convert_dummy_string_literal();
   void add_dummy_builtin_functionCall();
   void add_function_definition_symboltable();
+
+  // conversion functions for composite types e-g principa, response , optional etc
+  bool define_principal_struct();
+  bool define_optional_type(std::string optional_type);
   // end-m-ali
 
   bool convert_ast_nodes(const nlohmann::json &contract_def);
@@ -67,7 +71,18 @@ protected:
   bool get_function_params(const nlohmann::json &pd, exprt &param);
   bool get_default_function(const std::string name, const std::string id);
 
+  std::string get_list_struct_id(const nlohmann::json &objtype);
+  bool get_list_type(const nlohmann::json &parent_objtype, typet &out);
+  bool get_list_of_entry_type(const nlohmann::json &ast_node, exprt &new_expr);
+
   // handle the non-contract definition, including struct/enum/error/event/abstract/...
+  bool process_c_defined_structs(
+    std::string &id,
+    const nlohmann::json &ast_node,
+    locationt &location_begin,
+    symbolt &added_symbol,
+    exprt &inits,
+    typet &t);
   bool get_noncontract_defition(nlohmann::json &ast_node);
   bool get_clarity_struct_class(const nlohmann::json &struct_def);
   bool get_struct_class(const nlohmann::json &ast_node);
@@ -150,6 +165,9 @@ protected:
   void get_tuple_assignment(code_blockt &_block, const exprt &lop, exprt rop);
   void get_tuple_function_call(code_blockt &_block, const exprt &op);
 
+  bool get_optional_instance(const nlohmann::json &ast_node, exprt &new_expr);
+
+  bool get_principal_instance(const nlohmann::json &ast_node, exprt &new_expr);
   // line number and locations
   void
   get_location_from_decl(const nlohmann::json &ast_node, locationt &location);
