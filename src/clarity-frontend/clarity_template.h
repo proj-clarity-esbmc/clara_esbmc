@@ -19,6 +19,7 @@ const std::string clar_header = R"(
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+
 )";
 
 /*
@@ -33,6 +34,8 @@ const std::string clar_header = R"(
 const std::string clar_typedef = R"(
 typedef signed _BitInt(128) int128_t;
 typedef unsigned _BitInt(128) uint128_t;
+typedef _Bool bool;
+
 
 #define CLARITY_ADDRESS_TYPE_STANDARD 1
 #define CLARITY_ADDRESS_TYPE_CONTRACT 2
@@ -43,6 +46,103 @@ typedef struct {
 	char pubkey_hash[20];
 	char contract_name[40];
 } address_t;
+
+typedef struct principal principal;
+struct principal
+{
+    bool contract_is_principal;
+    bool contract_is_standard;
+    char contract_name[128]; //128 bytes long contract name
+    char issuer_principal_bytes[20];
+    char version;
+    char issuer_principal_str[41];
+  
+};
+
+
+)";
+
+const std::string clar_optionals = R"(
+#define TYPEDEF_OPTIONAL(type) typedef struct optional_##type optional_##type;
+
+#define DEFINE_SOME(type) type some_##type (optional_##type x) \
+{ \
+	assert (!x.is_none); \
+	return x.value;	\
+}
+
+#define DEFINE_OPTIONAL(type) struct optional_##type { bool is_none; type value; }
+
+
+// optional string requires special handling
+typedef struct optional_string optional_string;
+typedef struct optional_buff	optional_buff;
+
+struct optional_string {
+	bool is_none;
+	char *value;
+};
+
+struct optional_buff {
+	bool is_none;
+	unsigned char *value;
+};
+
+
+
+char* some_string(optional_string x)
+{
+	assert (!x.is_none);
+	return x.value;
+}
+
+
+unsigned char* some_buff(optional_buff x)
+{
+	assert (!x.is_none);
+	return x.value;
+}
+
+
+TYPEDEF_OPTIONAL(int128_t);
+TYPEDEF_OPTIONAL(uint128_t);
+TYPEDEF_OPTIONAL(bool);
+TYPEDEF_OPTIONAL(principal);
+
+
+DEFINE_OPTIONAL(int128_t);
+DEFINE_OPTIONAL(uint128_t);
+DEFINE_OPTIONAL(bool);
+DEFINE_OPTIONAL(principal);
+
+
+DEFINE_SOME(int128_t);
+DEFINE_SOME(uint128_t);
+DEFINE_SOME(bool);
+DEFINE_SOME(principal);
+
+
+
+
+)";
+
+const std::string clar_lists = R"(
+
+	#define TYPEDEF_LIST(type) typedef struct list_##type list_##type;
+
+	#define DEFINE_LIST(type) struct list_##type { int size; type* items; }
+
+
+	TYPEDEF_LIST(int128_t);
+	TYPEDEF_LIST(uint128_t);
+	TYPEDEF_LIST(bool);
+	TYPEDEF_LIST(principal);
+
+	DEFINE_LIST(int128_t);
+	DEFINE_LIST(uint128_t);
+	DEFINE_LIST(bool);
+	DEFINE_LIST(principal);
+
 )";
 
 /// Variables
@@ -62,6 +162,8 @@ const std::string clar_tx = R"(
 address_t tx_sender;
 address_t contract_caller;
 address_t tx_sponsorM;
+
+
 )";
 
 #  if 0
@@ -404,8 +506,9 @@ const char *map_next_(map_base_t *m, map_iter_t *iter)
 )";
 
 // combination
-const std::string clar_library =
-  clar_header + clar_typedef + clar_vars + clar_funcs + clar_mapping;
+const std::string clar_library = clar_header + clar_typedef + clar_optionals +
+                                 clar_lists + clar_vars + clar_funcs +
+                                 clar_mapping;
 
 }; // namespace ClarityTemplate
 

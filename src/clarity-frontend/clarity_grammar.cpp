@@ -57,6 +57,14 @@ bool is_tuple_declaration(const nlohmann::json &ast_node)
     return false;
 }
 
+bool is_principal_declaration(const nlohmann::json &ast_node)
+{
+  if (ast_node[1]["objtype"][0] == "principal")
+    return true;
+  else
+    return false;
+}
+
 bool is_variable_declaration(const nlohmann::json &ast_node)
 {
   return is_state_variable(ast_node);
@@ -70,6 +78,19 @@ bool is_function_definition(const nlohmann::json &ast_node)
   if (
     std::find(state_node_types.begin(), state_node_types.end(), ast_node[0]) !=
     state_node_types.end())
+    return true;
+  else
+    return false;
+}
+
+bool operation_is_optional_decl(const nlohmann::json &ast_node)
+{
+  const std::vector<std::string> optional_operators{"some", "none"};
+
+  if (
+    std::find(
+      optional_operators.begin(), optional_operators.end(), ast_node[0]) !=
+    optional_operators.end())
     return true;
   else
     return false;
@@ -130,6 +151,48 @@ bool operation_is_conditional(const nlohmann::json &ast_node)
     return false;
 }
 
+// takes objtype node as input
+// returns symbolid of the optional struct w.r.t to the objtype passed
+std::string get_optional_symbolId(const nlohmann::json &optional_type)
+{
+  ElementaryTypeNameT optional_typet =
+    get_elementary_type_name_t(optional_type);
+  std::string symbol_id;
+
+  switch (optional_typet)
+  {
+  case ElementaryTypeNameT::INT:
+    symbol_id = "tag-struct optional_int128_t";
+    break;
+  case ElementaryTypeNameT::UINT:
+    symbol_id = "tag-struct optional_uint128_t";
+    break;
+  case ElementaryTypeNameT::BOOL:
+    symbol_id = "tag-struct optional_bool";
+    break;
+  case ElementaryTypeNameT::STRING_ASCII:
+    symbol_id = "tag-struct optional_string";
+    break;
+  case ElementaryTypeNameT::STRING_UTF8:
+    symbol_id = "tag-struct optional_string";
+    break;
+  case ElementaryTypeNameT::BUFF:
+    symbol_id = "tag-struct optional_buff";
+    break;
+  default:
+    log_error("Unimplemented optional type");
+    abort();
+  }
+  return symbol_id;
+}
+
+// takes objtype as input
+// returns objtype for optional inside an objtype
+nlohmann::json get_optional_type(const nlohmann::json &objtype)
+{
+  return objtype[3];
+}
+
 bool get_operation_type(nlohmann::json &expression_node)
 {
   nlohmann::json value_node = expression_node[1]["value"];
@@ -149,6 +212,47 @@ bool get_operation_type(nlohmann::json &expression_node)
   else if (value_node[0] == "tuple")
   {
     expression_node[1]["expressionType"] = "TupleExpression";
+  }
+  else if (operation_is_optional_decl(value_node))
+  {
+    expression_node[1]["expressionType"] = "Optional";
+
+    //expression_node[1]
+  }
+  else if (value_node[0] == "principal")
+  {
+    expression_node[1]["expressionType"] = "Literal";
+
+    auto principal_value = value_node[3]["value"];
+    std::string principal_value_str;
+    if (principal_value.size() > 22) //indicates it's a contract principal
+    {
+      // confirming contract principal by looking for "." in the principal string name
+      principal_value_str = value_node[3]["value"][22];
+      if (principal_value_str.find(".") != std::string::npos)
+      {
+        size_t period_pos = principal_value_str.find(".");
+        expression_node[1]["principalType"] = "contract";
+        expression_node[1]["contractName"] = value_node[3]["value"][21];
+        expression_node[1]["issuerPrincipal"] =
+          principal_value_str.substr(0, period_pos);
+      }
+      else
+      {
+        return true;
+      }
+    }
+    else
+    {
+      expression_node[1]["principalType"] = "standard";
+      expression_node[1]["issuerPrincipal"] = value_node[3]["value"][21];
+      expression_node[1]["contractName"] = "Not a contract principal";
+    }
+    return false;
+  }
+  else if (value_node[0] == "list")
+  {
+    expression_node[1]["expressionType"] = "List";
   }
   else
   {
@@ -315,7 +419,7 @@ TypeNameT get_type_name_t(const nlohmann::json &type_name)
     {
       //list in clarity can be considered as array of bytes
 
-      return ArrayTypeName;
+      return ListTypeName;
     }
     else if (
       uint_string_to_type_map.count(typeString) ||
@@ -330,21 +434,17 @@ TypeNameT get_type_name_t(const nlohmann::json &type_name)
     {
       return ContractTypeName;
     }
-    else if (typeString.find("type(") != std::string::npos)
+    else if (typeString == "optional")
     {
       // For type conversion
-      return TypeConversionName;
+      return OptionalTypeName;
     }
     else if (typeString.find("int_const") != std::string::npos)
     {
       // For Literal, their typeString is like "int_const 100".
       return ElementaryTypeName;
     }
-    // for Special Variables and Functions
-    else if (typeIdentifier.compare(0, 7, "t_magic") == 0)
-    {
-      return BuiltinTypeName;
-    }
+
     else
     {
       log_error(
@@ -378,9 +478,9 @@ const char *type_name_to_str(TypeNameT type)
   {
     ENUM_TO_STR(ElementaryTypeName)
     ENUM_TO_STR(ParameterList)
-    ENUM_TO_STR(ArrayTypeName)
+    ENUM_TO_STR(ListTypeName)
     ENUM_TO_STR(ContractTypeName)
-    ENUM_TO_STR(TypeConversionName)
+    ENUM_TO_STR(OptionalTypeName)
     ENUM_TO_STR(TupleTypeName)
     ENUM_TO_STR(MappingTypeName)
     ENUM_TO_STR(BuiltinTypeName)
@@ -445,12 +545,10 @@ ElementaryTypeNameT get_elementary_type_name_t(const nlohmann::json &type_name)
   }
   if (typeString == "string-ascii")
   {
-    // TODO
     return STRING_ASCII;
   }
   if (typeString == "string-utf8")
   {
-    // TODO
     return STRING_UTF8;
   }
   if (typeString == "principal")
@@ -703,6 +801,15 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
   {
     return Tuple;
   }
+  else if (nodeType == "Optional")
+  {
+    return Optional;
+  }
+  else if (nodeType == "List")
+  {
+    return List;
+  }
+
   else if (nodeType == "Mapping")
   {
     return Mapping;
@@ -983,6 +1090,8 @@ const char *expression_to_str(ExpressionT type)
     ENUM_TO_STR(ElementaryTypeNameExpression)
     ENUM_TO_STR(NullExpr)
     ENUM_TO_STR(ExpressionTError)
+    ENUM_TO_STR(Optional)
+    ENUM_TO_STR(List)
   default:
   {
     assert(!"Unknown expression type");
