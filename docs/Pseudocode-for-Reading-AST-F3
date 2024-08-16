@@ -119,3 +119,5 @@ trait_declaration         --> A trait is being declared
 trait_function            --> A function definition that is part of a trait
 trait_arg                 --> The arguments as part of a trait function
 
+==> Examples for AST F4 are specified in the doc
+https://docs.google.com/document/d/11EPZBDp1y6X3WeKflpFvtmOHs1RPcOekdXMwOnfmZFk/edit#heading=h.nka5zomg9qct
