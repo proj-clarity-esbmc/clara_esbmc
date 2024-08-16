@@ -2913,7 +2913,6 @@ bool clarity_convertert::get_expr(
     // }
     // else
     // {
-      the_value = 
     // }
     if (type_name == ClarityGrammar::ElementaryTypeNameT::PRINCIPAL)
     {
@@ -5054,7 +5053,7 @@ bool clarity_convertert::get_optional_instance(
   const nlohmann::json &ast_node,
   exprt &new_expr)
 {
-  nlohmann::basic_json objtype =
+  nlohmann::json objtype =
     ClarityGrammar::get_optional_type(ast_node[1]["objtype"]);
   std::string id = ClarityGrammar::get_optional_symbolId(objtype);
   locationt location_begin;
