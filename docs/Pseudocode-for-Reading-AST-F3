@@ -41,6 +41,7 @@ Pseudo code for Reading AST F4
                         "end_column": int
                       }
                   "objtype": [list containing type information regarding the identifier]
+                      ONLY For variable declaration
                       [0] type : string // example "uint"
                           - [0] can be literal type e-g uint, int , string-ascii, string-utf8, bool, principal, buff, etc
                           - [0] can be "optional" which means the type is optional and requires special handling 
@@ -54,29 +55,28 @@ Pseudo code for Reading AST F4
 
                       Example : "objtype" : ["uint", "uint_128", 128]
                       Example : "objtype" : ["optional","optional", object(objtype)]
-                  "value": Expression Node // Optional used only for variables/constants,                
-                  "return_type": [optional objtype node for functions/variable]
-                  "args": [List of Expression nodes as arguments to the operation],
-                  "body": [ Optional List of Expression nodes as part of sequence of expressions or function],
+                  "value" :  Expression Node 
+                      ONLY FOR variable declaration initializations --- 
+                      Used for the variable initialization value.
+
+                  "return_type": [objtype node]
+                      ONLY FOR Function Expression Node --- 
+                      For functions defines the return type
+                      For trait_functions this object must be present to define the functions return_type
+                  "args": [List of Expression nodes],
+                      ONLY FOR Function Expression node --- 
+                      These will be the arguments passed to functions. There can be two types of arguments
+                        - Arguments passed by value
+                        - Declarative arguments that contain the initial values for ex 'let'
+                  "body": [ List of Expression nodes],
+                      ONLY FOR Function Expression node and certain native types --- 
+                      Sequence of expressions for functions or certain types of native functions like 'let' or 'begin' that contain a sequence of expressions. 
+                      
                 
                   
                   "keytype" : ONLY FOR MAPS --- follows objtype structure for type of "keys" of maps
                   "valtype" : ONLY FOR MAPS --- follows objtype structure for type of "values" of maps
                   "total_supply" : ONLY FOR FTs --- contains the total supply as unsigned int value.
-                  
-                  "value" : ONLY FOR variable initializations --- Expression node for the variable initialization value. 
-                  "type" : ONLY FOR Expression node --- defines a type of expression. 
-                  "args" : ONLY FOR Function Expression node --- 
-                           These will be the arguments passed to functions. There can be two types of arguments
-                              - Arguments passed by value
-                              - Declarative arguments that contain the initial values for ex let
-                  "body" : ONLY FOR Function Expression node --- 
-                           Function expresion sequence
-                           Certain types of native functions like let or begin contain a sequence of expressions. 
-                           This field will contain the sequence of Expression Nodes that are used in the native type
-                  "return_type" : ONLY FOR Function Expression Node --- 
-                           For functions defines the return type
-                           For trait_functions this object must be present to define the functions return_type
                 }
 
 ==> Special Handling for Optional Types:
