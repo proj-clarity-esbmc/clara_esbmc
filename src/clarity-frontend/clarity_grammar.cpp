@@ -38,11 +38,11 @@ const std::map<ElementaryTypeNameT, unsigned int> bytesn_size_map = {
 
 bool is_literal_type(std::string nodeType)
 {
-  if ((nodeType == "lit_uint") ||
-           (nodeType == "lit_ascii") ||
-           (nodeType == "lit_bool")||
-           (nodeType == "lit_buff")||
-           (nodeType == "lit_utf8")) {
+  if (
+    (nodeType == "lit_uint") || (nodeType == "lit_ascii") ||
+    (nodeType == "lit_bool") || (nodeType == "lit_buff") ||
+    (nodeType == "lit_utf8"))
+  {
     return true;
   }
   return false;
@@ -115,8 +115,10 @@ bool operation_is_binary(const nlohmann::json &ast_node)
     "/=", "%=", "<<=", ">>=", "&=", "|=", "^=", "**"};
 
   if (
-    std::find(binary_operators.begin(), binary_operators.end(), ast_node["identifier"]) !=
-    binary_operators.end())
+    std::find(
+      binary_operators.begin(),
+      binary_operators.end(),
+      ast_node["identifier"]) != binary_operators.end())
     return true;
   else
     return false;
@@ -140,9 +142,8 @@ bool operation_is_optional(const nlohmann::json &ast_node)
 
   if (
     std::find(
-      conditional_operators.begin(),
-      conditional_operators.end(),
-      ast_node) != conditional_operators.end())
+      conditional_operators.begin(), conditional_operators.end(), ast_node) !=
+    conditional_operators.end())
     return true;
   else
     return false;
@@ -154,9 +155,8 @@ bool operation_is_conditional(const nlohmann::json &ast_node)
 
   if (
     std::find(
-      conditional_operators.begin(),
-      conditional_operators.end(),
-      ast_node) != conditional_operators.end())
+      conditional_operators.begin(), conditional_operators.end(), ast_node) !=
+    conditional_operators.end())
     return true;
   else
     return false;
@@ -332,7 +332,7 @@ bool parse_expression_element(nlohmann::json &expr_element_json)
   // determine if it's a variable / constant declaration or a function definition
   bool var_decl = is_variable_declaration(expr_element_json[0]);
   bool func_def = is_function_definition(expr_element_json[0]);
-  
+
   // add a nodeType for easier differenciation down the line.
   if (var_decl)
   {
@@ -360,13 +360,13 @@ bool parse_expression_element(nlohmann::json &expr_element_json)
 // rule contract-body-element
 ContractBodyElementT get_contract_body_element_t(const nlohmann::json &element)
 {
-  if ((element["type"] == "variable_declaration") ||
-      (element["type"] == "constant_declaration") )
+  if (
+    (element["type"] == "variable_declaration") ||
+    (element["type"] == "constant_declaration"))
   {
     return VarDecl;
   }
-  else if (
-    element["type"] == "function_declaration")
+  else if (element["type"] == "function_declaration")
   {
     return FunctionDef;
   }
@@ -424,7 +424,7 @@ TypeNameT get_type_name_t(const nlohmann::json &type_name)
     }
     else if (typeString == "buffer")
     {
-     //buff in clarity can be considered as array of bytes
+      //buff in clarity can be considered as array of bytes
 
       return BuffTypeName;
     }
@@ -469,8 +469,7 @@ TypeNameT get_type_name_t(const nlohmann::json &type_name)
     else
     {
       log_error(
-        "Got type-name typeString={}. Unsupported type-name type",
-        typeString);
+        "Got type-name typeString={}. Unsupported type-name type", typeString);
       abort();
     }
   }
@@ -689,8 +688,7 @@ FuncBlockT get_function_block_t(const nlohmann::json &block)
   else
   {
     log_error(
-      "Got function block nodeType={}. Unsupported block type",
-      block.dump());
+      "Got function block nodeType={}. Unsupported block type", block.dump());
     abort();
   }
   return FuncBlockTError;
@@ -711,7 +709,6 @@ const char *function_block_to_str(FuncBlockT type)
   }
   }
 }
-
 
 // rule block
 BlockT get_block_t(const nlohmann::json &block)
@@ -864,7 +861,7 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
   //     return BinaryOperatorClass;
   //   }
   // }
-  // else 
+  // else
   // if ((nodeType == "lit_uint") ||
   //          (nodeType == "lit_ascii") ||
   //          (nodeType == "lit_bool")||

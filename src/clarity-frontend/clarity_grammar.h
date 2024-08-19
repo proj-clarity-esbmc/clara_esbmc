@@ -143,7 +143,6 @@ enum BlockT
 BlockT get_block_t(const nlohmann::json &block);
 const char *block_to_str(BlockT type);
 
-
 // rule block
 enum FuncBlockT
 {
