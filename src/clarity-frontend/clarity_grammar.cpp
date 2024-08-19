@@ -36,6 +36,17 @@ const std::map<ElementaryTypeNameT, unsigned int> bytesn_size_map = {
   {UINT_LITERAL, 128},
   {INT_LITERAL, 128}};
 
+bool is_literal_type(std::string nodeType)
+{
+  if ((nodeType == "lit_uint") ||
+           (nodeType == "lit_ascii") ||
+           (nodeType == "lit_bool")||
+           (nodeType == "lit_buff")||
+           (nodeType == "lit_utf8")) {
+    return true;
+  }
+  return false;
+}
 bool is_state_variable(const nlohmann::json &ast_node)
 {
   const std::vector<std::string> state_node_types{
@@ -854,12 +865,13 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
   //   }
   // }
   // else 
-  if ((nodeType == "lit_uint") ||
-           (nodeType == "lit_ascii") ||
-           (nodeType == "lit_bool")||
-           (nodeType == "lit_buff")||
-           (nodeType == "lit_utf8")
-          )
+  // if ((nodeType == "lit_uint") ||
+  //          (nodeType == "lit_ascii") ||
+  //          (nodeType == "lit_bool")||
+  //          (nodeType == "lit_buff")||
+  //          (nodeType == "lit_utf8")
+  //         )
+  if (is_literal_type(nodeType))
   {
     return Literal;
   }
