@@ -276,6 +276,67 @@ bool get_operation_type(nlohmann::json &expression_node)
     */
 }
 
+bool get_literal_type_from_expr(const nlohmann::json &expr, nlohmann::json &expression_node)
+{
+  std::string expr_type = expr["type"];
+
+  if (expr_type == "lit_uint")
+  {
+    auto j2 = R"(
+            ["uint", "uint_128", "128"]              
+          )"_json;
+    expression_node = j2;
+  }
+  else if (expr_type == "lit_bool")
+  {
+    auto j2 = R"(
+            ["bool", "bool", "1"]              
+          )"_json;
+    expression_node = j2;
+  }
+  else if (expr_type == "lit_buff")
+  {
+    auto j2 = R"(
+            ["buffer", "buffer", "4"]              
+          )"_json;
+    expression_node = j2;
+  }
+  else if (expr_type == "lit_utf8")
+  {
+    auto j2 = R"(
+            ["string-utf8", "string-utf8", "16"]              
+          )"_json;
+    expression_node = j2;
+  }
+  else if (expr_type == "lit_ascii")
+  {
+    std::string literal_string = expr["identifier"];
+    std::string literal_string_length = std::to_string(literal_string.length());
+    
+    expression_node = nlohmann::json::array({"string-ascii", "string-ascii", literal_string_length}) ;
+  }
+  else
+  {
+    log_error("Unsupported operation type: {}", expr_type);
+    return true; // unexpected
+  }
+
+  return false;
+
+  /*
+  else if (nodeType == "TupleExpression")
+  {
+    return Tuple;
+  }
+  else if (nodeType == "Mapping")
+  {
+    return Mapping;
+  }
+  else if (nodeType == "FunctionCall")
+    
+    */
+}
+
 bool parse_value_node(nlohmann::json &expression_node)
 {
   // parse value node
@@ -843,17 +904,17 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
   // {
   //   return ConditionalOperatorClass;
   // }
-  // else if (nodeType == "Identifier" && expr.contains("referencedDeclaration"))
-  // {
-  //   return DeclRefExprClass;
-  // }
+  if (nodeType == "native_function") {
+    if (operation_is_binary(expr)){
+      return BinaryOperatorClass;
+    }
+  }
+  else if (nodeType == "variable")
+  {
+    return DeclRefExprClass;
+  }
+  else 
   // //else if (nodeType == "Literal")
-  // if (nodeType == "native_function") {
-  //   if (operation_is_binary(expr)){
-  //     return BinaryOperatorClass;
-  //   }
-  // }
-  // else 
   if ((nodeType == "lit_uint") ||
            (nodeType == "lit_ascii") ||
            (nodeType == "lit_bool")||
@@ -922,29 +983,29 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
 
 ExpressionT get_unary_expr_operator_t(const nlohmann::json &expr, bool uo_pre)
 {
-  if (expr["operator"] == "--")
+  if (expr["identifier"] == "--")
   {
     if (uo_pre)
       return UO_PreDec;
     else
       return UO_PostDec;
   }
-  else if (expr["operator"] == "++")
+  else if (expr["identifier"] == "++")
   {
     if (uo_pre)
       return UO_PreInc;
     else
       return UO_PostInc;
   }
-  else if (expr["operator"] == "-")
+  else if (expr["identifier"] == "-")
   {
     return UO_Minus;
   }
-  else if (expr["operator"] == "~")
+  else if (expr["identifier"] == "~")
   {
     return UO_Not;
   }
-  else if (expr["operator"] == "!")
+  else if (expr["identifier"] == "!")
   {
     return UO_LNot;
   }
@@ -952,7 +1013,7 @@ ExpressionT get_unary_expr_operator_t(const nlohmann::json &expr, bool uo_pre)
   {
     log_error(
       "Got expression operator={}. Unsupported expression operator",
-      expr["operator"].get<std::string>());
+      expr["identifier"].get<std::string>());
 
     abort();
   }
@@ -960,123 +1021,123 @@ ExpressionT get_unary_expr_operator_t(const nlohmann::json &expr, bool uo_pre)
 
 ExpressionT get_expr_operator_t(const nlohmann::json &expr)
 {
-  if (expr["operator"] == "=")
+  if (expr["identifier"] == "=")
   {
     return BO_Assign;
   }
-  else if (expr["operator"] == "+")
+  else if (expr["identifier"] == "+")
   {
     return BO_Add;
   }
-  else if (expr["operator"] == "-")
+  else if (expr["identifier"] == "-")
   {
     return BO_Sub;
   }
-  else if (expr["operator"] == "*")
+  else if (expr["identifier"] == "*")
   {
     return BO_Mul;
   }
-  else if (expr["operator"] == "/")
+  else if (expr["identifier"] == "/")
   {
     return BO_Div;
   }
-  else if (expr["operator"] == "%")
+  else if (expr["identifier"] == "%")
   {
     return BO_Rem;
   }
-  else if (expr["operator"] == "<<")
+  else if (expr["identifier"] == "<<")
   {
     return BO_Shl;
   }
-  else if (expr["operator"] == ">>")
+  else if (expr["identifier"] == ">>")
   {
     return BO_Shr;
   }
-  else if (expr["operator"] == "&")
+  else if (expr["identifier"] == "&")
   {
     return BO_And;
   }
-  else if (expr["operator"] == "^")
+  else if (expr["identifier"] == "^")
   {
     return BO_Xor;
   }
-  else if (expr["operator"] == "|")
+  else if (expr["identifier"] == "|")
   {
     return BO_Or;
   }
-  else if (expr["operator"] == ">")
+  else if (expr["identifier"] == ">")
   {
     return BO_GT;
   }
-  else if (expr["operator"] == "<")
+  else if (expr["identifier"] == "<")
   {
     return BO_LT;
   }
-  else if (expr["operator"] == ">=")
+  else if (expr["identifier"] == ">=")
   {
     return BO_GE;
   }
-  else if (expr["operator"] == "<=")
+  else if (expr["identifier"] == "<=")
   {
     return BO_LE;
   }
-  else if (expr["operator"] == "!=")
+  else if (expr["identifier"] == "!=")
   {
     return BO_NE;
   }
-  else if (expr["operator"] == "==")
+  else if (expr["identifier"] == "==")
   {
     return BO_EQ;
   }
-  else if (expr["operator"] == "&&")
+  else if (expr["identifier"] == "&&")
   {
     return BO_LAnd;
   }
-  else if (expr["operator"] == "||")
+  else if (expr["identifier"] == "||")
   {
     return BO_LOr;
   }
-  else if (expr["operator"] == "+=")
+  else if (expr["identifier"] == "+=")
   {
     return BO_AddAssign;
   }
-  else if (expr["operator"] == "-=")
+  else if (expr["identifier"] == "-=")
   {
     return BO_SubAssign;
   }
-  else if (expr["operator"] == "*=")
+  else if (expr["identifier"] == "*=")
   {
     return BO_MulAssign;
   }
-  else if (expr["operator"] == "/=")
+  else if (expr["identifier"] == "/=")
   {
     return BO_DivAssign;
   }
-  else if (expr["operator"] == "%=")
+  else if (expr["identifier"] == "%=")
   {
     return BO_RemAssign;
   }
-  else if (expr["operator"] == "<<=")
+  else if (expr["identifier"] == "<<=")
   {
     return BO_ShlAssign;
   }
-  else if (expr["operator"] == ">>=")
+  else if (expr["identifier"] == ">>=")
   {
     return BO_ShrAssign;
   }
-  else if (expr["operator"] == "&=")
+  else if (expr["identifier"] == "&=")
   {
     return BO_AndAssign;
   }
-  else if (expr["operator"] == "^=")
+  else if (expr["identifier"] == "^=")
   {
     return BO_XorAssign;
   }
-  else if (expr["operator"] == "|=")
+  else if (expr["identifier"] == "|=")
   {
     return BO_OrAssign;
   }
-  else if (expr["operator"] == "**")
+  else if (expr["identifier"] == "**")
   {
     return BO_Pow;
   }
@@ -1084,7 +1145,7 @@ ExpressionT get_expr_operator_t(const nlohmann::json &expr)
   {
     log_error(
       "Got expression operator={}. Unsupported expression operator",
-      expr["operator"].get<std::string>());
+      expr["identifier"].get<std::string>());
     abort();
   }
 

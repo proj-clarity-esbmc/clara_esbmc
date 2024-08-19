@@ -340,6 +340,8 @@ enum VisibilityT
 };
 VisibilityT get_access_t(const nlohmann::json &ast_node);
 
+
+bool get_literal_type_from_expr(const nlohmann::json &expr, nlohmann::json &expression_node);
 }; // namespace ClarityGrammar
 
 #endif /* CLARITY_GRAMMAR_H_ */

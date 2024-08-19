@@ -109,6 +109,11 @@ protected:
     const nlohmann::json &expr,
     const nlohmann::json &expr_common_type,
     exprt &new_expr);
+  bool get_expr(
+    const nlohmann::json &expr,
+    const nlohmann::json &literal_type,
+    exprt &new_expr,
+    nlohmann::json &inferred_type);
   bool get_binary_operator_expr(const nlohmann::json &expr, exprt &new_expr);
   bool get_compound_assign_expr(const nlohmann::json &expr, exprt &new_expr);
   bool get_unary_operator_expr(

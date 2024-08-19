@@ -2748,6 +2748,16 @@ bool clarity_convertert::get_expr(const nlohmann::json &expr, exprt &new_expr)
   return get_expr(expr, nullptr, new_expr);
 }
 
+
+bool clarity_convertert::get_expr(
+  const nlohmann::json &expr,
+  const nlohmann::json &literal_type,
+  exprt &new_expr)
+{
+  nlohmann::json inferred_type;
+  return get_expr(expr, nullptr, new_expr, inferred_type);
+  
+}
 /**
      * @brief Populate the out parameter with the expression based on
      * the clarity expression grammar.
@@ -2778,7 +2788,8 @@ bool clarity_convertert::get_expr(const nlohmann::json &expr, exprt &new_expr)
 bool clarity_convertert::get_expr(
   const nlohmann::json &expr,
   const nlohmann::json &literal_type,
-  exprt &new_expr)
+  exprt &new_expr,
+  nlohmann::json &inferred_type)
 {
   // For rule expression
   // We need to do location settings to match clang C's number of times to set the locations when recurring
@@ -2801,6 +2812,7 @@ bool clarity_convertert::get_expr(
 
     break;
   }
+  #if 0
   case ClarityGrammar::ExpressionT::UnaryOperatorClass:
   {
     if (get_unary_operator_expr(expr, literal_type, new_expr))
@@ -2814,74 +2826,76 @@ bool clarity_convertert::get_expr(
       return true;
     break;
   }
+  #endif
+  
   case ClarityGrammar::ExpressionT::DeclRefExprClass:
   {
-    if (expr["referencedDeclaration"] > 0)
+
+    // ml- we will be using the cid to find the variable
+    if (expr["cid"] > 0)
     {
-      // for Contract Type Identifier Only
-      if (
-        expr["typeDescriptions"]["typeString"].get<std::string>().find(
-          "contract") != std::string::npos)
-      {
-        // TODO
-        log_error("we do not handle contract type identifier for now");
-        return true;
+      // ml- for clarity we will assume that this is a variable declaration always
+      if (get_var_decl_ref(expr, new_expr)) {
+         return true;
       }
+            
+      
+      // Go through the symbol table and get the symbol
 
       // Soldity uses +ve odd numbers to refer to var or functions declared in the contract
-      const nlohmann::json &decl = find_decl_ref(expr["referencedDeclaration"]);
-      if (decl == empty_json)
-        return true;
+      // const nlohmann::json &decl = find_decl_ref(expr["referencedDeclaration"]);
+      // if (decl == empty_json)
+      //   return true;
 
-      if (!check_intrinsic_function(decl))
-      {
-        if (decl["nodeType"] == "VariableDeclaration")
-        {
-          if (get_var_decl_ref(decl, new_expr))
-            return true;
-        }
-        else if (decl["nodeType"] == "FunctionDefinition")
-        {
-          if (get_func_decl_ref(decl, new_expr))
-            return true;
-        }
-        else if (decl["nodeType"] == "StructDefinition")
-        {
-          std::string id;
-          id = prefix + "struct " + decl["canonicalName"].get<std::string>();
+      // if (!check_intrinsic_function(decl))
+      // {
+      //   if (decl["nodeType"] == "VariableDeclaration")
+      //   {
+      //     if (get_var_decl_ref(decl, new_expr))
+      //       return true;
+      //   }
+      //   else if (decl["nodeType"] == "FunctionDefinition")
+      //   {
+      //     if (get_func_decl_ref(decl, new_expr))
+      //       return true;
+      //   }
+      //   else if (decl["nodeType"] == "StructDefinition")
+      //   {
+      //     std::string id;
+      //     id = prefix + "struct " + decl["canonicalName"].get<std::string>();
 
-          if (context.find_symbol(id) == nullptr)
-          {
-            if (get_struct_class(decl))
-              return true;
-          }
+      //     if (context.find_symbol(id) == nullptr)
+      //     {
+      //       if (get_struct_class(decl))
+      //         return true;
+      //     }
 
-          new_expr = symbol_expr(*context.find_symbol(id));
-        }
-        else if (decl["nodeType"] == "ErrorDefinition")
-        {
-          std::string name, id;
-          name = decl["name"].get<std::string>();
-          id = "clar:@" + name + "#" + std::to_string(decl["id"].get<int>());
+      //     new_expr = symbol_expr(*context.find_symbol(id));
+      //   }
+      //   else if (decl["nodeType"] == "ErrorDefinition")
+      //   {
+      //     std::string name, id;
+      //     name = decl["name"].get<std::string>();
+      //     id = "clar:@" + name + "#" + std::to_string(decl["id"].get<int>());
 
-          if (context.find_symbol(id) == nullptr)
-            return true;
-          new_expr = symbol_expr(*context.find_symbol(id));
-        }
-        else
-        {
-          log_error(
-            "Unsupported DeclRefExprClass type, got nodeType={}",
-            decl["nodeType"].get<std::string>());
-          return true;
-        }
-      }
-      else
-      {
-        // for special functions, we need to deal with it separately
-        if (get_esbmc_builtin_ref(expr, new_expr))
-          return true;
-      }
+      //     if (context.find_symbol(id) == nullptr)
+      //       return true;
+      //     new_expr = symbol_expr(*context.find_symbol(id));
+      //   }
+      //   else
+      //   {
+      //     log_error(
+      //       "Unsupported DeclRefExprClass type, got nodeType={}",
+      //       decl["nodeType"].get<std::string>());
+      //     return true;
+      //   }
+      // }
+      // else
+      // {
+      //   // for special functions, we need to deal with it separately
+      //   if (get_esbmc_builtin_ref(expr, new_expr))
+      //     return true;
+      // }
     }
     else
     {
@@ -2897,8 +2911,30 @@ bool clarity_convertert::get_expr(
   {
     // make a type-name json for integer literal conversion
     //const nlohmann::json &literal = expr["objtype"];
+    nlohmann::json literal_type_expr;
+    if (literal_type != nullptr) {
+      literal_type_expr = literal_type;
+    }
+    else {
+      if (!expr.contains("objtype")) {
+        if (ClarityGrammar::get_literal_type_from_expr(expr, literal_type_expr))
+          return true;
+        //expr.push_back(nlohmann::json::object_t::value_type("objtype", literal_type_expr));
+      }
+      else {
+        literal_type_expr = expr["objtype"];
+      }
+    }
+    
+    //if (inferred_type != nullptr)
+    inferred_type.merge_patch(literal_type_expr);  
+
+    log_status(
+      "clarity"
+      "	@@@ got Literal type: ClarityGrammar::get_literal_type_from_expr::{}",
+      literal_type_expr.dump());
     ClarityGrammar::ElementaryTypeNameT type_name =
-      ClarityGrammar::get_elementary_type_name_t(literal_type);
+      ClarityGrammar::get_elementary_type_name_t(literal_type_expr);
     std::string the_value;
 
     // if (type_name == ClarityGrammar::ElementaryTypeNameT::STRING_ASCII)
@@ -2928,7 +2964,9 @@ bool clarity_convertert::get_expr(
       "	@@@ got Literal: ClarityGrammar::ElementaryTypeNameT::{}",
       ClarityGrammar::elementary_type_name_to_str(type_name));
 
-    if (literal_type != nullptr)
+    //if (literal_type != nullptr)
+
+
     {
       ClarityGrammar::ElementaryTypeNameT type = type_name;
 
@@ -2942,7 +2980,7 @@ bool clarity_convertert::get_expr(
         {
           the_value.erase(0, 2); //remove the first two characters (0x)
 
-          std::string str_buff_size = literal_type[2];
+          std::string str_buff_size = literal_type_expr[2];
           int buff_size = std::stoi(str_buff_size);
 
           // Buffer is sort of an array of bytes
@@ -2985,20 +3023,20 @@ bool clarity_convertert::get_expr(
       case ClarityGrammar::ElementaryTypeNameT::UINT:
       case ClarityGrammar::ElementaryTypeNameT::UINT_LITERAL:
       {
-        if (convert_uint_literal(literal_type, the_value, new_expr))
+        if (convert_uint_literal(literal_type_expr, the_value, new_expr))
           return true;
         break;
       }
       case ClarityGrammar::ElementaryTypeNameT::INT:
       case ClarityGrammar::ElementaryTypeNameT::INT_LITERAL:
       {
-        if (convert_integer_literal(literal_type, the_value, new_expr))
+        if (convert_integer_literal(literal_type_expr, the_value, new_expr))
           return true;
         break;
       }
       case ClarityGrammar::ElementaryTypeNameT::BOOL:
       {
-        if (convert_bool_literal(literal_type, the_value, new_expr))
+        if (convert_bool_literal(literal_type_expr, the_value, new_expr))
           return true;
         break;
       }
@@ -3030,6 +3068,7 @@ bool clarity_convertert::get_expr(
 
     break;
   }
+  #if 0
   case ClarityGrammar::ExpressionT::Tuple:
   {
     /*
@@ -3626,6 +3665,7 @@ bool clarity_convertert::get_expr(
     new_expr = from_expr;
     break;
   }
+  #endif
   case ClarityGrammar::ExpressionT::NullExpr:
   {
     // e.g. (, x) = (1, 2);
@@ -3664,36 +3704,41 @@ bool clarity_convertert::get_binary_operator_expr(
   const nlohmann::json &expr,
   exprt &new_expr)
 {
-  // preliminary step for recursive BinaryOperation
-  current_BinOp_type.push(&(expr["objtype"]));
 
   // 1. Convert LHS and RHS
   // For "Assignment" expression, it's called "leftHandSide" or "rightHandSide".
   // For "BinaryOperation" expression, it's called "leftExpression" or "leftExpression"
   exprt lhs, rhs;
-  if (expr.contains("leftHandSide"))
-  {
-    nlohmann::json literalType = expr["leftHandSide"]["typeDescriptions"];
+  // if (expr.contains("leftHandSide"))
+  // {
+  //   nlohmann::json literalType = expr["leftHandSide"]["typeDescriptions"];
 
-    if (get_expr(expr["leftHandSide"], lhs))
+  //   if (get_expr(expr["leftHandSide"], lhs))
+  //     return true;
+
+  //   if (get_expr(expr["rightHandSide"], literalType, rhs))
+  //     return true;
+  // }
+  // else if (expr.contains("leftExpression"))
+  // {
+  //   nlohmann::json literalType_l = expr["leftExpression"]["typeDescriptions"];
+  //   nlohmann::json literalType_r = expr["rightExpression"]["typeDescriptions"];
+    nlohmann::json type_l;
+    nlohmann::json type_r;
+    
+    if (get_expr(expr["args"][0], nullptr, lhs, type_l))
       return true;
 
-    if (get_expr(expr["rightHandSide"], literalType, rhs))
-      return true;
-  }
-  else if (expr.contains("leftExpression"))
-  {
-    nlohmann::json literalType_l = expr["leftExpression"]["typeDescriptions"];
-    nlohmann::json literalType_r = expr["rightExpression"]["typeDescriptions"];
-
-    if (get_expr(expr["leftExpression"], literalType_l, lhs))
+    if (get_expr(expr["args"][1], nullptr, rhs, type_r))
       return true;
 
-    if (get_expr(expr["rightExpression"], literalType_r, rhs))
-      return true;
-  }
-  else
-    assert(!"should not be here - unrecognized LHS and RHS keywords in expression JSON");
+    // ml-[TODO] need to check compatibility of the two expressions
+  // }
+  // else
+  //   assert(!"should not be here - unrecognized LHS and RHS keywords in expression JSON");
+
+  // preliminary step for recursive BinaryOperation
+  current_BinOp_type.push(&(type_l));
 
   // 2. Get type
   typet t;
@@ -4363,29 +4408,50 @@ bool clarity_convertert::get_var_decl_ref(
   exprt &new_expr)
 {
   // Function to configure new_expr that has a +ve referenced id, referring to a variable declaration
-  assert(decl["nodeType"] == "VariableDeclaration");
+  assert(decl["type"] == "variable");
   std::string name, id;
-  if (decl["stateVariable"])
-    get_state_var_decl_name(decl, name, id);
-  else
-    get_var_decl_name(decl, name, id);
-
-  if (context.find_symbol(id) != nullptr)
-    new_expr = symbol_expr(*context.find_symbol(id));
-  else
+  std::string state_name, state_id;
+  bool non_state_found = false;
+  get_state_var_decl_name(decl, state_name, state_id);
+  if (current_functionDecl != nullptr)
   {
-    typet type;
-    if (get_type_description(
-          decl["typeName"]["typeDescriptions"],
-          type)) // "type-name" as in state-variable-declaration
-      return true;
+    get_var_decl_name(decl, name, id);
+    log_status(
+      "clarity"
+      "	@@@ get_var_decl_ref finding id as function var::{}",
+      id);
 
-    new_expr = exprt("symbol", type);
-    new_expr.identifier(id);
-    new_expr.cmt_lvalue(true);
-    new_expr.name(name);
-    new_expr.pretty_name(name);
+    if (context.find_symbol(id) != nullptr)
+    {
+      new_expr = symbol_expr(*context.find_symbol(id));
+      non_state_found = true;
+    }
   }
+  if (!non_state_found) {
+    log_status(
+      "clarity"
+      "	@@@ get_var_decl_ref finding state id as function var::{}",
+      id);
+
+    if (context.find_symbol(state_id) != nullptr)
+      new_expr = symbol_expr(*context.find_symbol(state_id));  
+    else
+      return true;
+  }    
+  // else
+  // {
+  //   typet type;
+  //   if (get_type_description(
+  //         decl["typeName"]["typeDescriptions"],
+  //         type)) // "type-name" as in state-variable-declaration
+  //     return true;
+
+  //   new_expr = exprt("symbol", type);
+  //   new_expr.identifier(id);
+  //   new_expr.cmt_lvalue(true);
+  //   new_expr.name(name);
+  //   new_expr.pretty_name(name);
+  // }
 
   return false;
 }
@@ -5758,7 +5824,7 @@ void clarity_convertert::get_state_var_decl_name(
   // The prefix is used to avoid duplicate names
   if (!contract_name.empty())
   {
-    if (ClarityGrammar::is_tuple_declaration(ast_node))
+    if ((ast_node.contains("objtype")  && (ClarityGrammar::is_tuple_declaration(ast_node))))
     {
       get_tuple_name(ast_node, name, id);
     }
