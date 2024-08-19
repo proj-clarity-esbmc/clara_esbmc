@@ -20,6 +20,7 @@ ContractBodyElementT get_contract_body_element_t(const nlohmann::json &element);
 const char *contract_body_element_to_str(ContractBodyElementT type);
 
 /* m-ali */
+bool is_literal_type(std::string type);
 bool is_state_variable(const nlohmann::json &ast_node);
 bool is_variable_declaration(const nlohmann::json &ast_node);
 bool is_function_definitionn(const nlohmann::json &ast_node);
@@ -141,7 +142,6 @@ enum BlockT
 };
 BlockT get_block_t(const nlohmann::json &block);
 const char *block_to_str(BlockT type);
-
 
 // rule block
 enum FuncBlockT
