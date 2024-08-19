@@ -247,8 +247,8 @@ bool get_expression_type(
 // returns :: false if succesful, or true if failed.
 bool get_experession_cid(const nlohmann::json &expression_node, int &cid)
 {
-    cid = expression_node["cid"].get<int>();
-    return false;
+  cid = expression_node["cid"].get<int>();
+  return false;
 }
 
 // input    : an expression node
