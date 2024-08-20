@@ -1482,11 +1482,11 @@ bool clarity_convertert::get_var_decl(
   std::string name, id;
 
   if (is_state_var)
-    get_state_var_decl_name(ast_node[1], name, id);
+    get_state_var_decl_name(ast_expression_node, name, id);
   else if (current_functionDecl)
   {
     assert(current_functionName != "");
-    get_var_decl_name(ast_node, name, id);
+    get_var_decl_name(ast_expression_node, name, id);
   }
   else
   {
@@ -1496,7 +1496,7 @@ bool clarity_convertert::get_var_decl(
 
   // 3. populate location
   locationt location_begin;
-  get_location_from_decl(ast_node[1], location_begin);
+  get_location_from_decl(ast_expression_node, location_begin);
 
   // 4. populate debug module name
   std::string debug_modulename =
@@ -1513,7 +1513,7 @@ bool clarity_convertert::get_var_decl(
 
   // initialise with zeroes if no initial value provided.
   bool has_init =
-    ast_node[1].contains("value"); // in clarity we do not use "initialValue"
+    ast_expression_node.contains("value"); // in clarity we do not use "initialValue"
   if (symbol.static_lifetime && !symbol.is_extern && !has_init)
   {
     // set default value as zero
@@ -1532,20 +1532,20 @@ bool clarity_convertert::get_var_decl(
 
   if (has_init)
   {
-    nlohmann::json init_value = ast_node
-      [1]
-      ["value"]; //refer to AST parsing rules : "Rules for reading Value Node"
+    nlohmann::json init_value;
+    nlohmann::json objtype;
+    ClarityGrammar::get_expression_objtype(ast_expression_node, objtype);
+    ClarityGrammar::get_expression_value_node(ast_expression_node, init_value);
 
     //this might cause issue
-    nlohmann::json literal_type = get_objtype_type_name(
-      ast_node[1]["objtype"]); //ast_node[1]["objtype"][1];
+    nlohmann::json literal_type = get_objtype_type_name(objtype);
 
     assert(literal_type != nullptr);
     exprt val;
     // we will pass the whole ast node everywhere.
     // we can then parse inside the sub-functions accordingly.
     // for initial value : consider looking into ast_node[1]["value"]
-    if (get_expr(ast_node[1]["value"], ast_node[1]["objtype"], val))
+    if (get_expr(init_value, objtype, val))
       return true;
 
     clarity_gen_typecast(ns, val, t);
