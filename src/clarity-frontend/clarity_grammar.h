@@ -20,6 +20,43 @@ ContractBodyElementT get_contract_body_element_t(const nlohmann::json &element);
 const char *contract_body_element_to_str(ContractBodyElementT type);
 
 /* m-ali */
+// helper functions for accessing different sections of an expression node
+
+  bool get_declaration_decorator(
+    const nlohmann::json &ast_node,
+    std::string &out_node);
+  bool get_expression_node(const nlohmann::json &ast_node, nlohmann::json &out_node);
+  bool get_expression_identifier(const nlohmann::json &ast_node, std::string &out_node);
+  bool get_expression_type(
+    const nlohmann::json &expression_node,
+    std::string &expression_type);
+  bool get_experession_cid(const nlohmann::json &expression_node, int &cid);
+  bool get_expression_value_node(
+    const nlohmann::json &expression_node,
+    nlohmann::json &out_node);
+  bool get_expression_lit_value(
+    const nlohmann::json &expression_node,
+    std::string &value);
+  bool get_expression_args(
+    const nlohmann::json &expression_node,
+    nlohmann::json &out_node);
+  bool get_expression_objtype(
+    const nlohmann::json &expression_node,
+    nlohmann::json &out_node);
+  bool get_nested_objtype(
+    const nlohmann::json &objtype,
+    nlohmann::json &nested_objtype);
+  bool get_expression_body(
+    const nlohmann::json &expression_node,
+    nlohmann::json &out_node);
+  bool get_expression_return_type(
+    const nlohmann::json &expression_node,
+    nlohmann::json &out_node);
+  bool get_location_info(
+    const nlohmann::json &expression_node,
+    nlohmann::json &out_node);
+
+  // end of helper functions
 bool is_literal_type(std::string type);
 bool is_state_variable(const nlohmann::json &ast_node);
 bool is_variable_declaration(const nlohmann::json &ast_node);

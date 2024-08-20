@@ -209,202 +209,6 @@ bool clarity_convertert::process_expr_node(nlohmann::json &ast_node)
   return false;
 }
 
-// input    : complete ast_node
-// output   : : ast_node[0] e-g "data-var" , "constant" etc
-// returns  : false if succesful, or true if failed.
-bool get_declaration_decorator(
-  const nlohmann::json &ast_node,
-  nlohmann::json &out_node)
-{
-  out_node = ast_node[0];
-  return false;
-}
-
-// input    : complete ast_node
-// output   : : expression node located at ast_node[1]
-// returns  : false if succesful, or true if failed.
-bool get_expression_node(
-  const nlohmann::json &ast_node,
-  nlohmann::json &out_node)
-{
-  out_node = ast_node[1];
-  return false;
-}
-
-// input    : an expression node
-// output   :  the type of the expression node expression_node["type"]
-// returns :: false if succesful, or true if failed.
-bool get_expression_type(
-  const nlohmann::json &expression_node,
-  std::string &expression_type)
-{
-  expression_type = expression_node["type"].get<std::string>();
-  return false;
-}
-
-// input    : an expression node
-// output   :  the cid of the expression node expression_node["cid"]
-// returns :: false if succesful, or true if failed.
-bool get_experession_cid(const nlohmann::json &expression_node, int &cid)
-{
-  cid = expression_node["cid"].get<int>();
-  return false;
-}
-
-// input    : an expression node
-// output   :  the value (if any) of the expression node expression_node["value"] which is also an expression node
-// returns :: false if succesful, or true if failed.
-bool get_expression_value_node(
-  const nlohmann::json &expression_node,
-  nlohmann::json &out_node)
-{
-  if (expression_node.contains("value"))
-  {
-    out_node = expression_node["value"];
-  }
-  else
-  {
-    log_warning("No value node found in the expression node");
-    return true;
-  }
-  return false;
-}
-
-// input    : an expression node
-// output   :  literal value of the expression expression_node["identifier"] . Only applicatble to literals.
-// returns :: false if succesful, or true if failed.
-bool get_expression_lit_value(
-  const nlohmann::json &expression_node,
-  std::string &value)
-{
-  std::string expression_type = "";
-  get_expression_type(expression_node, expression_type);
-
-  if (ClarityGrammar::is_literal_type(expression_type))
-  {
-    value = expression_node["identifier"].get<std::string>();
-  }
-  else
-  {
-    log_warning("Expression is not a literal");
-    return true;
-  }
-  return false;
-}
-
-// input    : an expression node
-// output   :  arguments of the expression node expression_node["args"]
-// returns :: false if succesful, or true if failed.
-bool get_expression_args(
-  const nlohmann::json &expression_node,
-  nlohmann::json &out_node)
-{
-  if (expression_node.contains("args"))
-  {
-    out_node = expression_node["args"];
-  }
-  else
-  {
-    log_warning("No args node found in the expression node");
-    return true;
-  }
-  return false;
-}
-
-// input    : an expression node
-// output   :  objtype of the expression node expression_node["objtype"]
-// returns :: false if succesful, or true if failed.
-bool get_expression_objtype(
-  const nlohmann::json &expression_node,
-  nlohmann::json &out_node)
-{
-  if (expression_node.contains("objtype"))
-  {
-    out_node = expression_node["objtype"];
-    return false;
-  }
-  else
-  {
-    log_warning("No objtype node found in the expression node");
-    return true;
-  }
-}
-
-// input    : objtype of the expression node
-// output   :  nested objtype if any.
-// returns :: false if succesful, or true if failed.
-bool get_nested_objtype(
-  const nlohmann::json &objtype,
-  nlohmann::json &nested_objtype)
-{
-  if (objtype.contains("objtype"))
-  {
-    nested_objtype = objtype["objtype"];
-    return false;
-  }
-  else
-  {
-    log_warning("No nested objtype node found in the objtype node");
-    return true;
-  }
-}
-
-// input    : an expression node
-// output   :  body of the expression node expression_node["body"]
-// returns :: false if succesful, or true if failed.
-bool get_expression_body(
-  const nlohmann::json &expression_node,
-  nlohmann::json &out_node)
-{
-  if (expression_node.contains("body"))
-  {
-    out_node = expression_node["body"];
-  }
-  else
-  {
-    log_warning("No body node found in the expression node");
-    return true;
-  }
-  return false;
-}
-
-// input    : an expression node
-// output   :  return type of the expression node as objtype expression_node["return_type"]
-// returns :: false if succesful, or true if failed.
-bool get_expression_return_type(
-  const nlohmann::json &expression_node,
-  nlohmann::json &out_node)
-{
-  if (expression_node.contains("return_type"))
-  {
-    out_node = expression_node["return_type"];
-  }
-  else
-  {
-    log_warning("No return_type node found in the expression node");
-    return true;
-  }
-  return false;
-}
-
-// input    : an expression node
-// output   :  Location info of the expression stored in "span" of a node expression_node["span"]
-// returns :: false if succesful, or true if failed.
-bool get_location_info(
-  const nlohmann::json &expression_node,
-  nlohmann::json &out_node)
-{
-  if (expression_node.contains("span"))
-  {
-    out_node = expression_node["span"];
-  }
-  else
-  {
-    log_warning("No span node found in the expression node");
-    return true;
-  }
-  return false;
-}
 
 void clarity_convertert::convert_dummy_uint_literal()
 {
@@ -1435,10 +1239,16 @@ bool clarity_convertert::convert()
         //process expression array
         for (auto &expr : vec_expressions)
         {
+          std::string decl_decorator;
+          std::string identifier;
+          nlohmann::json expression_node;
+          ClarityGrammar::get_expression_node(expr, expression_node);
+          ClarityGrammar::get_declaration_decorator(expr, decl_decorator);
+          ClarityGrammar::get_expression_identifier(expression_node, identifier);
           log_status(
             "Parsing {} {} ",
-            expr[0].get<std::string>(),
-            expr[1]["identifier"].get<std::string>());
+            decl_decorator,
+            identifier);
 
 //add_dummy_symbol();
 // ml- no need to do this with new AST
@@ -1502,8 +1312,14 @@ bool clarity_convertert::convert_ast_nodes(const nlohmann::json &contract_def)
   size_t index = 0;
 
   nlohmann::json ast_node = contract_def;
-  std::string identifier_name = ast_node[1]["identifier"].get<std::string>();
-  std::string identifier_type = ast_node[1]["type"];
+  nlohmann::json expression_node;
+  ClarityGrammar::get_expression_node(ast_node, expression_node);
+  std::string identifier_name;
+  std::string identifier_type;
+
+  ClarityGrammar::get_expression_identifier(expression_node, identifier_name);
+  ClarityGrammar::get_expression_type(expression_node, identifier_type);
+  
   // get_objtype_type_name(
   //   ast_node
   //     [1]["objtype"]); //std::string(ast_node[1]["objtype"][0]; //.type_name());
@@ -1529,12 +1345,11 @@ bool clarity_convertert::get_decl(
 {
   new_expr = code_skipt();
 
-  // we dont need to look for nodeType in Clarity
-  if (!ast_node[1].contains("identifier"))
-    assert(!"Missing \'identifer\' field in ast_node");
 
+  nlohmann::json ast_expression_node;
+  ClarityGrammar::get_expression_node(ast_node, ast_expression_node);
   ClarityGrammar::ContractBodyElementT type =
-    ClarityGrammar::get_contract_body_element_t(ast_node[1]);
+    ClarityGrammar::get_contract_body_element_t(ast_expression_node);
 
   // based on each element as in Solidty grammar "rule contract-body-element"
   switch (type)
@@ -1600,6 +1415,8 @@ bool clarity_convertert::get_var_decl(
   // For Clarity rule state-variable-declaration:
   // 1. populate typet
   typet t;
+  nlohmann::json ast_expression_node;
+  ClarityGrammar::get_expression_node(ast_node, ast_expression_node);
   // VariableDeclaration node contains both "typeName" and "typeDescriptions".
   // However, ExpressionStatement node just contains "typeDescriptions".
   // For consistensy, we use ["typeName"]["typeDescriptions"] as in state-variable-declaration
@@ -1651,7 +1468,10 @@ bool clarity_convertert::get_var_decl(
   else
   {
     // requires type name as first param. but we don't have type inferred here. We got to add that to the node info
-    if (get_type_description(ast_node[1]["objtype"], t))
+    
+    nlohmann::json expression_objtype ;
+    ClarityGrammar::get_expression_objtype(ast_expression_node, expression_objtype);
+    if (get_type_description(expression_objtype, t))
       return true;
   }
 

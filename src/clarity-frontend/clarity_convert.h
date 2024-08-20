@@ -43,43 +43,7 @@ protected:
   void set_current_contract_name(std::string &contract_name);
   bool parse_expression_element(const nlohmann::json &expr_element_json);
 
-  // helper functions for accessing different sections of an expression node
-
-  bool get_declaration_decorator(
-    const nlohmann::json &ast_node,
-    nlohmann::json &out_node);
-  bool
-  get_expression_node(const nlohmann::json &ast_node, nlohmann::json &out_node);
-  bool get_expression_type(
-    const nlohmann::json &expression_node,
-    std::string &expression_type);
-  bool get_experession_cid(const nlohmann::json &expression_node, int &cid);
-  bool get_expression_value_node(
-    const nlohmann::json &expression_node,
-    nlohmann::json &out_node);
-  bool get_expression_lit_value(
-    const nlohmann::json &expression_node,
-    std::string &value);
-  bool get_expression_args(
-    const nlohmann::json &expression_node,
-    nlohmann::json &out_node);
-  bool get_expression_objtype(
-    const nlohmann::json &expression_node,
-    nlohmann::json &out_node);
-  bool get_nested_objtype(
-    const nlohmann::json &objtype,
-    nlohmann::json &nested_objtype);
-  bool get_expression_body(
-    const nlohmann::json &expression_node,
-    nlohmann::json &out_node);
-  bool get_expression_return_type(
-    const nlohmann::json &expression_node,
-    nlohmann::json &out_node);
-  bool get_location_info(
-    const nlohmann::json &expression_node,
-    nlohmann::json &out_node);
-
-  // end of helper functions
+  
 
   // ml
   bool get_function_block(

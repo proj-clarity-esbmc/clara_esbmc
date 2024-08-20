@@ -36,6 +36,216 @@ const std::map<ElementaryTypeNameT, unsigned int> bytesn_size_map = {
   {UINT_LITERAL, 128},
   {INT_LITERAL, 128}};
 
+
+
+// input    : complete ast_node
+// output   : : ast_node[0] e-g "data-var" , "constant" etc
+// returns  : false if succesful, or true if failed.
+bool get_declaration_decorator(
+  const nlohmann::json &ast_node,
+  std::string &out_node)
+{
+  out_node = ast_node[0].get<std::string>();
+  return false;
+}
+
+// input    : complete ast_node
+// output   : : expression node located at ast_node[1]
+// returns  : false if succesful, or true if failed.
+bool get_expression_node(
+  const nlohmann::json &ast_node,
+  nlohmann::json &out_node)
+{
+  out_node = ast_node[1];
+  return false;
+}
+
+
+// input    : an expression node
+// output   : : value of ["identifier"] key as std::string
+// returns  : false if succesful, or true if failed.
+bool get_expression_identifier(const nlohmann::json &ast_node, std::string &out_node)
+{
+  
+  out_node = ast_node["identifier"].get<std::string>();
+  return false;
+}
+
+// input    : an expression node
+// output   :  the type of the expression node expression_node["type"]
+// returns :: false if succesful, or true if failed.
+bool get_expression_type(
+  const nlohmann::json &expression_node,
+  std::string &expression_type)
+{
+  expression_type = expression_node["type"].get<std::string>();
+  return false;
+}
+
+// input    : an expression node
+// output   :  the cid of the expression node expression_node["cid"]
+// returns :: false if succesful, or true if failed.
+bool get_experession_cid(const nlohmann::json &expression_node, int &cid)
+{
+  cid = expression_node["cid"].get<int>();
+  return false;
+}
+
+// input    : an expression node
+// output   :  the value (if any) of the expression node expression_node["value"] which is also an expression node
+// returns :: false if succesful, or true if failed.
+bool get_expression_value_node(
+  const nlohmann::json &expression_node,
+  nlohmann::json &out_node)
+{
+  if (expression_node.contains("value"))
+  {
+    out_node = expression_node["value"];
+  }
+  else
+  {
+    log_warning("No value node found in the expression node");
+    return true;
+  }
+  return false;
+}
+
+// input    : an expression node
+// output   :  literal value of the expression expression_node["identifier"] . Only applicatble to literals.
+// returns :: false if succesful, or true if failed.
+bool get_expression_lit_value(
+  const nlohmann::json &expression_node,
+  std::string &value)
+{
+  std::string expression_type = "";
+  get_expression_type(expression_node, expression_type);
+
+  if (ClarityGrammar::is_literal_type(expression_type))
+  {
+    value = expression_node["identifier"].get<std::string>();
+  }
+  else
+  {
+    log_warning("Expression is not a literal");
+    return true;
+  }
+  return false;
+}
+
+// input    : an expression node
+// output   :  arguments of the expression node expression_node["args"]
+// returns :: false if succesful, or true if failed.
+bool get_expression_args(
+  const nlohmann::json &expression_node,
+  nlohmann::json &out_node)
+{
+  if (expression_node.contains("args"))
+  {
+    out_node = expression_node["args"];
+  }
+  else
+  {
+    log_warning("No args node found in the expression node");
+    return true;
+  }
+  return false;
+}
+
+// input    : an expression node
+// output   :  objtype of the expression node expression_node["objtype"]
+// returns :: false if succesful, or true if failed.
+bool get_expression_objtype(
+  const nlohmann::json &expression_node,
+  nlohmann::json &out_node)
+{
+  if (expression_node.contains("objtype"))
+  {
+    out_node = expression_node["objtype"];
+    return false;
+  }
+  else
+  {
+    log_warning("No objtype node found in the expression node");
+    return true;
+  }
+}
+
+// input    : objtype of the expression node
+// output   :  nested objtype if any.
+// returns :: false if succesful, or true if failed.
+bool get_nested_objtype(
+  const nlohmann::json &objtype,
+  nlohmann::json &nested_objtype)
+{
+  try
+  {
+    nested_objtype = objtype[3];
+    return false;
+  
+  }
+  catch (const std::exception &e)
+  {
+    log_warning("No nested objtype node found in the objtype node");
+    return true;
+  }
+}
+
+// input    : an expression node
+// output   :  body of the expression node expression_node["body"]
+// returns :: false if succesful, or true if failed.
+bool get_expression_body(
+  const nlohmann::json &expression_node,
+  nlohmann::json &out_node)
+{
+  if (expression_node.contains("body"))
+  {
+    out_node = expression_node["body"];
+  }
+  else
+  {
+    log_warning("No body node found in the expression node");
+    return true;
+  }
+  return false;
+}
+
+// input    : an expression node
+// output   :  return type of the expression node as objtype expression_node["return_type"]
+// returns :: false if succesful, or true if failed.
+bool get_expression_return_type(
+  const nlohmann::json &expression_node,
+  nlohmann::json &out_node)
+{
+  if (expression_node.contains("return_type"))
+  {
+    out_node = expression_node["return_type"];
+  }
+  else
+  {
+    log_warning("No return_type node found in the expression node");
+    return true;
+  }
+  return false;
+}
+
+// input    : an expression node
+// output   :  Location info of the expression stored in "span" of a node expression_node["span"]
+// returns :: false if succesful, or true if failed.
+bool get_location_info(
+  const nlohmann::json &expression_node,
+  nlohmann::json &out_node)
+{
+  if (expression_node.contains("span"))
+  {
+    out_node = expression_node["span"];
+  }
+  else
+  {
+    log_warning("No span node found in the expression node");
+    return true;
+  }
+  return false;
+}
 bool is_literal_type(std::string nodeType)
 {
   if (
@@ -201,7 +411,9 @@ std::string get_optional_symbolId(const nlohmann::json &optional_type)
 // returns objtype for optional inside an objtype
 nlohmann::json get_optional_type(const nlohmann::json &objtype)
 {
-  return objtype[3];
+  nlohmann::json objtype_optional;
+  get_nested_objtype(objtype, objtype_optional);
+  return objtype_optional;
 }
 
 bool get_operation_type(nlohmann::json &expression_node)
@@ -421,13 +633,15 @@ bool parse_expression_element(nlohmann::json &expr_element_json)
 // rule contract-body-element
 ContractBodyElementT get_contract_body_element_t(const nlohmann::json &element)
 {
+  std::string element_type;
+  get_expression_type(element, element_type);
   if (
-    (element["type"] == "variable_declaration") ||
-    (element["type"] == "constant_declaration"))
+    (element_type == "variable_declaration") ||
+    (element_type == "constant_declaration"))
   {
     return VarDecl;
   }
-  else if (element["type"] == "function_declaration")
+  else if (element_type == "function_declaration")
   {
     return FunctionDef;
   }
