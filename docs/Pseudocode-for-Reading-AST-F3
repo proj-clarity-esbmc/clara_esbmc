@@ -1,4 +1,4 @@
-Pseudo code for Reading AST F3
+Pseudo code for Reading AST F4
 
 
 1 - Parent object Structure - 
@@ -26,9 +26,10 @@ Pseudo code for Reading AST F3
                 - "var-get" : // gets the value of an already defined variable by referring to "cid" and "identifier name" and "scope"
                 - "read-only" // creates a function that does not modify values, but only reads values
                 - "private" , "public"
-          [1] "Object"
+          [1] "Object" // Expression Node
                 {
-                  "identifier" : string // declaration (variable/constant) name 
+                  "type" : string // The type of the expression,
+                  "identifier" : string // The value/name of the expression,
                   "cid" : int // internal use to refer to nodes already declared in the system
                   "id" : int // if cids are consistent in the AST for same element being referred to, then we can ignore "id"
                   "scope" : local / global
@@ -40,6 +41,7 @@ Pseudo code for Reading AST F3
                         "end_column": int
                       }
                   "objtype": [list containing type information regarding the identifier]
+                      ONLY For variable declaration
                       [0] type : string // example "uint"
                           - [0] can be literal type e-g uint, int , string-ascii, string-utf8, bool, principal, buff, etc
                           - [0] can be "optional" which means the type is optional and requires special handling 
@@ -53,30 +55,28 @@ Pseudo code for Reading AST F3
 
                       Example : "objtype" : ["uint", "uint_128", 128]
                       Example : "objtype" : ["optional","optional", object(objtype)]
-                  "value": // can be a string literal or an object or a list 
-                        -string literal: if string literal then it is the valueof type int/uint or hex-string 0xaaaa for buff value or principal string for Principal.
-                        -object: if object then it contains either of the two:
-                            - "lit_ascii"
-                            - "lit_utf8"
-                        -list: the "value" key contains a list
-                            - the [0] element has to be an operator e-g "+", "-", "*", "/", ">" , "==" etc or a function name or a known keyword that takes params
-                              - if [0] is "some" then the value could be an Nan or an int/uint for integers, or null or a string for string values.
-                              - if [0] is "list" then what follows is the elements of the list as per the size in list objtype node.
-                              - if [0] is a a conditional "if" then [1] would be a value node containing expression to test, [2] is "value" node if [1] is true, [3] is "value" if [1] is false
-                              - if [0] is a "begin" or "let" then it starts a code_block with one or multiple expressions. each expression is a "value" node.
-                              - if [0] is a "tuple" then [1] will be an object containing "key" : "value" pairs. each value entry against a key is to be read as a "Value" node
-                            - [1] to [n] would be the params to the operator or function
+                  "value" :  Expression Node 
+                      ONLY FOR variable declaration initializations --- 
+                      Used for the variable initialization value.
 
+                  "return_type": [objtype node]
+                      ONLY FOR Function Expression Node --- 
+                      For functions defines the return type
+                      For trait_functions this object must be present to define the functions return_type
+                  "args": [List of Expression nodes],
+                      ONLY FOR Function Expression node --- 
+                      These will be the arguments passed to functions. There can be two types of arguments
+                        - Arguments passed by value
+                        - Declarative arguments that contain the initial values for ex 'let'
+                  "body": [ List of Expression nodes],
+                      ONLY FOR Function Expression node and certain native types --- 
+                      Sequence of expressions for functions or certain types of native functions like 'let' or 'begin' that contain a sequence of expressions. 
+                      
+                
                   
                   "keytype" : ONLY FOR MAPS --- follows objtype structure for type of "keys" of maps
                   "valtype" : ONLY FOR MAPS --- follows objtype structure for type of "values" of maps
                   "total_supply" : ONLY FOR FTs --- contains the total supply as unsigned int value.
-                  "args" : ONLY FOR FUNCTIONS --- contains a list [] of the arguments of the function
-                  "body" : ONLY FOR FUNCTIONS --- contains a list [] of the "expressions" inside a body of a function. This list is to be read as a "value" node.
-                  "return_type" : ONLY FOR FUNCTIONS --- contains objtype node for a return type of a function
-
-
-
                 }
 
 ==> Special Handling for Optional Types:
@@ -97,3 +97,27 @@ then
 objtype[0] = "tuple"
 ...[1] will be an object containing keys for members of tuples. each corresponding "value" is an objtype array 
 ...[2] will contain the number of keys to expect in the tuple.
+
+==> List of types
+function_declaration      --> Function declared
+variable_declaration      --> Variable declaration
+constant_declaration      --> Constant declaration
+native_function           --> Functions specified in the link https://docs.stacks.co/clarity/function
+user_function             --> Function created by the user
+lit_uint                  --> “u0”
+lit_ascii                 --> “somestring”
+lit_bool                  --> “true”/”false”
+function_arg              --> functions arguments
+tuple_object              --> A tuple object expression
+tuple_key                 --> Tuple key expression
+let_variable_declaration  --> A variable declaration expression in let
+conditional_expression    --> “If” expression
+variable_name             --> variable used in an expression
+optional_expression       --> “some”/”none”
+response_expression       --> “ok”/”err”
+trait_declaration         --> A trait is being declared
+trait_function            --> A function definition that is part of a trait
+trait_arg                 --> The arguments as part of a trait function
+
+==> Examples for AST F4 are specified in the doc
+https://docs.google.com/document/d/11EPZBDp1y6X3WeKflpFvtmOHs1RPcOekdXMwOnfmZFk/edit#heading=h.nka5zomg9qct
