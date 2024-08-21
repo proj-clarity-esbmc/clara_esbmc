@@ -4370,7 +4370,7 @@ bool clarity_convertert::get_conditional_operator_expr(
 
   // ml- for conditional operation the args[0] contains the
   //     conditions expression
-  if (get_expression_args(expr, args))
+  if (ClarityGrammar::get_expression_args(expr, args)) 
   {
     return true;
   }
