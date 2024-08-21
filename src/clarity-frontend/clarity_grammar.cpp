@@ -249,6 +249,7 @@ bool get_location_info(
 bool is_literal_type(std::string nodeType)
 {
   if (
+    (nodeType == "lit_int") ||
     (nodeType == "lit_uint") || (nodeType == "lit_ascii") ||
     (nodeType == "lit_bool") || (nodeType == "lit_buff") ||
     (nodeType == "lit_utf8"))
@@ -507,6 +508,13 @@ bool get_literal_type_from_expr(const nlohmann::json &expr, nlohmann::json &expr
   {
     auto j2 = R"(
             ["uint", "uint_128", "128"]              
+          )"_json;
+    expression_node = j2;
+  }
+  else if (expr_type == "lit_int")
+  {
+    auto j2 = R"(
+            ["int", "int_128", "128"]              
           )"_json;
     expression_node = j2;
   }
