@@ -198,40 +198,43 @@ bool clarity_convertert::convert_uint_literal(
 //    - Note: Currently clarity does NOT support floating point data types or fp arithmetic.
 //      Everything is done in fixed-point arithmetic as of clarity compiler v0.8.6.
 
-
-bool clarity_convertert::get_literal_type_from_typet(const typet &type, nlohmann::json &expression_node)
+bool clarity_convertert::get_literal_type_from_typet(
+  const typet &type,
+  nlohmann::json &expression_node)
 {
-  
   if (type.id() == typet::t_unsignedbv)
   {
     auto width = type.width().as_string();
-    expression_node = nlohmann::json::array({"uint", "uint_"+width, width}) ;
+    expression_node = nlohmann::json::array({"uint", "uint_" + width, width});
   }
   else if (type.id() == typet::t_signedbv)
   {
     auto width = type.width().as_string();
-    expression_node = nlohmann::json::array({"int", "int_"+width, width}) ;
+    expression_node = nlohmann::json::array({"int", "int_" + width, width});
   }
   else if (type.id() == typet::t_bool)
   {
     auto width = type.width().as_string();
-    expression_node = nlohmann::json::array({"bool", "bool", "1"}) ;
+    expression_node = nlohmann::json::array({"bool", "bool", "1"});
   }
   else if (type.id() == typet::t_array)
   {
-    
     auto buffer_type = type.get("#clar_lit_type").as_string();
-    if (buffer_type == "BUFF") {
-      expression_node = nlohmann::json::array({"buffer", "buffer", "4"}) ;
+    if (buffer_type == "BUFF")
+    {
+      expression_node = nlohmann::json::array({"buffer", "buffer", "4"});
     }
-    else if (buffer_type == "STRING_UTF8") {
-      expression_node = nlohmann::json::array({"string-utf8", "string-utf8", "16"}) ;
+    else if (buffer_type == "STRING_UTF8")
+    {
+      expression_node =
+        nlohmann::json::array({"string-utf8", "string-utf8", "16"});
     }
-    else if (buffer_type == "STRING_ASCII") {
+    else if (buffer_type == "STRING_ASCII")
+    {
       auto width = type.width().as_string();
-      expression_node = nlohmann::json::array({"string-ascii", "string-ascii", width}) ;
+      expression_node =
+        nlohmann::json::array({"string-ascii", "string-ascii", width});
     }
-    
   }
   else
   {

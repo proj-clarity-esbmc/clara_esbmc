@@ -36,8 +36,6 @@ const std::map<ElementaryTypeNameT, unsigned int> bytesn_size_map = {
   {UINT_LITERAL, 128},
   {INT_LITERAL, 128}};
 
-
-
 // input    : complete ast_node
 // output   : : ast_node[0] e-g "data-var" , "constant" etc
 // returns  : false if succesful, or true if failed.
@@ -60,13 +58,13 @@ bool get_expression_node(
   return false;
 }
 
-
 // input    : an expression node
 // output   : : value of ["identifier"] key as std::string
 // returns  : false if succesful, or true if failed.
-bool get_expression_identifier(const nlohmann::json &ast_node, std::string &out_node)
+bool get_expression_identifier(
+  const nlohmann::json &ast_node,
+  std::string &out_node)
 {
-  
   out_node = ast_node["identifier"].get<std::string>();
   return false;
 }
@@ -181,7 +179,6 @@ bool get_nested_objtype(
   {
     nested_objtype = objtype[3];
     return false;
-  
   }
   catch (const std::exception &e)
   {
@@ -249,10 +246,9 @@ bool get_location_info(
 bool is_literal_type(std::string nodeType)
 {
   if (
-    (nodeType == "lit_int") ||
-    (nodeType == "lit_uint") || (nodeType == "lit_ascii") ||
-    (nodeType == "lit_bool") || (nodeType == "lit_buff") ||
-    (nodeType == "lit_utf8"))
+    (nodeType == "lit_int") || (nodeType == "lit_uint") ||
+    (nodeType == "lit_ascii") || (nodeType == "lit_bool") ||
+    (nodeType == "lit_buff") || (nodeType == "lit_utf8"))
   {
     return true;
   }
@@ -363,11 +359,12 @@ bool operation_is_optional(const nlohmann::json &ast_node)
 bool operation_is_conditional(const nlohmann::json &ast_node)
 {
   const std::vector<std::string> conditional_operators{"if"};
-  
+
   if (
     std::find(
-      conditional_operators.begin(), conditional_operators.end(), ast_node["identifier"]) !=
-    conditional_operators.end())
+      conditional_operators.begin(),
+      conditional_operators.end(),
+      ast_node["identifier"]) != conditional_operators.end())
     return true;
   else
     return false;
@@ -500,9 +497,12 @@ bool get_operation_type(nlohmann::json &expression_node)
     */
 }
 
-bool get_literal_type_from_expr(const nlohmann::json &expr, nlohmann::json &expression_node)
+bool get_literal_type_from_expr(
+  const nlohmann::json &expr,
+  nlohmann::json &expression_node)
 {
-  std::string expr_type; get_expression_type(expr,expr_type);
+  std::string expr_type;
+  get_expression_type(expr, expr_type);
 
   if (expr_type == "lit_uint")
   {
@@ -541,10 +541,12 @@ bool get_literal_type_from_expr(const nlohmann::json &expr, nlohmann::json &expr
   }
   else if (expr_type == "lit_ascii")
   {
-    std::string literal_string; get_expression_identifier(expr,literal_string);
+    std::string literal_string;
+    get_expression_identifier(expr, literal_string);
     std::string literal_string_length = std::to_string(literal_string.length());
-    
-    expression_node = nlohmann::json::array({"string-ascii", "string-ascii", literal_string_length}) ;
+
+    expression_node = nlohmann::json::array(
+      {"string-ascii", "string-ascii", literal_string_length});
   }
   else
   {
@@ -1135,16 +1137,16 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
   // {
   //   return ConditionalOperatorClass;
   // }
-  if (nodeType == "native_function") 
+  if (nodeType == "native_function")
   {
     if (operation_is_binary(expr))
     {
       return BinaryOperatorClass;
     }
   }
-  else if (nodeType == "conditional_expression") 
+  else if (nodeType == "conditional_expression")
   {
-    if (operation_is_conditional(expr)) 
+    if (operation_is_conditional(expr))
     {
       return ConditionalOperatorClass;
     }

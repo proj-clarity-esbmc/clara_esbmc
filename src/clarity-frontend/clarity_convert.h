@@ -43,8 +43,6 @@ protected:
   void set_current_contract_name(std::string &contract_name);
   bool parse_expression_element(const nlohmann::json &expr_element_json);
 
-  
-
   // ml
   bool get_function_block(
     const nlohmann::json &block,
@@ -264,7 +262,9 @@ protected:
     std::string the_value,
     exprt &dest);
 
-  bool get_literal_type_from_typet(const typet &type, nlohmann::json &expression_node);
+  bool get_literal_type_from_typet(
+    const typet &type,
+    nlohmann::json &expression_node);
 
   // check if it's a bytes type
   bool is_bytes_type(const typet &t);
