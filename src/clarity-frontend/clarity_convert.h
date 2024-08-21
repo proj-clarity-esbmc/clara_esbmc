@@ -82,7 +82,7 @@ protected:
   // end of helper functions
 
   // ml
-  bool get_function_block(
+  bool get_function_body(
     const nlohmann::json &block,
     exprt &new_expr,
     typet &return_type,

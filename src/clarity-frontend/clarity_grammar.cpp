@@ -730,42 +730,37 @@ const char *parameter_list_to_str(ParameterListT type)
   }
 }
 
-// rule block
-FuncBlockT get_function_block_t(const nlohmann::json &block)
+// function body
+FuncBodyT get_function_body_t(const nlohmann::json &body)
 {
-  return SingleStatement;
-  if (block.is_string())
+  
+  if ((body.is_array()) && (body.size() == 1))
   {
     return SingleStatement;
   }
-  else if (block.is_object())
-  {
-    return SingleObject;
-  }
-  else if (block.is_array())
+  else if ((body.is_array()) && (body.size() > 1))
   {
     return MultipleStatement;
   }
   else
   {
     log_error(
-      "Got function block nodeType={}. Unsupported block type", block.dump());
+      "Got function block nodeType={}. Unsupported block type", body.dump());
     abort();
   }
-  return FuncBlockTError;
+  return FuncBodyTError;
 }
 
-const char *function_block_to_str(FuncBlockT type)
+const char *function_body_to_str(FuncBodyT type)
 {
   switch (type)
   {
     ENUM_TO_STR(SingleStatement)
-    ENUM_TO_STR(SingleObject)
     ENUM_TO_STR(MultipleStatement)
-    ENUM_TO_STR(FuncBlockTError)
+    ENUM_TO_STR(FuncBodyTError)
   default:
   {
-    assert(!"Unknown function block type");
+    assert(!"Unknown function body type");
     return "UNKNOWN";
   }
   }

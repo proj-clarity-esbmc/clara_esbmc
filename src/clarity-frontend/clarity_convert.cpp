@@ -2173,7 +2173,7 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
   // Order matters! do not change!
   // 1. Check fd.isImplicit() --- skipped since it's not applicable to Clarity
   // 2. Check fd.isDefined() and fd.isThisDeclarationADefinition()
-  log_status("Entering {} {}", "get_function_definition", ast_node.dump());
+  
 #if 0 
   // ml- need to check if there is such a thing as intrinsic function
   if (
@@ -2204,13 +2204,12 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
   }
   else
 #endif
-  log_status("Getting current functionName {} ", "get_function_definition");
-
+  
   current_functionName =
     (*current_functionDecl)[1]["identifier"].get<std::string>();
-  log_status(
-    "Got current functionName {} {}",
-    "get_function_definition",
+  log_debug(
+    "clarity",
+    "	@@@ get_function_definition processing function {}",
     current_functionName);
 
   // 4. Return type
@@ -2218,14 +2217,10 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
 
   if ((get_type_description(ast_node[1]["return_type"], type.return_type())))
     return true;
-  log_status(
-    "get_type_description {} {}",
-    "get_function_definition",
-    current_functionName);
-
+  
 // special handling for return_type:
 #if 0
-  // will deel with return types later as these are complex
+  // [TODO] will deel with return types later as these are complex
   // construct a tuple type and a tuple instance
   if (type.return_type().get("#clar_type") == "return_type")
   {
@@ -2246,19 +2241,9 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
   locationt location_begin;
   get_location_from_decl(ast_node[1], location_begin);
 
-  log_status(
-    "get_location_from_decl {} {}",
-    "get_function_definition",
-    current_functionName);
-
   // 7. Populate "std::string id, name"
   std::string name, id;
   get_function_definition_name(ast_node[1], name, id);
-
-  log_status(
-    "get_function_definition_name {} {}",
-    "get_function_definition",
-    current_functionName);
 
   if (name == "func_dynamic")
     printf("@@ found func_dynamic\n");
@@ -2292,15 +2277,9 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
   }
 #endif
 
-  log_status(
-    "get_parameter_list_t {} {}",
-    "get_function_definition",
-    current_functionName);
-
   ClarityGrammar::ParameterListT params =
     ClarityGrammar::get_parameter_list_t(ast_node[1]);
 
-  log_status("get_parameter_list_t {} {}", int(params), current_functionName);
   if (params != ClarityGrammar::ParameterListT::EMPTY)
   {
     // convert parameters if the function has them
@@ -2325,7 +2304,7 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
   if (ast_node[1].contains("body"))
   {
     exprt body_exprt;
-    if (get_function_block(
+    if (get_function_body(
           ast_node[1]["body"], body_exprt, type, ast_node[1]["return_type"]))
       return true;
 
@@ -2406,91 +2385,63 @@ bool clarity_convertert::get_function_params(
   return false;
 }
 
-bool clarity_convertert::get_function_block(
-  const nlohmann::json &block,
+// input    : the body field of the functions AST
+// output   : The new exprt created to represent the body
+// output   : The new typet created to represent the function return
+// input    : The objtype from the functions AST
+// returns  : false if succesful, or true if failed.
+bool clarity_convertert::get_function_body(
+  const nlohmann::json &body,
   exprt &new_expr,
   typet &return_type,
-  const nlohmann::json &return_ast)
+  const nlohmann::json &return_objtype)
 {
-  log_status(
-    "clarity"
-    "	@@@ got Function Block: ClarityGrammar::BlockT::{}",
-    block.dump());
-
-  // For rule block
+  // For function body
   locationt location;
-  get_start_location_from_stmt(block, location);
+  get_start_location_from_stmt(body, location);
 
-  ClarityGrammar::FuncBlockT type = ClarityGrammar::get_function_block_t(block);
-  log_status(
-    "clarity"
-    "	@@@ got Block: ClarityGrammar::FuncBlockT::{}",
-    ClarityGrammar::function_block_to_str(type));
+  ClarityGrammar::FuncBodyT type = ClarityGrammar::get_function_body_t(body);
+  log_debug(
+    "clarity",
+    "	@@@ got Function Body type: ClarityGrammar::FuncBodyT::{}",
+    ClarityGrammar::function_body_to_str(type));
 
   switch (type)
   {
-  // Singleline statement which is equivalent to "return num"
-  // deal with a block of statements
-  case ClarityGrammar::FuncBlockT::SingleStatement:
-  {
-    nlohmann::json literal_type = nullptr;
+    // clarity functions have a single body element mostly 
+    case ClarityGrammar::FuncBodyT::SingleStatement:
+    {
+      // The function body in this case will be a single 
+      // expression that has to be returned
+      // ml-[TODO] we have to make a function that will create
+      // any expression as return
+      
+      code_returnt ret_expr;
+      const nlohmann::json &rtn_expr = body[0];
 
-    // ml-[TODO] we have to make a function that will return
-    // the return_type ast element eg ["uint", "uint", 8]
-    //literal_type = make_return_type_from_typet(return_type);
+      // ml- the following code has been adapted from the 
+      // ReturnStatement of solidity
+      exprt val;
+      if (get_expr(rtn_expr, return_objtype, val))
+        return true;
 
-    // 2. get return value
-    code_returnt ret_expr;
-    const nlohmann::json &rtn_expr = block[0];
-    // wrap it in an ImplicitCastExpr to convert LValue to RValue
-    nlohmann::json implicit_cast_expr =
-      make_implicit_cast_expr(rtn_expr, "LValueToRValue");
+      clarity_gen_typecast(ns, val, return_type);
+      ret_expr.return_value() = val;
 
-    /* There could be case like
-      {
-      "expression": {
-          "kind": "number",
-          "nodeType": "Literal",
-          "typeDescriptions": {
-              "typeIdentifier": "t_rational_11_by_1",
-              "typeString": "int_const 11"
-          },
-          "value": "12345"
-      },
-      "nodeType": "Return",
-      }
-      Therefore, we need to pass the literal_type value.
-      */
-
-    exprt val;
-    if (get_expr(rtn_expr, return_ast, val))
+      new_expr = ret_expr;
+      break;
+    }
+    case ClarityGrammar::FuncBodyT::MultipleStatement:
+    {
+      // ml - [TODO] Handle case where a body has multiple statements
+      //get_expr(block["expression"], new_expr);
+      break;
+    }
+    default:
+    {
+      assert(!"Unimplemented type in rule  block");
       return true;
-
-    clarity_gen_typecast(ns, val, return_type);
-    ret_expr.return_value() = val;
-
-    new_expr = ret_expr;
-    break;
-  }
-  case ClarityGrammar::FuncBlockT::SingleObject:
-  {
-    // this means only one statement in the block
-    exprt statement;
-
-    // // Create a return statement but with the object block
-    new_expr = statement;
-    break;
-  }
-  case ClarityGrammar::FuncBlockT::MultipleStatement:
-  {
-    //get_expr(block["expression"], new_expr);
-    break;
-  }
-  default:
-  {
-    assert(!"Unimplemented type in rule  block");
-    return true;
-  }
+    }
   }
 
   new_expr.location() = location;
