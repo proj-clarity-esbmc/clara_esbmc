@@ -501,7 +501,7 @@ bool get_operation_type(nlohmann::json &expression_node)
 
 bool get_literal_type_from_expr(const nlohmann::json &expr, nlohmann::json &expression_node)
 {
-  std::string expr_type = expr["type"];
+  std::string expr_type; get_expression_type(expr,expr_type);
 
   if (expr_type == "lit_uint")
   {
@@ -533,7 +533,7 @@ bool get_literal_type_from_expr(const nlohmann::json &expr, nlohmann::json &expr
   }
   else if (expr_type == "lit_ascii")
   {
-    std::string literal_string = expr["identifier"];
+    std::string literal_string; get_expression_identifier(expr,literal_string);
     std::string literal_string_length = std::to_string(literal_string.length());
     
     expression_node = nlohmann::json::array({"string-ascii", "string-ascii", literal_string_length}) ;
@@ -1112,7 +1112,8 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
     return NullExpr;
   }
 
-  std::string nodeType = expr["type"];
+  std::string nodeType;
+  get_expression_type(expr, nodeType);
 
   // if (nodeType == "Assignment" || nodeType == "BinaryOperation")
   // {

@@ -2865,7 +2865,8 @@ bool clarity_convertert::get_expr(
   {
 
     // ml- we will be using the cid to find the variable
-    if (expr["cid"] > 0)
+    int cid; ClarityGrammar::get_experession_cid(expr, cid);
+    if (cid > 0)
     {
       // ml- for clarity we will assume that this is a variable declaration always
       if (get_var_decl_ref(expr, new_expr)) {
@@ -2955,7 +2956,8 @@ bool clarity_convertert::get_expr(
         //expr.push_back(nlohmann::json::object_t::value_type("objtype", literal_type_expr));
       }
       else {
-        literal_type_expr = expr["objtype"];
+        //literal_type_expr = expr["objtype"];
+        ClarityGrammar::get_expression_objtype(expr, literal_type_expr);
       }
     }
     
@@ -2970,27 +2972,15 @@ bool clarity_convertert::get_expr(
       ClarityGrammar::get_elementary_type_name_t(literal_type_expr);
     std::string the_value;
 
-    // if (type_name == ClarityGrammar::ElementaryTypeNameT::STRING_ASCII)
-    // {
-    //   // for string literal
-    //   the_value = expr["identifier"].get<std::string>();
-    // }
-    // else if (type_name == ClarityGrammar::ElementaryTypeNameT::STRING_UTF8)
-    // {
-    //   //for utf-8 string literals
-    //   the_value = expr["identifier"].get<std::string>();
-    // }
-    // else
-    // {
-    // }
     if (type_name == ClarityGrammar::ElementaryTypeNameT::PRINCIPAL)
     {
       // for principal literals
       the_value = expr[1]["value"][3]["value"][21];
     }
     else
-    {
-      the_value = expr["identifier"].get<std::string>();
+    { //for all other literals
+      
+      ClarityGrammar::get_expression_lit_value(expr, the_value);
     }
     log_debug(
       "clarity",
@@ -3758,11 +3748,12 @@ bool clarity_convertert::get_binary_operator_expr(
   //   nlohmann::json literalType_r = expr["rightExpression"]["typeDescriptions"];
     nlohmann::json type_l;
     nlohmann::json type_r;
+    nlohmann::json exp_args; ClarityGrammar::get_expression_args(expr, exp_args);
     
-    if (get_expr(expr["args"][0], nullptr, lhs, type_l))
+    if (get_expr(exp_args[0], nullptr, lhs, type_l))
       return true;
 
-    if (get_expr(expr["args"][1], nullptr, rhs, type_r))
+    if (get_expr(exp_args[1], nullptr, rhs, type_r))
       return true;
 
     // ml-[TODO] need to check compatibility of the two expressions
@@ -4441,7 +4432,8 @@ bool clarity_convertert::get_var_decl_ref(
   exprt &new_expr)
 {
   // Function to configure new_expr that has a +ve referenced id, referring to a variable declaration
-  assert(decl["type"] == "variable");
+  std::string decl_type; ClarityGrammar::get_expression_type(decl, decl_type);
+  assert(decl_type == "variable");
   std::string name, id;
   std::string state_name, state_id;
   bool non_state_found = false;
