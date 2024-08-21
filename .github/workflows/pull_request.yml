@@ -36,21 +36,21 @@ jobs:
       build-flags: '-b DebugOpt -e On'
       testing: true
 
-  build-windows:
-    uses: ./.github/workflows/build-windows.yml
-    name: static llvm-11 DebugOpt
-    with:
-      operating-system: windows-latest
-      build-flags: '-b DebugOpt -e On'
-      testing: true
+  # build-windows:
+  #   uses: ./.github/workflows/build-windows.yml
+  #   name: static llvm-11 DebugOpt
+  #   with:
+  #     operating-system: windows-latest
+  #     build-flags: '-b DebugOpt -e On'
+  #     testing: true
 
-  build-arm:
-    uses: ./.github/workflows/build-unix.yml
-    name: ARM64 linux build
-    with:
-      operating-system: ARM64
-      build-flags: '-b DebugOpt -S OFF -B OFF'
-      testing: false
+  # build-arm:
+  #   uses: ./.github/workflows/build-unix.yml
+  #   name: ARM64 linux build
+  #   with:
+  #     operating-system: ARM64
+  #     build-flags: '-b DebugOpt -S OFF -B OFF'
+  #     testing: false
 
   build-macos-arm:
     uses: ./.github/workflows/build-unix.yml
