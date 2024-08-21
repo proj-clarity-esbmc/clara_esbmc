@@ -363,10 +363,10 @@ bool operation_is_optional(const nlohmann::json &ast_node)
 bool operation_is_conditional(const nlohmann::json &ast_node)
 {
   const std::vector<std::string> conditional_operators{"if"};
-
+  
   if (
     std::find(
-      conditional_operators.begin(), conditional_operators.end(), ast_node) !=
+      conditional_operators.begin(), conditional_operators.end(), ast_node["identifier"]) !=
     conditional_operators.end())
     return true;
   else
@@ -658,7 +658,7 @@ ContractBodyElementT get_contract_body_element_t(const nlohmann::json &element)
     log_error(
       "Got contract-body-element nodeType={}. Unsupported "
       "contract-body-element type",
-      element["nodeType"].get<std::string>());
+      element["type"].get<std::string>());
     abort();
   }
   return ContractBodyElementTError;
@@ -1135,30 +1135,25 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
   // {
   //   return ConditionalOperatorClass;
   // }
-  if (nodeType == "native_function") {
-    if (operation_is_binary(expr)){
+  if (nodeType == "native_function") 
+  {
+    if (operation_is_binary(expr))
+    {
       return BinaryOperatorClass;
+    }
+  }
+  else if (nodeType == "conditional_expression") 
+  {
+    if (operation_is_conditional(expr)) 
+    {
+      return ConditionalOperatorClass;
     }
   }
   else if (nodeType == "variable")
   {
     return DeclRefExprClass;
   }
-  else 
-  // //else if (nodeType == "Literal")
-  // if (nodeType == "native_function") {
-  //   if (operation_is_binary(expr)){
-  //     return BinaryOperatorClass;
-  //   }
-  // }
-  // else
-  // if ((nodeType == "lit_uint") ||
-  //          (nodeType == "lit_ascii") ||
-  //          (nodeType == "lit_bool")||
-  //          (nodeType == "lit_buff")||
-  //          (nodeType == "lit_utf8")
-  //         )
-  if (is_literal_type(nodeType))
+  else if (is_literal_type(nodeType))
   {
     return Literal;
   }

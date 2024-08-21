@@ -264,6 +264,8 @@ protected:
     std::string the_value,
     exprt &dest);
 
+  bool get_literal_type_from_typet(const typet &type, nlohmann::json &expression_node);
+
   // check if it's a bytes type
   bool is_bytes_type(const typet &t);
 

@@ -2840,9 +2840,18 @@ bool clarity_convertert::get_expr(
   {
   case ClarityGrammar::ExpressionT::BinaryOperatorClass:
   {
+    nlohmann::json binary_type_expr;
     if (get_binary_operator_expr(expr, new_expr))
       return true;
 
+    if (get_literal_type_from_typet(new_expr.type(), binary_type_expr))
+          return true;
+
+    log_debug(
+      "clarity",
+      " @@@ got Expr type BinaryOperatorClass: typet->objtype::{}",
+      binary_type_expr.dump());          
+    inferred_type.merge_patch(binary_type_expr);
     break;
   }
   #if 0
@@ -2852,14 +2861,20 @@ bool clarity_convertert::get_expr(
       return true;
     break;
   }
+  #endif
   case ClarityGrammar::ExpressionT::ConditionalOperatorClass:
   {
     // for Ternary Operator (...?...:...) only
     if (get_conditional_operator_expr(expr, new_expr))
       return true;
+
+    nlohmann::json conditional_type_expr;
+    if (get_literal_type_from_typet(new_expr.type(), conditional_type_expr))
+          return true;
+    inferred_type.merge_patch(conditional_type_expr);
+        
     break;
   }
-  #endif
   
   case ClarityGrammar::ExpressionT::DeclRefExprClass:
   {
@@ -2869,9 +2884,15 @@ bool clarity_convertert::get_expr(
     if (cid > 0)
     {
       // ml- for clarity we will assume that this is a variable declaration always
+      nlohmann::json binary_type_expr;
       if (get_var_decl_ref(expr, new_expr)) {
-         return true;
+         return true; 
       }
+      if (get_literal_type_from_typet(new_expr.type(), binary_type_expr))
+          return true;
+
+      
+      inferred_type.merge_patch(binary_type_expr);
             
       
       // Go through the symbol table and get the symbol
@@ -2950,7 +2971,8 @@ bool clarity_convertert::get_expr(
       literal_type_expr = literal_type;
     }
     else {
-      if (!expr.contains("objtype")) {
+      if (!expr.contains("objtype")) 
+      {
         if (ClarityGrammar::get_literal_type_from_expr(expr, literal_type_expr))
           return true;
         //expr.push_back(nlohmann::json::object_t::value_type("objtype", literal_type_expr));
@@ -2958,6 +2980,7 @@ bool clarity_convertert::get_expr(
       else {
         //literal_type_expr = expr["objtype"];
         ClarityGrammar::get_expression_objtype(expr, literal_type_expr);
+
       }
     }
     
@@ -4345,22 +4368,80 @@ bool clarity_convertert::get_conditional_operator_expr(
   const nlohmann::json &expr,
   exprt &new_expr)
 {
+
+  nlohmann::json args;
+  nlohmann::json condition_expr;
+  nlohmann::json true_expr;
+  nlohmann::json false_expr;
+
+  // ml- for conditional operation the args[0] contains the 
+  //     conditions expression
+  if (get_expression_args(expr, args)) 
+  {
+    return true;
+  }
+    
+  // check that there should be at least 1 element in args
+  if (args.is_array() && args.size() > 0)
+  {
+    condition_expr = args[0];
+  }
+  else
+  {
+    log_debug(
+      "clarity",
+      "	@@@ get_conditional_operator_expr args are not array or less than 0 {}",
+      args.dump());
+    return true;
+  }
+
+  // ml- for conditional operation the args[1] contains the 
+  //     true expression and args[2] contains the false
+  //     expression. There can be a case where there is only 
+  //     a true expression. in that case make the false expr
+  //     as nop
+  if (args.size() > 1)
+  {
+    true_expr = args[1];
+    false_expr = args.size() > 2 ? args[2]: false_expr;
+  }
+  else
+  {
+    log_debug(
+      "clarity",
+      "	@@@ get_conditional_operator_expr args less than 1 {}",
+      args.dump());
+    return true;
+  }
+
   exprt cond;
-  if (get_expr(expr["condition"], cond))
+  if (get_expr(condition_expr, cond))
     return true;
 
   exprt then;
-  if (get_expr(expr["trueExpression"], expr["typeDescriptions"], then))
+  nlohmann::json then_type;
+  if (get_expr(true_expr, nullptr, then, then_type))
     return true;
 
   exprt else_expr;
-  if (get_expr(expr["falseExpression"], expr["typeDescriptions"], else_expr))
-    return true;
-
+  nlohmann::json else_type;
+  if (!false_expr.is_null()) 
+  {
+    if (get_expr(false_expr, nullptr, else_expr, else_type))
+      return true;
+  }
+  else 
+  {
+    // empty expression
+    else_expr = nil_exprt();
+  }
+  
+  // ml-[TODO] check that the two if and else types are same
   typet t;
-  if (get_type_description(expr["typeDescriptions"], t))
+  if (get_type_description(then_type, t))
     return true;
 
+  // ml-[TODO] implement assert later
   exprt if_expr("if", t);
   if_expr.copy_to_operands(cond, then, else_expr);
 
@@ -5647,7 +5728,7 @@ bool clarity_convertert::get_elementary_type_name_buff(
   std::string str_buff_size = objtype[2];
   const unsigned int bytes = std::stoi(str_buff_size);
   out = array_typet(unsigned_char_type(), from_integer(bytes, size_type()));
-
+  out.set("#clar_lit_type", "BUFF");
   return false;
 }
 
@@ -5720,6 +5801,7 @@ bool clarity_convertert::get_elementary_type_name(
         integer2binary(value_length, bv_width(int_type())),
         integer2string(value_length),
         int_type()));
+      new_type.set("#clar_lit_type", "STRING_ASCII");
     break;
   }
   case ClarityGrammar::ElementaryTypeNameT::STRING_UTF8:
@@ -5734,6 +5816,7 @@ bool clarity_convertert::get_elementary_type_name(
         integer2binary(value_length, bv_width(int_type())),
         integer2string(value_length),
         int_type()));
+    new_type.set("#clar_lit_type", "STRING_UTF8");
     break;
   }
   case ClarityGrammar::ElementaryTypeNameT::PRINCIPAL:
