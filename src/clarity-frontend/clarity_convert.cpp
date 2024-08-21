@@ -212,7 +212,7 @@ bool clarity_convertert::process_expr_node(nlohmann::json &ast_node)
 // input    : complete ast_node
 // output   : : ast_node[0] e-g "data-var" , "constant" etc
 // returns  : false if succesful, or true if failed.
-bool get_declaration_decorator(
+bool clarity_convertert::get_declaration_decorator(
   const nlohmann::json &ast_node,
   nlohmann::json &out_node)
 {
@@ -223,7 +223,7 @@ bool get_declaration_decorator(
 // input    : complete ast_node
 // output   : : expression node located at ast_node[1]
 // returns  : false if succesful, or true if failed.
-bool get_expression_node(
+bool clarity_convertert::get_expression_node(
   const nlohmann::json &ast_node,
   nlohmann::json &out_node)
 {
@@ -234,7 +234,7 @@ bool get_expression_node(
 // input    : an expression node
 // output   :  the type of the expression node expression_node["type"]
 // returns :: false if succesful, or true if failed.
-bool get_expression_type(
+bool clarity_convertert::get_expression_type(
   const nlohmann::json &expression_node,
   std::string &expression_type)
 {
@@ -245,7 +245,7 @@ bool get_expression_type(
 // input    : an expression node
 // output   :  the cid of the expression node expression_node["cid"]
 // returns :: false if succesful, or true if failed.
-bool get_experession_cid(const nlohmann::json &expression_node, int &cid)
+bool clarity_convertert::get_experession_cid(const nlohmann::json &expression_node, int &cid)
 {
   cid = expression_node["cid"].get<int>();
   return false;
@@ -254,7 +254,7 @@ bool get_experession_cid(const nlohmann::json &expression_node, int &cid)
 // input    : an expression node
 // output   :  the value (if any) of the expression node expression_node["value"] which is also an expression node
 // returns :: false if succesful, or true if failed.
-bool get_expression_value_node(
+bool clarity_convertert::get_expression_value_node(
   const nlohmann::json &expression_node,
   nlohmann::json &out_node)
 {
@@ -273,7 +273,7 @@ bool get_expression_value_node(
 // input    : an expression node
 // output   :  literal value of the expression expression_node["identifier"] . Only applicatble to literals.
 // returns :: false if succesful, or true if failed.
-bool get_expression_lit_value(
+bool clarity_convertert::get_expression_lit_value(
   const nlohmann::json &expression_node,
   std::string &value)
 {
@@ -295,7 +295,7 @@ bool get_expression_lit_value(
 // input    : an expression node
 // output   :  arguments of the expression node expression_node["args"]
 // returns :: false if succesful, or true if failed.
-bool get_expression_args(
+bool clarity_convertert::get_expression_args(
   const nlohmann::json &expression_node,
   nlohmann::json &out_node)
 {
@@ -314,7 +314,7 @@ bool get_expression_args(
 // input    : an expression node
 // output   :  objtype of the expression node expression_node["objtype"]
 // returns :: false if succesful, or true if failed.
-bool get_expression_objtype(
+bool clarity_convertert::get_expression_objtype(
   const nlohmann::json &expression_node,
   nlohmann::json &out_node)
 {
@@ -333,7 +333,7 @@ bool get_expression_objtype(
 // input    : objtype of the expression node
 // output   :  nested objtype if any.
 // returns :: false if succesful, or true if failed.
-bool get_nested_objtype(
+bool clarity_convertert::get_nested_objtype(
   const nlohmann::json &objtype,
   nlohmann::json &nested_objtype)
 {
@@ -352,7 +352,7 @@ bool get_nested_objtype(
 // input    : an expression node
 // output   :  body of the expression node expression_node["body"]
 // returns :: false if succesful, or true if failed.
-bool get_expression_body(
+bool clarity_convertert::get_expression_body(
   const nlohmann::json &expression_node,
   nlohmann::json &out_node)
 {
@@ -371,7 +371,7 @@ bool get_expression_body(
 // input    : an expression node
 // output   :  return type of the expression node as objtype expression_node["return_type"]
 // returns :: false if succesful, or true if failed.
-bool get_expression_return_type(
+bool clarity_convertert::get_expression_return_type(
   const nlohmann::json &expression_node,
   nlohmann::json &out_node)
 {
@@ -390,7 +390,7 @@ bool get_expression_return_type(
 // input    : an expression node
 // output   :  Location info of the expression stored in "span" of a node expression_node["span"]
 // returns :: false if succesful, or true if failed.
-bool get_location_info(
+bool clarity_convertert::get_location_info(
   const nlohmann::json &expression_node,
   nlohmann::json &out_node)
 {
@@ -3041,14 +3041,20 @@ bool clarity_convertert::get_expr(
       return true;
     break;
   }
+  #endif
   case ClarityGrammar::ExpressionT::ConditionalOperatorClass:
   {
     // for Ternary Operator (...?...:...) only
     if (get_conditional_operator_expr(expr, new_expr))
       return true;
+
+    nlohmann::json conditional_type_expr;
+    if (get_literal_type_from_typet(new_expr.type(), conditional_type_expr))
+          return true;
+    inferred_type.merge_patch(conditional_type_expr);
+        
     break;
   }
-  #endif
   
   case ClarityGrammar::ExpressionT::DeclRefExprClass:
   {
@@ -3064,10 +3070,7 @@ bool clarity_convertert::get_expr(
       if (get_literal_type_from_typet(new_expr.type(), binary_type_expr))
           return true;
 
-      log_debug(
-        "clarity",
-        " @@@ got Expr type DeclRefExprClass: typet->objtype::{}",
-        binary_type_expr.dump());          
+      
       inferred_type.merge_patch(binary_type_expr);
             
       
@@ -3147,12 +3150,14 @@ bool clarity_convertert::get_expr(
       literal_type_expr = literal_type;
     }
     else {
-      if (!expr.contains("objtype")) {
+      if (!expr.contains("objtype")) 
+      {
         if (ClarityGrammar::get_literal_type_from_expr(expr, literal_type_expr))
           return true;
         //expr.push_back(nlohmann::json::object_t::value_type("objtype", literal_type_expr));
       }
-      else {
+      else 
+      {
         literal_type_expr = expr["objtype"];
       }
     }
@@ -4552,22 +4557,80 @@ bool clarity_convertert::get_conditional_operator_expr(
   const nlohmann::json &expr,
   exprt &new_expr)
 {
+
+  nlohmann::json args;
+  nlohmann::json condition_expr;
+  nlohmann::json true_expr;
+  nlohmann::json false_expr;
+
+  // ml- for conditional operation the args[0] contains the 
+  //     conditions expression
+  if (get_expression_args(expr, args)) 
+  {
+    return true;
+  }
+    
+  // check that there should be at least 1 element in args
+  if (args.is_array() && args.size() > 0)
+  {
+    condition_expr = args[0];
+  }
+  else
+  {
+    log_debug(
+      "clarity",
+      "	@@@ get_conditional_operator_expr args are not array or less than 0 {}",
+      args.dump());
+    return true;
+  }
+
+  // ml- for conditional operation the args[1] contains the 
+  //     true expression and args[2] contains the false
+  //     expression. There can be a case where there is only 
+  //     a true expression. in that case make the false expr
+  //     as nop
+  if (args.size() > 1)
+  {
+    true_expr = args[1];
+    false_expr = args.size() > 2 ? args[2]: false_expr;
+  }
+  else
+  {
+    log_debug(
+      "clarity",
+      "	@@@ get_conditional_operator_expr args less than 1 {}",
+      args.dump());
+    return true;
+  }
+
   exprt cond;
-  if (get_expr(expr["condition"], cond))
+  if (get_expr(condition_expr, cond))
     return true;
 
   exprt then;
-  if (get_expr(expr["trueExpression"], expr["typeDescriptions"], then))
+  nlohmann::json then_type;
+  if (get_expr(true_expr, nullptr, then, then_type))
     return true;
 
   exprt else_expr;
-  if (get_expr(expr["falseExpression"], expr["typeDescriptions"], else_expr))
-    return true;
-
+  nlohmann::json else_type;
+  if (!false_expr.is_null()) 
+  {
+    if (get_expr(false_expr, nullptr, else_expr, else_type))
+      return true;
+  }
+  else 
+  {
+    // empty expression
+    else_expr = nil_exprt();
+  }
+  
+  // ml-[TODO] check that the two if and else types are same
   typet t;
-  if (get_type_description(expr["typeDescriptions"], t))
+  if (get_type_description(then_type, t))
     return true;
 
+  // ml-[TODO] implement assert later
   exprt if_expr("if", t);
   if_expr.copy_to_operands(cond, then, else_expr);
 
