@@ -436,7 +436,7 @@ ContractBodyElementT get_contract_body_element_t(const nlohmann::json &element)
     log_error(
       "Got contract-body-element nodeType={}. Unsupported "
       "contract-body-element type",
-      element["nodeType"].get<std::string>());
+      element["type"].get<std::string>());
     abort();
   }
   return ContractBodyElementTError;

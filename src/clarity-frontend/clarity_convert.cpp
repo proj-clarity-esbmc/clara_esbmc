@@ -3020,9 +3020,18 @@ bool clarity_convertert::get_expr(
   {
   case ClarityGrammar::ExpressionT::BinaryOperatorClass:
   {
+    nlohmann::json binary_type_expr;
     if (get_binary_operator_expr(expr, new_expr))
       return true;
 
+    if (get_literal_type_from_typet(new_expr.type(), binary_type_expr))
+          return true;
+
+    log_debug(
+      "clarity",
+      " @@@ got Expr type BinaryOperatorClass: typet->objtype::{}",
+      binary_type_expr.dump());          
+    inferred_type.merge_patch(binary_type_expr);
     break;
   }
   #if 0
@@ -3048,9 +3057,18 @@ bool clarity_convertert::get_expr(
     if (expr["cid"] > 0)
     {
       // ml- for clarity we will assume that this is a variable declaration always
+      nlohmann::json binary_type_expr;
       if (get_var_decl_ref(expr, new_expr)) {
-         return true;
+         return true; 
       }
+      if (get_literal_type_from_typet(new_expr.type(), binary_type_expr))
+          return true;
+
+      log_debug(
+        "clarity",
+        " @@@ got Expr type DeclRefExprClass: typet->objtype::{}",
+        binary_type_expr.dump());          
+      inferred_type.merge_patch(binary_type_expr);
             
       
       // Go through the symbol table and get the symbol
@@ -5835,7 +5853,7 @@ bool clarity_convertert::get_elementary_type_name_buff(
   std::string str_buff_size = objtype[2];
   const unsigned int bytes = std::stoi(str_buff_size);
   out = array_typet(unsigned_char_type(), from_integer(bytes, size_type()));
-
+  out.set("#clar_lit_type", "BUFF");
   return false;
 }
 
@@ -5908,6 +5926,7 @@ bool clarity_convertert::get_elementary_type_name(
         integer2binary(value_length, bv_width(int_type())),
         integer2string(value_length),
         int_type()));
+      new_type.set("#clar_lit_type", "STRING_ASCII");
     break;
   }
   case ClarityGrammar::ElementaryTypeNameT::STRING_UTF8:
@@ -5922,6 +5941,7 @@ bool clarity_convertert::get_elementary_type_name(
         integer2binary(value_length, bv_width(int_type())),
         integer2string(value_length),
         int_type()));
+    new_type.set("#clar_lit_type", "STRING_UTF8");
     break;
   }
   case ClarityGrammar::ElementaryTypeNameT::PRINCIPAL:
