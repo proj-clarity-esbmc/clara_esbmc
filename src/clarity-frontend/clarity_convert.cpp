@@ -5286,6 +5286,7 @@ bool clarity_convertert::get_principal_instance(
 
     // manually create a member_name
     const std::string mem_name = key; //it.key();
+    std::string node_type ;
 
     /* Create a temporary JSON object to ease processing */
     nlohmann::json temp_expression_node;
@@ -5295,11 +5296,13 @@ bool clarity_convertert::get_principal_instance(
     {
       temp_expression_node["identifier"] = (ClarityGrammar::is_expression_standard_principal(expression_value_node)?"false":"true");
       value_type = "bool";
+      node_type = "lit_bool";
     }
     else if (key == "contract_is_standard")
     {
       temp_expression_node["identifier"] = (ClarityGrammar::is_expression_standard_principal(expression_value_node)?"true":"false");
       value_type = "bool";
+      node_type = "lit_bool";
     }
     else if (key == "contract_name")
     {
@@ -5328,6 +5331,7 @@ bool clarity_convertert::get_principal_instance(
       
       temp_expression_node["identifier"] = ClarityGrammar::get_expression_identifier(expression_value_node);
       value_type = "string-ascii";
+      node_type = "lit_ascii";
     }
 
     // get type
@@ -5335,7 +5339,7 @@ bool clarity_convertert::get_principal_instance(
     nlohmann::json objtype = {
       value_type, value_type, value_size}; //{value[0],value[0],value[2]};
 
-    temp_expression_node["type"] = "lit_bool";
+    temp_expression_node["type"] = node_type;
     temp_expression_node["span"] = ClarityGrammar::get_location_info(expression_value_node);
     //temp_expression_node["identifier"] = mem_name;
     temp_expression_node["cid"] = ClarityGrammar::get_expression_cid(expression_value_node);
@@ -5344,7 +5348,7 @@ bool clarity_convertert::get_principal_instance(
     
 
     //nlohmann::json temp_declarative_node = {"principal", temp_expression_node};
-    std::cout <<temp_expression_node.dump(4)<<std::endl;
+    //std::cout <<temp_expression_node.dump(4)<<std::endl;
     exprt init;
     if (get_expr(temp_expression_node, objtype, init))
       return true;
