@@ -1619,7 +1619,6 @@ bool clarity_convertert::get_clarity_struct_class(
   current_fileName = debug_modulename;
 
   symbolt symbol;
-  log_status("get_clarity_struct_class adding symbols {} ", id);
   get_default_symbol(symbol, debug_modulename, t, name, id, location_begin);
 
   symbol.is_type = true;
@@ -2119,7 +2118,7 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
   if (expression_node.contains("body"))
   {
     exprt body_exprt;
-    if (get_function_body(
+    if (process_function_body_expr(
           ClarityGrammar::get_expression_body(expression_node), 
           body_exprt, 
           type, 
@@ -2208,7 +2207,7 @@ bool clarity_convertert::get_function_params(
 // output   : The new typet created to represent the function return
 // input    : The objtype from the functions AST
 // returns  : false if succesful, or true if failed.
-bool clarity_convertert::get_function_body(
+bool clarity_convertert::process_function_body_expr(
   const nlohmann::json &body,
   exprt &new_expr,
   typet &return_type,

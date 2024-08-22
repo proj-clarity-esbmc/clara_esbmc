@@ -223,13 +223,13 @@ bool is_literal_type(std::string nodeType)
   return false;
 }
 
-bool is_state_variable(const std::string &ast_node)
+bool is_state_variable(const std::string &ast_node_decorator)
 {
   const std::vector<std::string> state_node_types{
     "data-var", "map", "trait", "constant", "def-ft", "def-nft"};
 
   if (
-    std::find(state_node_types.begin(), state_node_types.end(), ast_node) !=
+    std::find(state_node_types.begin(), state_node_types.end(), ast_node_decorator) !=
     state_node_types.end())
     return true;
   else
@@ -239,15 +239,8 @@ bool is_state_variable(const std::string &ast_node)
 
 bool is_state_variable(const nlohmann::json &ast_node)
 {
-  const std::vector<std::string> state_node_types{
-    "data-var", "map", "trait", "constant", "def-ft", "def-nft"};
-
-  if (
-    std::find(state_node_types.begin(), state_node_types.end(), ast_node) !=
-    state_node_types.end())
-    return true;
-  else
-    return false;
+  std::string ast_node_decorator = get_declaration_decorator(ast_node);
+  return is_state_variable(ast_node_decorator);
 }
 
 bool is_tuple_declaration(const nlohmann::json &ast_node)
@@ -271,17 +264,28 @@ bool is_variable_declaration(const nlohmann::json &ast_node)
   return is_state_variable(ast_node);
 }
 
-bool is_function_definition(const nlohmann::json &ast_node)
+// ml -overloaded the function to use string
+bool is_variable_declaration(const std::string &ast_node_decorator)
+{
+  return is_state_variable(ast_node_decorator);
+}
+
+bool is_function_definition(const std::string &ast_node_decorator)
 {
   const std::vector<std::string> state_node_types{
     "var-get", "read-only", "private", "public"};
 
   if (
-    std::find(state_node_types.begin(), state_node_types.end(), ast_node) !=
+    std::find(state_node_types.begin(), state_node_types.end(), ast_node_decorator) !=
     state_node_types.end())
     return true;
   else
     return false;
+}
+bool is_function_definition(const nlohmann::json &ast_node)
+{
+  std::string ast_node_decorator = get_declaration_decorator(ast_node);
+  return is_function_definition(ast_node_decorator);
 }
 
 bool operation_is_optional_decl(const nlohmann::json &ast_node)
@@ -593,11 +597,11 @@ bool parse_value_node(nlohmann::json &expression_node)
 
 bool parse_expression_element(nlohmann::json &expr_element_json)
 {
-  std::string expression_class = expr_element_json[0];
+  std::string expression_class_decorator = ClarityGrammar::get_declaration_decorator(expr_element_json);
 
   // determine if it's a variable / constant declaration or a function definition
-  bool var_decl = is_variable_declaration(expr_element_json[0]);
-  bool func_def = is_function_definition(expr_element_json[0]);
+  bool var_decl = is_variable_declaration(expression_class_decorator);
+  bool func_def = is_function_definition(expression_class_decorator);
 
   // add a nodeType for easier differenciation down the line.
   if (var_decl)
@@ -614,7 +618,7 @@ bool parse_expression_element(nlohmann::json &expr_element_json)
   }
   else
   {
-    log_error("Unsupported expression class: {}", expression_class);
+    log_error("Unsupported expression class: {}", expression_class_decorator);
     return true;
   }
 

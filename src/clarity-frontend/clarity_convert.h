@@ -44,7 +44,7 @@ protected:
   bool parse_expression_element(const nlohmann::json &expr_element_json);
 
   // ml
-  bool get_function_body(
+  bool process_function_body_expr(
     const nlohmann::json &block,
     exprt &new_expr,
     typet &return_type,
