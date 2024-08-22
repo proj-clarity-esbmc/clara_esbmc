@@ -5338,7 +5338,7 @@ bool clarity_convertert::get_principal_instance(
     temp_expression_node["type"] = "lit_bool";
     temp_expression_node["span"] = ClarityGrammar::get_location_info(expression_value_node);
     //temp_expression_node["identifier"] = mem_name;
-    temp_expression_node["cid"] = ClarityGrammar::get_experession_cid(expression_value_node);
+    temp_expression_node["cid"] = ClarityGrammar::get_expression_cid(expression_value_node);
     temp_expression_node["objtype"] = objtype;
 
     
