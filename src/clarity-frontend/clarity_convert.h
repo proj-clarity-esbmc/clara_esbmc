@@ -43,6 +43,13 @@ protected:
   void set_current_contract_name(std::string &contract_name);
   bool parse_expression_element(const nlohmann::json &expr_element_json);
 
+  // ml
+  bool process_function_body_expr(
+    const nlohmann::json &block,
+    exprt &new_expr,
+    typet &return_type,
+    const nlohmann::json &return_ast);
+
   // dummy functions for learning
   void add_dummy_symbol();
   void convert_dummy_uint_literal();
@@ -106,6 +113,11 @@ protected:
     const nlohmann::json &expr,
     const nlohmann::json &expr_common_type,
     exprt &new_expr);
+  bool get_expr(
+    const nlohmann::json &expr,
+    const nlohmann::json &literal_type,
+    exprt &new_expr,
+    nlohmann::json &inferred_type);
   bool get_binary_operator_expr(const nlohmann::json &expr, exprt &new_expr);
   bool get_compound_assign_expr(const nlohmann::json &expr, exprt &new_expr);
   bool get_unary_operator_expr(
@@ -249,6 +261,10 @@ protected:
     const nlohmann::json &integer_literal,
     std::string the_value,
     exprt &dest);
+
+  bool get_literal_type_from_typet(
+    const typet &type,
+    nlohmann::json &expression_node);
 
   // check if it's a bytes type
   bool is_bytes_type(const typet &t);

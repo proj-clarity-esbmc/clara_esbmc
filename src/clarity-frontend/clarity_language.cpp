@@ -76,7 +76,6 @@ bool clarity_languaget::parse(const std::string &path)
   auto clar_lang = std::exchange(config.language, {language_idt::C, ""});
   if (clang_c_languaget::parse(temp_path))
     return true;
-
   config.language = std::move(clar_lang);
 
   // Process AST json file

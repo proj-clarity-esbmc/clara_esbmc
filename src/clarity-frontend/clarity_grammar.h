@@ -20,8 +20,30 @@ ContractBodyElementT get_contract_body_element_t(const nlohmann::json &element);
 const char *contract_body_element_to_str(ContractBodyElementT type);
 
 /* m-ali */
+// helper functions for accessing different sections of an expression node
+
+std::string get_declaration_decorator(const nlohmann::json &ast_node);
+nlohmann::json get_expression_node(const nlohmann::json &ast_node);
+std::string get_expression_identifier(const nlohmann::json &ast_node);
+std::string get_expression_type(const nlohmann::json &expression_node);
+int get_expression_cid(const nlohmann::json &expression_node);
+nlohmann::json get_expression_value_node(const nlohmann::json &expression_node);
+std::string get_expression_lit_value(const nlohmann::json &expression_node);
+nlohmann::json get_expression_args(const nlohmann::json &expression_node);
+nlohmann::json get_expression_objtype(const nlohmann::json &expression_node);
+nlohmann::json get_nested_objtype(const nlohmann::json &objtype);
+nlohmann::json get_expression_body(const nlohmann::json &expression_node);
+nlohmann::json get_expression_return_type(const nlohmann::json &expression_node);
+nlohmann::json get_location_info(const nlohmann::json &expression_node);
+bool is_standard_principal(const nlohmann::json &expression_node);
+
+// end of helper functions
+bool is_literal_type(std::string type);
+bool is_state_variable(const std::string &ast_node_decorator);
 bool is_state_variable(const nlohmann::json &ast_node);
+bool is_variable_declaration(const std::string &ast_node_decorator);
 bool is_variable_declaration(const nlohmann::json &ast_node);
+bool is_function_definitionn(const std::string &ast_node_decorator);
 bool is_function_definitionn(const nlohmann::json &ast_node);
 bool is_tuple_declaration(const nlohmann::json &ast_node);
 bool is_principal_declaration(const nlohmann::json &ast_node);
@@ -64,6 +86,9 @@ enum TypeNameT
 
   // built-in member
   BuiltinTypeName,
+
+  // return type
+  ReturnTypeName,
 
   TypeNameTError
 };
@@ -138,6 +163,16 @@ enum BlockT
 };
 BlockT get_block_t(const nlohmann::json &block);
 const char *block_to_str(BlockT type);
+
+// function body
+enum FuncBodyT
+{
+  SingleStatement = 0,
+  MultipleStatement,
+  FuncBodyTError
+};
+FuncBodyT get_function_body_t(const nlohmann::json &block);
+const char *function_body_to_str(FuncBodyT type);
 
 // rule statement
 enum StatementT
@@ -325,6 +360,9 @@ enum VisibilityT
 };
 VisibilityT get_access_t(const nlohmann::json &ast_node);
 
+bool get_literal_type_from_expr(
+  const nlohmann::json &expr,
+  nlohmann::json &expression_node);
 }; // namespace ClarityGrammar
 
 #endif /* CLARITY_GRAMMAR_H_ */

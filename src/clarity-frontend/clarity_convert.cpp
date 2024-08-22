@@ -34,7 +34,6 @@ clarity_convertert::clarity_convertert(
     scope_map({}),
     tgt_func(config.options.get_option("function")),
     tgt_cnt(config.options.get_option("clar_contract"))
-
 {
   std::ifstream in(_contract_path);
   contract_contents.assign(
@@ -1210,7 +1209,7 @@ bool clarity_convertert::convert()
     {
       std::cout << "Key " << itr.key() << "\n";
 
-      if (itr.key() == "indentifier")
+      if (itr.key() == "identifier")
       {
         log_status("Skipping {} as we have already processed it", itr.key());
         continue;
@@ -1239,18 +1238,22 @@ bool clarity_convertert::convert()
         //process expression array
         for (auto &expr : vec_expressions)
         {
-          log_status(
-            "Parsing {} {} ",
-            expr[0].get<std::string>(),
-            expr[1]["identifier"].get<std::string>());
+          std::string decl_decorator = ClarityGrammar::get_declaration_decorator(expr);
+          nlohmann::json expression_node = ClarityGrammar::get_expression_node(expr);
+          std::string identifier = ClarityGrammar::get_expression_identifier(expression_node);
+          
+          
+          log_status("Parsing {} {} ", decl_decorator, identifier);
 
-          //add_dummy_symbol();
+//add_dummy_symbol();
+// ml- no need to do this with new AST
+#if 0
           if (ClarityGrammar::parse_expression_element(expr))
           {
             log_error("Invalid expression element");
             continue;
           }
-
+#endif
           // for each element in expressions array
           // check if valid expression array
 
@@ -1304,10 +1307,17 @@ bool clarity_convertert::convert_ast_nodes(const nlohmann::json &contract_def)
   size_t index = 0;
 
   nlohmann::json ast_node = contract_def;
-  std::string identifier_name = ast_node[1]["identifier"].get<std::string>();
-  std::string identifier_type = get_objtype_type_name(
-    ast_node
-      [1]["objtype"]); //std::string(ast_node[1]["objtype"][0]; //.type_name());
+  nlohmann::json expression_node = ClarityGrammar::get_expression_node(ast_node);
+  
+  std::string identifier_name = ClarityGrammar::get_expression_identifier(expression_node);
+  std::string identifier_type = ClarityGrammar::get_expression_type(expression_node);
+
+  
+  
+
+  // get_objtype_type_name(
+  //   ast_node
+  //     [1]["objtype"]); //std::string(ast_node[1]["objtype"][0]; //.type_name());
   log_debug(
     "clarity",
     "@@ Converting node[{}]: name={}, nodeType={} ...",
@@ -1330,12 +1340,10 @@ bool clarity_convertert::get_decl(
 {
   new_expr = code_skipt();
 
-  // we dont need to look for nodeType in Clarity
-  if (!ast_node[1].contains("identifier"))
-    assert(!"Missing \'identifer\' field in ast_node");
-
+  nlohmann::json ast_expression_node = ClarityGrammar::get_expression_node(ast_node);
+  
   ClarityGrammar::ContractBodyElementT type =
-    ClarityGrammar::get_contract_body_element_t(ast_node);
+    ClarityGrammar::get_contract_body_element_t(ast_expression_node);
 
   // based on each element as in Solidty grammar "rule contract-body-element"
   switch (type)
@@ -1401,6 +1409,8 @@ bool clarity_convertert::get_var_decl(
   // For Clarity rule state-variable-declaration:
   // 1. populate typet
   typet t;
+  std::string ast_decorator =  ClarityGrammar::get_declaration_decorator(ast_node);
+  nlohmann::json ast_expression_node = ClarityGrammar::get_expression_node(ast_node);
   // VariableDeclaration node contains both "typeName" and "typeDescriptions".
   // However, ExpressionStatement node just contains "typeDescriptions".
   // For consistensy, we use ["typeName"]["typeDescriptions"] as in state-variable-declaration
@@ -1452,22 +1462,25 @@ bool clarity_convertert::get_var_decl(
   else
   {
     // requires type name as first param. but we don't have type inferred here. We got to add that to the node info
-    if (get_type_description(ast_node[1]["objtype"], t))
+
+    nlohmann::json expression_objtype = ClarityGrammar::get_expression_objtype(ast_expression_node);
+    
+    if (get_type_description(expression_objtype, t))
       return true;
   }
 
   //bool is_state_var = ast_node["stateVariable"] == true;
-  bool is_state_var = ClarityGrammar::is_state_variable(ast_node);
+  bool is_state_var = ClarityGrammar::is_state_variable(ast_decorator);
 
   // 2. populate id and name
   std::string name, id;
 
   if (is_state_var)
-    get_state_var_decl_name(ast_node, name, id);
+    get_state_var_decl_name(ast_expression_node, name, id);
   else if (current_functionDecl)
   {
     assert(current_functionName != "");
-    get_var_decl_name(ast_node, name, id);
+    get_var_decl_name(ast_expression_node, name, id);
   }
   else
   {
@@ -1477,7 +1490,7 @@ bool clarity_convertert::get_var_decl(
 
   // 3. populate location
   locationt location_begin;
-  get_location_from_decl(ast_node, location_begin);
+  get_location_from_decl(ast_expression_node, location_begin);
 
   // 4. populate debug module name
   std::string debug_modulename =
@@ -1493,8 +1506,8 @@ bool clarity_convertert::get_var_decl(
   symbol.is_extern = false;
 
   // initialise with zeroes if no initial value provided.
-  bool has_init =
-    ast_node[1].contains("value"); // in clarity we do not use "initialValue"
+  bool has_init = ast_expression_node.contains(
+    "value"); // in clarity we do not use "initialValue"
   if (symbol.static_lifetime && !symbol.is_extern && !has_init)
   {
     // set default value as zero
@@ -1513,20 +1526,20 @@ bool clarity_convertert::get_var_decl(
 
   if (has_init)
   {
-    nlohmann::json init_value = ast_node
-      [1]
-      ["value"]; //refer to AST parsing rules : "Rules for reading Value Node"
+    nlohmann::json init_value = ClarityGrammar::get_expression_value_node(ast_expression_node);
+    nlohmann::json objtype = ClarityGrammar::get_expression_objtype(ast_expression_node);
+    
+    
 
     //this might cause issue
-    nlohmann::json literal_type = get_objtype_type_name(
-      ast_node[1]["objtype"]); //ast_node[1]["objtype"][1];
+    nlohmann::json literal_type = get_objtype_type_name(objtype);
 
     assert(literal_type != nullptr);
     exprt val;
     // we will pass the whole ast node everywhere.
     // we can then parse inside the sub-functions accordingly.
     // for initial value : consider looking into ast_node[1]["value"]
-    if (get_expr(ast_node, ast_node[1]["objtype"], val))
+    if (get_expr(init_value, objtype, val))
       return true;
 
     clarity_gen_typecast(ns, val, t);
@@ -1597,7 +1610,6 @@ bool clarity_convertert::get_clarity_struct_class(
 
   // 3. populate location
   locationt location_begin;
-
   location_begin.set_line(0);
   location_begin.set_file(absolute_path);
 
@@ -1974,6 +1986,9 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
   // Order matters! do not change!
   // 1. Check fd.isImplicit() --- skipped since it's not applicable to Clarity
   // 2. Check fd.isDefined() and fd.isThisDeclarationADefinition()
+  
+#if 0 
+  // ml- need to check if there is such a thing as intrinsic function
   if (
     !ast_node
       ["implemented"]) // TODO: for interface function, it's just a definition. Add something like "&& isInterface_JustDefinition()"
@@ -1982,7 +1997,8 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
   // Check intrinsic functions
   if (check_intrinsic_function(ast_node))
     return false;
-
+#endif
+  nlohmann::json expression_node = ClarityGrammar::get_expression_node(ast_node);
   // 3. Set current_scope_var_num, current_functionDecl and old_functionDecl
   current_scope_var_num = 1;
   const nlohmann::json *old_functionDecl = current_functionDecl;
@@ -1990,6 +2006,8 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
 
   current_functionDecl = &ast_node;
   bool is_ctor = false;
+#if 0 
+  // no option of a constructor type
   if (
     (*current_functionDecl)["name"].get<std::string>() == "" &&
     (*current_functionDecl)["kind"] == "constructor")
@@ -1999,16 +2017,26 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
       return true;
   }
   else
-    current_functionName = (*current_functionDecl)["name"].get<std::string>();
+#endif
+  
+  current_functionName =
+    (*current_functionDecl)[1]["identifier"].get<std::string>();
+  log_debug(
+    "clarity",
+    "	@@@ processing function {}",
+    current_functionName);
 
   // 4. Return type
   code_typet type;
-  if (get_type_description(ast_node["returnParameters"], type.return_type()))
-    return true;
 
-  // special handling for tuple:
+  if ((get_type_description(ClarityGrammar::get_expression_return_type(expression_node), type.return_type())))
+    return true;
+  
+// special handling for return_type:
+#if 0
+  // [TODO] will deel with return types later as these are complex
   // construct a tuple type and a tuple instance
-  if (type.return_type().get("#clar_type") == "tuple")
+  if (type.return_type().get("#clar_type") == "return_type")
   {
     exprt dump;
     if (get_tuple_definition(*current_functionDecl))
@@ -2017,6 +2045,7 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
       return true;
     type.return_type().set("#clar_tuple_id", dump.identifier().as_string());
   }
+#endif
 
   // 5. Check fd.isVariadic(), fd.isInlined()
   //  Skipped since Clarity does not support variadic (optional args) or inline function.
@@ -2024,11 +2053,11 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
 
   // 6. Populate "locationt location_begin"
   locationt location_begin;
-  get_location_from_decl(ast_node, location_begin);
+  get_location_from_decl(expression_node, location_begin);
 
   // 7. Populate "std::string id, name"
   std::string name, id;
-  get_function_definition_name(ast_node, name, id);
+  get_function_definition_name(expression_node, name, id);
 
   if (name == "func_dynamic")
     printf("@@ found func_dynamic\n");
@@ -2049,8 +2078,10 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
   // 10. Add symbol into the context
   symbolt &added_symbol = *move_symbol_to_context(symbol);
 
-  // 11. Convert parameters, if no parameter, assume ellipis
-  //  - Convert params before body as they may get referred by the statement in the body
+// 11. Convert parameters, if no parameter, assume ellipis
+//  - Convert params before body as they may get referred by the statement in the body
+#if 0
+  // ml- No need of constructors
   if (is_ctor)
   {
     /* need (type *) as first parameter, this is equivalent to the 'this'
@@ -2058,14 +2089,17 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
     code_typet::argumentt param(pointer_typet(type.return_type()));
     type.arguments().push_back(param);
   }
+#endif
 
   ClarityGrammar::ParameterListT params =
-    ClarityGrammar::get_parameter_list_t(ast_node["parameters"]);
+    ClarityGrammar::get_parameter_list_t(expression_node);
+
   if (params != ClarityGrammar::ParameterListT::EMPTY)
   {
     // convert parameters if the function has them
     // update the typet, since typet contains parameter annotations
-    for (const auto &decl : ast_node["parameters"]["parameters"].items())
+    nlohmann::json function_args = ClarityGrammar::get_expression_args(expression_node);
+    for (const auto &decl : function_args.items())
     {
       const nlohmann::json &func_param_decl = decl.value();
 
@@ -2082,10 +2116,14 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
   added_symbol.type = type;
 
   // 12. Convert body and embed the body into the same symbol
-  if (ast_node.contains("body"))
+  if (expression_node.contains("body"))
   {
     exprt body_exprt;
-    if (get_block(ast_node["body"], body_exprt))
+    if (process_function_body_expr(
+          ClarityGrammar::get_expression_body(expression_node), 
+          body_exprt, 
+          type, 
+          ClarityGrammar::get_expression_return_type(expression_node)))
       return true;
 
     added_symbol.value = body_exprt;
@@ -2109,13 +2147,14 @@ void clarity_convertert::NewFunction(code_typet &type)
     type.make_ellipsis();
   }
 }
+
 bool clarity_convertert::get_function_params(
   const nlohmann::json &pd,
   exprt &param)
 {
   // 1. get parameter type
   typet param_type;
-  if (get_type_description(pd["typeDescriptions"], param_type))
+  if (get_type_description(pd["objtype"], param_type))
     return true;
 
   // 2a. get id and name
@@ -2164,8 +2203,72 @@ bool clarity_convertert::get_function_params(
   return false;
 }
 
+// input    : the body field of the functions AST
+// output   : The new exprt created to represent the body
+// output   : The new typet created to represent the function return
+// input    : The objtype from the functions AST
+// returns  : false if succesful, or true if failed.
+bool clarity_convertert::process_function_body_expr(
+  const nlohmann::json &body,
+  exprt &new_expr,
+  typet &return_type,
+  const nlohmann::json &return_objtype)
+{
+  // For function body
+  locationt location;
+  get_start_location_from_stmt(body, location);
+
+  ClarityGrammar::FuncBodyT type = ClarityGrammar::get_function_body_t(body);
+  log_debug(
+    "clarity",
+    "	@@@ got Function Body type: ClarityGrammar::FuncBodyT::{}",
+    ClarityGrammar::function_body_to_str(type));
+
+  switch (type)
+  {
+    // clarity functions have a single body element mostly 
+    case ClarityGrammar::FuncBodyT::SingleStatement:
+    {
+      // The function body in this case will be a single 
+      // expression that has to be returned
+      // ml-[TODO] we have to make a function that will create
+      // any expression as return
+      
+      code_returnt ret_expr;
+      const nlohmann::json &rtn_expr = body[0];
+
+      // ml- the following code has been adapted from the 
+      // ReturnStatement of solidity
+      exprt val;
+      if (get_expr(rtn_expr, return_objtype, val))
+        return true;
+
+      clarity_gen_typecast(ns, val, return_type);
+      ret_expr.return_value() = val;
+
+      new_expr = ret_expr;
+      break;
+    }
+    case ClarityGrammar::FuncBodyT::MultipleStatement:
+    {
+      // ml - [TODO] Handle case where a body has multiple statements
+      //get_expr(block["expression"], new_expr);
+      break;
+    }
+    default:
+    {
+      assert(!"Unimplemented type in rule  block");
+      return true;
+    }
+  }
+
+  new_expr.location() = location;
+  return false;
+}
+
 bool clarity_convertert::get_block(const nlohmann::json &block, exprt &new_expr)
 {
+
   // For rule block
   locationt location;
   get_start_location_from_stmt(block, location);
@@ -2623,9 +2726,33 @@ bool clarity_convertert::get_expr(const nlohmann::json &expr, exprt &new_expr)
   return get_expr(expr, nullptr, new_expr);
 }
 
+
 /**
      * @brief Populate the out parameter with the expression based on
      * the clarity expression grammar.
+     * ml- use the overloaded function that returns the inferred type
+     *     from the expression
+     *
+     * @param expr The expression ast is to be converted to the IR
+     * @param new_expr Out parameter to hold the conversion
+     * @return true iff the conversion has failed
+     * @return false iff the conversion was successful
+     */
+bool clarity_convertert::get_expr(
+  const nlohmann::json &expr,
+  const nlohmann::json &literal_type,
+  exprt &new_expr)
+{
+  nlohmann::json inferred_type;
+  return get_expr(expr, nullptr, new_expr, inferred_type);
+}
+
+/**
+     * @brief Populate the out parameter with the expression based on
+     * the clarity expression grammar.
+     * ml- overloaded the original function to add an inferred_type out
+     *     return. This will contain the objtype that this expression 
+     *     returns, since clarity AST does not have types for each expr
      *
      * More specifically, parse each expression in the AST json and
      * convert it to a exprt ("new_expr"). The expression may have sub-expression
@@ -2643,6 +2770,7 @@ bool clarity_convertert::get_expr(const nlohmann::json &expr, exprt &new_expr)
      * A literal_type is a "typeDescriptions" ast_node.
      * we need this due to some info is missing in the child node.
      * @param new_expr Out parameter to hold the conversion
+     * @param inferred_type Out parameter to hold the objtype
      * @return true iff the conversion has failed
      * @return false iff the conversion was successful
      */
@@ -2653,7 +2781,8 @@ bool clarity_convertert::get_expr(const nlohmann::json &expr, exprt &new_expr)
 bool clarity_convertert::get_expr(
   const nlohmann::json &expr,
   const nlohmann::json &literal_type,
-  exprt &new_expr)
+  exprt &new_expr,
+  nlohmann::json &inferred_type)
 {
   // For rule expression
   // We need to do location settings to match clang C's number of times to set the locations when recurring
@@ -2671,92 +2800,112 @@ bool clarity_convertert::get_expr(
   {
   case ClarityGrammar::ExpressionT::BinaryOperatorClass:
   {
+    nlohmann::json binary_type_expr;
     if (get_binary_operator_expr(expr, new_expr))
       return true;
 
+    if (get_literal_type_from_typet(new_expr.type(), binary_type_expr))
+      return true;
+
+    inferred_type.merge_patch(binary_type_expr);
     break;
   }
+#if 0
   case ClarityGrammar::ExpressionT::UnaryOperatorClass:
   {
     if (get_unary_operator_expr(expr, literal_type, new_expr))
       return true;
     break;
   }
+#endif
   case ClarityGrammar::ExpressionT::ConditionalOperatorClass:
   {
     // for Ternary Operator (...?...:...) only
     if (get_conditional_operator_expr(expr, new_expr))
       return true;
+
+    nlohmann::json conditional_type_expr;
+    if (get_literal_type_from_typet(new_expr.type(), conditional_type_expr))
+      return true;
+    inferred_type.merge_patch(conditional_type_expr);
+
     break;
   }
+
   case ClarityGrammar::ExpressionT::DeclRefExprClass:
   {
-    if (expr["referencedDeclaration"] > 0)
+    // ml- we will be using the cid to find the variable
+    int cid = ClarityGrammar::get_expression_cid(expr);
+    if (cid > 0)
     {
-      // for Contract Type Identifier Only
-      if (
-        expr["typeDescriptions"]["typeString"].get<std::string>().find(
-          "contract") != std::string::npos)
+      // ml- for clarity we will assume that this is a variable declaration always
+      nlohmann::json binary_type_expr;
+      if (get_var_decl_ref(expr, new_expr))
       {
-        // TODO
-        log_error("we do not handle contract type identifier for now");
         return true;
       }
+      if (get_literal_type_from_typet(new_expr.type(), binary_type_expr))
+        return true;
+
+      inferred_type.merge_patch(binary_type_expr);
+
+      // ml- commenting out the solidity method.
+      // Go through the symbol table and get the symbol
 
       // Soldity uses +ve odd numbers to refer to var or functions declared in the contract
-      const nlohmann::json &decl = find_decl_ref(expr["referencedDeclaration"]);
-      if (decl == empty_json)
-        return true;
+      // const nlohmann::json &decl = find_decl_ref(expr["referencedDeclaration"]);
+      // if (decl == empty_json)
+      //   return true;
 
-      if (!check_intrinsic_function(decl))
-      {
-        if (decl["nodeType"] == "VariableDeclaration")
-        {
-          if (get_var_decl_ref(decl, new_expr))
-            return true;
-        }
-        else if (decl["nodeType"] == "FunctionDefinition")
-        {
-          if (get_func_decl_ref(decl, new_expr))
-            return true;
-        }
-        else if (decl["nodeType"] == "StructDefinition")
-        {
-          std::string id;
-          id = prefix + "struct " + decl["canonicalName"].get<std::string>();
+      // if (!check_intrinsic_function(decl))
+      // {
+      //   if (decl["nodeType"] == "VariableDeclaration")
+      //   {
+      //     if (get_var_decl_ref(decl, new_expr))
+      //       return true;
+      //   }
+      //   else if (decl["nodeType"] == "FunctionDefinition")
+      //   {
+      //     if (get_func_decl_ref(decl, new_expr))
+      //       return true;
+      //   }
+      //   else if (decl["nodeType"] == "StructDefinition")
+      //   {
+      //     std::string id;
+      //     id = prefix + "struct " + decl["canonicalName"].get<std::string>();
 
-          if (context.find_symbol(id) == nullptr)
-          {
-            if (get_struct_class(decl))
-              return true;
-          }
+      //     if (context.find_symbol(id) == nullptr)
+      //     {
+      //       if (get_struct_class(decl))
+      //         return true;
+      //     }
 
-          new_expr = symbol_expr(*context.find_symbol(id));
-        }
-        else if (decl["nodeType"] == "ErrorDefinition")
-        {
-          std::string name, id;
-          name = decl["name"].get<std::string>();
-          id = "clar:@" + name + "#" + std::to_string(decl["id"].get<int>());
+      //     new_expr = symbol_expr(*context.find_symbol(id));
+      //   }
+      //   else if (decl["nodeType"] == "ErrorDefinition")
+      //   {
+      //     std::string name, id;
+      //     name = decl["name"].get<std::string>();
+      //     id = "clar:@" + name + "#" + std::to_string(decl["id"].get<int>());
 
-          if (context.find_symbol(id) == nullptr)
-            return true;
-          new_expr = symbol_expr(*context.find_symbol(id));
-        }
-        else
-        {
-          log_error(
-            "Unsupported DeclRefExprClass type, got nodeType={}",
-            decl["nodeType"].get<std::string>());
-          return true;
-        }
-      }
-      else
-      {
-        // for special functions, we need to deal with it separately
-        if (get_esbmc_builtin_ref(expr, new_expr))
-          return true;
-      }
+      //     if (context.find_symbol(id) == nullptr)
+      //       return true;
+      //     new_expr = symbol_expr(*context.find_symbol(id));
+      //   }
+      //   else
+      //   {
+      //     log_error(
+      //       "Unsupported DeclRefExprClass type, got nodeType={}",
+      //       decl["nodeType"].get<std::string>());
+      //     return true;
+      //   }
+      // }
+      // else
+      // {
+      //   // for special functions, we need to deal with it separately
+      //   if (get_esbmc_builtin_ref(expr, new_expr))
+      //     return true;
+      // }
     }
     else
     {
@@ -2771,37 +2920,48 @@ bool clarity_convertert::get_expr(
   case ClarityGrammar::ExpressionT::Literal:
   {
     // make a type-name json for integer literal conversion
-    const nlohmann::json &literal = expr[1]["objtype"];
-    ClarityGrammar::ElementaryTypeNameT type_name =
-      ClarityGrammar::get_elementary_type_name_t(literal);
-    std::string the_value;
-
-    if (type_name == ClarityGrammar::ElementaryTypeNameT::STRING_ASCII)
+    // in some cases the type can be passed from above, so use
+    // that
+    nlohmann::json literal_type_expr;
+    if (literal_type != nullptr)
     {
-      // for string literal
-      the_value = expr[1]["value"]["lit_ascii"].get<std::string>();
-    }
-    else if (type_name == ClarityGrammar::ElementaryTypeNameT::STRING_UTF8)
-    {
-      //for utf-8 string literals
-      the_value = expr[1]["value"]["lit_utf8"].get<std::string>();
-    }
-    else if (type_name == ClarityGrammar::ElementaryTypeNameT::PRINCIPAL)
-    {
-      // for principal literals
-      the_value = expr[1]["value"][3]["value"][21];
+      literal_type_expr = literal_type;
     }
     else
     {
-      the_value = expr[1]["value"].get<std::string>();
+      if (!expr.contains("objtype"))
+      {
+        if (ClarityGrammar::get_literal_type_from_expr(expr, literal_type_expr))
+          return true;
+      }
+      else
+      {
+        literal_type_expr = ClarityGrammar::get_expression_objtype(expr);
+      }
     }
 
-    log_debug(
-      "clarity",
-      "	@@@ got Literal: ClarityGrammar::ElementaryTypeNameT::{}",
-      ClarityGrammar::elementary_type_name_to_str(type_name));
+    inferred_type.merge_patch(literal_type_expr);
 
-    if (literal_type != nullptr)
+    ClarityGrammar::ElementaryTypeNameT type_name =
+      ClarityGrammar::get_elementary_type_name_t(literal_type_expr);
+    std::string the_value;
+
+    // ml-[TODO] commented the PRINCIPAL. figure out later
+    // if (type_name == ClarityGrammar::ElementaryTypeNameT::PRINCIPAL)
+    // {
+    //   // for principal literals
+    //   the_value = expr[1]["value"][3]["value"][21];
+    // }
+    // else
+    // { //for all other literals
+
+      the_value = ClarityGrammar::get_expression_lit_value(expr);
+    //}
+
+    // ml- original processing checked if the type was passed from
+    //     above. We dont need to because we will get the type either
+    //     way
+    //if (literal_type != nullptr)
     {
       ClarityGrammar::ElementaryTypeNameT type = type_name;
 
@@ -2815,7 +2975,7 @@ bool clarity_convertert::get_expr(
         {
           the_value.erase(0, 2); //remove the first two characters (0x)
 
-          std::string str_buff_size = literal_type[2];
+          std::string str_buff_size = literal_type_expr[2];
           int buff_size = std::stoi(str_buff_size);
 
           // Buffer is sort of an array of bytes
@@ -2825,7 +2985,6 @@ bool clarity_convertert::get_expr(
 
           // the string value should be 2xbuff_size long
           // one byte = 2 characters
-
           int i = 0;
           int value_length = the_value.length();
           for (i = 0; i < value_length / 2; i++)
@@ -2859,20 +3018,20 @@ bool clarity_convertert::get_expr(
       case ClarityGrammar::ElementaryTypeNameT::UINT:
       case ClarityGrammar::ElementaryTypeNameT::UINT_LITERAL:
       {
-        if (convert_uint_literal(literal, the_value, new_expr))
+        if (convert_uint_literal(literal_type_expr, the_value, new_expr))
           return true;
         break;
       }
       case ClarityGrammar::ElementaryTypeNameT::INT:
       case ClarityGrammar::ElementaryTypeNameT::INT_LITERAL:
       {
-        if (convert_integer_literal(literal, the_value, new_expr))
+        if (convert_integer_literal(literal_type_expr, the_value, new_expr))
           return true;
         break;
       }
       case ClarityGrammar::ElementaryTypeNameT::BOOL:
       {
-        if (convert_bool_literal(literal, the_value, new_expr))
+        if (convert_bool_literal(literal_type_expr, the_value, new_expr))
           return true;
         break;
       }
@@ -2884,7 +3043,6 @@ bool clarity_convertert::get_expr(
           return true;
         break;
       }
-
       case ClarityGrammar::ElementaryTypeNameT::STRING_UTF8:
       case ClarityGrammar::ElementaryTypeNameT::STRING_UTF8_LITERAL:
       {
@@ -2905,6 +3063,8 @@ bool clarity_convertert::get_expr(
 
     break;
   }
+// ml- [TODO] deal with the rest of the expression types  
+#if 0
   case ClarityGrammar::ExpressionT::Tuple:
   {
     /*
@@ -3317,7 +3477,6 @@ bool clarity_convertert::get_expr(
         expr["baseExpression"]["typeDescriptions"]);
       if (
         !(tname == ClarityGrammar::ListTypeName) &&
-
         expr["baseExpression"].contains("referencedDeclaration"))
       {
         // e.g.
@@ -3502,6 +3661,7 @@ bool clarity_convertert::get_expr(
     new_expr = from_expr;
     break;
   }
+#endif
   case ClarityGrammar::ExpressionT::NullExpr:
   {
     // e.g. (, x) = (1, 2);
@@ -3540,36 +3700,41 @@ bool clarity_convertert::get_binary_operator_expr(
   const nlohmann::json &expr,
   exprt &new_expr)
 {
-  // preliminary step for recursive BinaryOperation
-  current_BinOp_type.push(&(expr["objtype"]));
-
   // 1. Convert LHS and RHS
   // For "Assignment" expression, it's called "leftHandSide" or "rightHandSide".
   // For "BinaryOperation" expression, it's called "leftExpression" or "leftExpression"
   exprt lhs, rhs;
-  if (expr.contains("leftHandSide"))
-  {
-    nlohmann::json literalType = expr["leftHandSide"]["typeDescriptions"];
+  // if (expr.contains("leftHandSide"))
+  // {
+  //   nlohmann::json literalType = expr["leftHandSide"]["typeDescriptions"];
 
-    if (get_expr(expr["leftHandSide"], lhs))
-      return true;
+  //   if (get_expr(expr["leftHandSide"], lhs))
+  //     return true;
 
-    if (get_expr(expr["rightHandSide"], literalType, rhs))
-      return true;
-  }
-  else if (expr.contains("leftExpression"))
-  {
-    nlohmann::json literalType_l = expr["leftExpression"]["typeDescriptions"];
-    nlohmann::json literalType_r = expr["rightExpression"]["typeDescriptions"];
+  //   if (get_expr(expr["rightHandSide"], literalType, rhs))
+  //     return true;
+  // }
+  // else if (expr.contains("leftExpression"))
+  // {
+  //   nlohmann::json literalType_l = expr["leftExpression"]["typeDescriptions"];
+  //   nlohmann::json literalType_r = expr["rightExpression"]["typeDescriptions"];
+  nlohmann::json type_l;
+  nlohmann::json type_r;
+  nlohmann::json exp_args = ClarityGrammar::get_expression_args(expr);
 
-    if (get_expr(expr["leftExpression"], literalType_l, lhs))
-      return true;
+  if (get_expr(exp_args[0], nullptr, lhs, type_l))
+    return true;
 
-    if (get_expr(expr["rightExpression"], literalType_r, rhs))
-      return true;
-  }
-  else
-    assert(!"should not be here - unrecognized LHS and RHS keywords in expression JSON");
+  if (get_expr(exp_args[1], nullptr, rhs, type_r))
+    return true;
+
+  // ml-[TODO] need to check compatibility of the two expressions
+  // }
+  // else
+  //   assert(!"should not be here - unrecognized LHS and RHS keywords in expression JSON");
+
+  // preliminary step for recursive BinaryOperation
+  current_BinOp_type.push(&(type_l));
 
   // 2. Get type
   typet t;
@@ -4152,22 +4317,76 @@ bool clarity_convertert::get_conditional_operator_expr(
   const nlohmann::json &expr,
   exprt &new_expr)
 {
+  nlohmann::json args;
+  nlohmann::json condition_expr;
+  nlohmann::json true_expr;
+  nlohmann::json false_expr;
+
+  // ml- for conditional operation the args[0] contains the
+  //     conditions expression
+  args = ClarityGrammar::get_expression_args(expr);
+  
+  // check that there should be at least 1 element in args
+  if (args.is_array() && args.size() > 0)
+  {
+    condition_expr = args[0];
+  }
+  else
+  {
+    log_debug(
+      "clarity",
+      "	@@@ get_conditional_operator_expr args are not array or less than 0 {}",
+      args.dump());
+    return true;
+  }
+
+  // ml- for conditional operation the args[1] contains the
+  //     true expression and args[2] contains the false
+  //     expression. There can be a case where there is only
+  //     a true expression. in that case make the false expr
+  //     as nop
+  if (args.size() > 1)
+  {
+    true_expr = args[1];
+    false_expr = args.size() > 2 ? args[2] : false_expr;
+  }
+  else
+  {
+    log_debug(
+      "clarity",
+      "	@@@ get_conditional_operator_expr args less than 1 {}",
+      args.dump());
+    return true;
+  }
+
   exprt cond;
-  if (get_expr(expr["condition"], cond))
+  if (get_expr(condition_expr, cond))
     return true;
 
   exprt then;
-  if (get_expr(expr["trueExpression"], expr["typeDescriptions"], then))
+  nlohmann::json then_type;
+  if (get_expr(true_expr, nullptr, then, then_type))
     return true;
 
   exprt else_expr;
-  if (get_expr(expr["falseExpression"], expr["typeDescriptions"], else_expr))
-    return true;
+  nlohmann::json else_type;
+  if (!false_expr.is_null())
+  {
+    if (get_expr(false_expr, nullptr, else_expr, else_type))
+      return true;
+  }
+  else
+  {
+    // empty expression
+    else_expr = nil_exprt();
+  }
 
+  // ml-[TODO] check that the two if and else types are same
   typet t;
-  if (get_type_description(expr["typeDescriptions"], t))
+  if (get_type_description(then_type, t))
     return true;
 
+  // ml-[TODO] implement assert later
   exprt if_expr("if", t);
   if_expr.copy_to_operands(cond, then, else_expr);
 
@@ -4239,29 +4458,52 @@ bool clarity_convertert::get_var_decl_ref(
   exprt &new_expr)
 {
   // Function to configure new_expr that has a +ve referenced id, referring to a variable declaration
-  assert(decl["nodeType"] == "VariableDeclaration");
+  std::string decl_type = ClarityGrammar::get_expression_type(decl);
+  assert(decl_type == "variable");
   std::string name, id;
-  if (decl["stateVariable"])
-    get_state_var_decl_name(decl, name, id);
-  else
-    get_var_decl_name(decl, name, id);
-
-  if (context.find_symbol(id) != nullptr)
-    new_expr = symbol_expr(*context.find_symbol(id));
-  else
+  std::string state_name, state_id;
+  bool non_state_found = false;
+  get_state_var_decl_name(decl, state_name, state_id);
+  if (current_functionDecl != nullptr)
   {
-    typet type;
-    if (get_type_description(
-          decl["typeName"]["typeDescriptions"],
-          type)) // "type-name" as in state-variable-declaration
-      return true;
+    get_var_decl_name(decl, name, id);
+    log_status(
+      "clarity"
+      "	@@@ get_var_decl_ref finding id as function var::{}",
+      id);
 
-    new_expr = exprt("symbol", type);
-    new_expr.identifier(id);
-    new_expr.cmt_lvalue(true);
-    new_expr.name(name);
-    new_expr.pretty_name(name);
+    if (context.find_symbol(id) != nullptr)
+    {
+      new_expr = symbol_expr(*context.find_symbol(id));
+      non_state_found = true;
+    }
   }
+  if (!non_state_found)
+  {
+    log_status(
+      "clarity"
+      "	@@@ get_var_decl_ref finding state id as function var::{}",
+      id);
+
+    if (context.find_symbol(state_id) != nullptr)
+      new_expr = symbol_expr(*context.find_symbol(state_id));
+    else
+      return true;
+  }
+  // else
+  // {
+  //   typet type;
+  //   if (get_type_description(
+  //         decl["typeName"]["typeDescriptions"],
+  //         type)) // "type-name" as in state-variable-declaration
+  //     return true;
+
+  //   new_expr = exprt("symbol", type);
+  //   new_expr.identifier(id);
+  //   new_expr.cmt_lvalue(true);
+  //   new_expr.name(name);
+  //   new_expr.pretty_name(name);
+  // }
 
   return false;
 }
@@ -4537,6 +4779,18 @@ bool clarity_convertert::get_type_description(
     new_type.set("#clar_type", "tuple");
     break;
   }
+  // ml-returntype is handled for a function in another mechanism.
+  // case ClarityGrammar::TypeNameT::ReturnTypeName:
+  // {
+  //   log_status("Got current functionName {} {}","get_type_description", "ReturnTypeName");
+  //   // For now lets create a struct with type return and handle it later
+  //   // new_type = struct_typet();
+  //   // new_type.set("#cpp_type", "void");
+  //   // new_type.set("#clar_type", "return");
+  //   if (get_type_description(ast_node[1]["objtype"], new_type))
+  //     return true;
+  //   break;
+  // }
   default:
   {
     log_debug(
@@ -4682,7 +4936,7 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node)
 
   // get location
   locationt location_begin;
-  get_location_from_decl(ast_node, location_begin);
+  get_location_from_decl(ast_node[1], location_begin);
 
   // get debug module name
   std::string debug_modulename =
@@ -4702,7 +4956,9 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node)
   //std::cout <<objtype.dump(4)<<std::endl;
 
   //  //for loop to iterate over all keys of objtype
-  for (nlohmann::json::iterator it = objtype.begin(); it != objtype.end(); ++it)
+  // ml- this is an array. need to traverse the array
+  //for (nlohmann::json::iterator it = objtype.begin(); it != objtype.end(); ++it)
+  for (auto &it : objtype)
   {
     struct_typet::componentt comp;
 
@@ -4710,14 +4966,15 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node)
     // follow the naming rule defined in get_var_decl_name
     assert(!current_contractName.empty());
     //const std::string mem_name = "mem" + std::to_string(counter);
-    const std::string mem_name = it.key();
+    const std::string mem_name = it[0]; //it.key();
     const std::string mem_id = "clar:@C@" + current_contractName + "@" + name +
                                "@" + mem_name + "#" +
                                i2string(ast_node[1]["cid"].get<std::int16_t>());
 
     // get type
     typet mem_type;
-    if (get_type_description(it.value(), mem_type))
+    //if (get_type_description(it.value(), mem_type))
+    if (get_type_description(it[1], mem_type))
       return true;
 
     // construct comp
@@ -4910,7 +5167,7 @@ bool clarity_convertert::get_optional_instance(
   const nlohmann::json &ast_node,
   exprt &new_expr)
 {
-  nlohmann::basic_json objtype =
+  nlohmann::json objtype =
     ClarityGrammar::get_optional_type(ast_node[1]["objtype"]);
   std::string id = ClarityGrammar::get_optional_symbolId(objtype);
   locationt location_begin;
@@ -5048,8 +5305,8 @@ bool clarity_convertert::get_principal_instance(
     // adjust value node accordingly.
     if (key == "contract_is_principal")
     {
-      temp_expression_node["value"] =
-        (ast_node[1]["principalType"] == "contract" ? "true" : "false");
+      temp_expression_node["value"] = ClarityGrammar::is_standard_principal(ast_node);
+        //(ast_node[1]["principalType"] == "contract" ? "true" : "false");
       value_type = "bool";
     }
     else if (key == "contract_is_standard")
@@ -5137,7 +5394,7 @@ bool clarity_convertert::get_tuple_instance(
 
   // get location
   locationt location_begin;
-  get_location_from_decl(ast_node, location_begin);
+  get_location_from_decl(ast_node[1], location_begin);
 
   // get debug module name
   std::string debug_modulename =
@@ -5161,15 +5418,22 @@ bool clarity_convertert::get_tuple_instance(
 
   size_t i = 0;
   int is = inits.operands().size();
-  int as = objtype[2].get<int>();
+  int as = std::stoi(objtype[2].get<std::string>());
   assert(is <= as);
 
-  for (nlohmann::json::iterator it = objtype[1].begin(); it != objtype[1].end();
-       ++it)
+  // for (nlohmann::json::iterator it = objtype[1].begin(); it != objtype[1].end();
+  //      ++it)
+  nlohmann::json tupleElements = ast_node[1]["objtype"][1];
+  //std::cout <<objtype.dump(4)<<std::endl;
+
+  //  //for loop to iterate over all keys of objtype
+  // ml- this is an array. need to traverse the array
+  //for (nlohmann::json::iterator it = objtype.begin(); it != objtype.end(); ++it)
+  for (auto &it : tupleElements)
   {
     //get the type of the component
-    nlohmann::json component_type = it.value();
-    std::string tuple_key = it.key();
+    nlohmann::json component_type = it[1]; //it.value();
+    std::string tuple_key = it[0];         //it.key();
     ClarityGrammar::TypeNameT type =
       ClarityGrammar::get_type_name_t(component_type);
 
@@ -5401,7 +5665,9 @@ bool clarity_convertert::get_elementary_type_name_buff(
   std::string str_buff_size = objtype[2];
   const unsigned int bytes = std::stoi(str_buff_size);
   out = array_typet(unsigned_char_type(), from_integer(bytes, size_type()));
-
+  // ml- set the clar_lit_type so that parsing can figure
+  // out the array type
+  out.set("#clar_lit_type", "BUFF");
   return false;
 }
 
@@ -5413,7 +5679,6 @@ bool clarity_convertert::get_elementary_type_name_bytesn(
     bytes1 has size of 8 bits (possible values 0x00 to 0xff),
     which you can implicitly convert to uint8 (unsigned integer of size 8 bits) but not to int8
   */
-
   std::string str_buff_size = objtype[2];
   const unsigned int bytes = std::stoi(str_buff_size);
   out = unsignedbv_typet(bytes * 8);
@@ -5457,6 +5722,7 @@ bool clarity_convertert::get_elementary_type_name(
 
   case ClarityGrammar::ElementaryTypeNameT::BOOL:
   {
+    // ml-[TODO] improve this. Copied shamelessly from solidity code
     new_type = bool_type();
     c_type = "bool";
     new_type.set("#cpp_type", c_type);
@@ -5474,6 +5740,9 @@ bool clarity_convertert::get_elementary_type_name(
         integer2binary(value_length, bv_width(int_type())),
         integer2string(value_length),
         int_type()));
+    // ml- set the clar_lit_type so that parsing can figure
+    // out the array type
+    new_type.set("#clar_lit_type", "STRING_ASCII");
     break;
   }
   case ClarityGrammar::ElementaryTypeNameT::STRING_UTF8:
@@ -5488,6 +5757,9 @@ bool clarity_convertert::get_elementary_type_name(
         integer2binary(value_length, bv_width(int_type())),
         integer2string(value_length),
         int_type()));
+    // ml- set the clar_lit_type so that parsing can figure
+    // out the array type
+    new_type.set("#clar_lit_type", "STRING_UTF8");
     break;
   }
   case ClarityGrammar::ElementaryTypeNameT::PRINCIPAL:
@@ -5599,7 +5871,7 @@ void clarity_convertert::get_state_var_decl_name(
     abort();
   }
   name =
-    ast_node[1]["identifier"]
+    ast_node["identifier"]
       .get<
         std::
           string>(); // assume Clarity AST json object has "identifier" field, otherwise throws an exception in nlohmann::json
@@ -5608,19 +5880,19 @@ void clarity_convertert::get_state_var_decl_name(
   // The prefix is used to avoid duplicate names
   if (!contract_name.empty())
   {
-    if (ClarityGrammar::is_tuple_declaration(ast_node))
+    if ((ast_node.contains("objtype") &&
+         (ClarityGrammar::is_tuple_declaration(ast_node))))
     {
       get_tuple_name(ast_node, name, id);
     }
     else
     {
       id = "clar:@C@" + contract_name + "@" + name + "#" +
-           i2string(ast_node[1]["cid"].get<std::int16_t>());
+           i2string(ast_node["cid"].get<std::int16_t>());
     }
   }
   else
-    id =
-      "clar:@" + name + "#" + i2string(ast_node[1]["cid"].get<std::int16_t>());
+    id = "clar:@" + name + "#" + i2string(ast_node["cid"].get<std::int16_t>());
 }
 
 // parse the non-state variable
@@ -5636,13 +5908,9 @@ void clarity_convertert::get_var_decl_name(
     abort();
   }
 
-  name =
-    ast_node["name"]
-      .get<
-        std::
-          string>(); // assume Clarity AST json object has "name" field, otherwise throws an exception in nlohmann::json
+  name = ClarityGrammar::get_expression_identifier(ast_node);
 
-  assert(ast_node.contains("id"));
+  assert(ast_node.contains("cid"));
   if (
     current_functionDecl && !contract_name.empty() &&
     !current_functionName.empty())
@@ -5653,7 +5921,7 @@ void clarity_convertert::get_var_decl_name(
 
     // As the local variable inside the function will not be inherited, we can use current_functionName
     id = "clar:@C@" + contract_name + "@F@" + current_functionName + "@" +
-         name + "#" + i2string(ast_node["id"].get<std::int16_t>());
+         name + "#" + i2string(ast_node["cid"].get<std::int16_t>());
   }
   else if (ast_node.contains("scope"))
   {
@@ -5689,13 +5957,15 @@ void clarity_convertert::get_function_definition_name(
   //  - For function name, just use the ast_node["name"]
   // assume Clarity AST json object has "name" field, otherwise throws an exception in nlohmann::json
   std::string contract_name;
-  assert(ast_node.contains("scope"));
+  assert(ast_node.contains("identifier"));
   if (get_current_contract_name(ast_node, contract_name))
   {
     log_error("Internal error when obtaining the contract name. Aborting...");
     abort();
   }
 
+#if 0
+  // ml-no such thing as constructor for now
   if (ast_node["kind"].get<std::string>() == "constructor")
   {
     name = contract_name;
@@ -5704,10 +5974,11 @@ void clarity_convertert::get_function_definition_name(
     id = "clar:@C@" + contract_name + "@F@" + name + "#";
   }
   else
+#endif
   {
-    name = ast_node["name"].get<std::string>();
+    name = ast_node["identifier"].get<std::string>();
     id = "clar:@C@" + contract_name + "@F@" + name + "#" +
-         i2string(ast_node["id"].get<std::int16_t>());
+         i2string(ast_node["cid"].get<std::int16_t>());
   }
 }
 
@@ -5779,7 +6050,15 @@ unsigned int clarity_convertert::get_line_number(
       }
     ]
     */
-  unsigned int loc = ast_node[1]["span"]["start_line"].get<int>();
+  unsigned int loc = -1;
+  if (ast_node.is_array())
+  {
+    ClarityGrammar::get_expression_node(ast_node)["span"]["start_line"].get<int>();
+  }
+  else if (ast_node.is_object())
+  {
+    ast_node["span"]["start_line"].get<int>();
+  }
   return loc;
 }
 
@@ -5814,7 +6093,13 @@ void clarity_convertert::get_start_location_from_stmt(
 
   // The src manager of Clarity AST JSON is too encryptic.
   // For the time being we are setting it to "1".
-  location.set_line(get_line_number(ast_node));
+
+  // ml- if we are working on function expressions then they do not have the line numbers in the
+  // statements. so use the function decleration and its line number
+  if (!function_name.empty())
+    location.set_line(get_line_number(*current_functionDecl));
+  else
+    location.set_line(get_line_number(ast_node));
   location.set_file(
     absolute_path); // assume absolute_path is the name of the contrace file, since we ran solc in the same directory
 
@@ -6158,7 +6443,7 @@ nlohmann::json clarity_convertert::make_implicit_cast_expr(
   // Since Clarity AST does not have type cast information about return values,
   // we need to manually make a JSON object and wrap the return expression in it.
   std::map<std::string, std::string> m = {
-    {"nodeType", "ImplicitCastExprClass"},
+    {"type", "ImplicitCastExprClass"},
     {"castType", cast_type},
     {"subExpr", {}}};
   nlohmann::json implicit_cast_expr = m;
@@ -6528,7 +6813,7 @@ bool clarity_convertert::get_default_function(
                 "ParameterList",
                 0,
                 {
-                  "Parameters" : []
+                  "args" : []
                 }
               ]
             )"_json;
@@ -6653,7 +6938,7 @@ bool clarity_convertert::get_empty_array_ref(
 
   // Get Location
   locationt location_begin;
-  get_location_from_decl(callee_expr_json, location_begin);
+  get_location_from_decl(callee_expr_json[0], location_begin);
 
   // Get Debug Module Name
   std::string debug_modulename =
@@ -6872,6 +7157,10 @@ bool clarity_convertert::multi_transaction_verification(
   main_type.return_type() = empty_typet();
   const std::string clar_name = "clar_main_" + contractName;
   const std::string clar_id = "clar:@C@" + contractName + "@F@" + clar_name;
+  log_status(
+    "multi_transaction_verification\t: {} \nIssuer\t: {}",
+    contractName,
+    prefix);
   const symbolt &contract = *context.find_symbol(prefix + contractName);
   new_symbol.location = contract.location;
   std::string debug_modulename =

@@ -36,13 +36,207 @@ const std::map<ElementaryTypeNameT, unsigned int> bytesn_size_map = {
   {UINT_LITERAL, 128},
   {INT_LITERAL, 128}};
 
+// input    : complete ast_node
+// returns  : ast_node[0] e-g "data-var" , "constant" etc
+std::string get_declaration_decorator(const nlohmann::json &ast_node)
+{
+  return ast_node[0].get<std::string>();
+}
+
+
+// input    : complete ast_node
+// returns   : : expression node located at ast_node[1]
+nlohmann::json get_expression_node(const nlohmann::json &ast_node)
+{
+  return ast_node[1];
+}
+
+// input    : an expression node
+// returns   : : value of ["identifier"] key as std::string
+std::string get_expression_identifier(
+  const nlohmann::json &ast_node)
+{
+  return ast_node["identifier"].get<std::string>();
+  
+}
+
+// input    : an expression node
+// return   :  the type of the expression node expression_node["type"]
+std::string get_expression_type(
+  const nlohmann::json &expression_node)
+{
+  return expression_node["type"].get<std::string>();
+}
+
+// input    : an expression node
+// return   :  the cid of the expression node expression_node["cid"]
+int get_expression_cid(const nlohmann::json &expression_node)
+{
+  return expression_node["cid"].get<int>();
+}
+
+// input    : an expression node
+// returns   :  the value (if any) of the expression node expression_node["value"] which is also an expression node
+nlohmann::json get_expression_value_node(
+  const nlohmann::json &expression_node)
+{
+  if (expression_node.contains("value"))
+  {
+    return expression_node["value"];
+  }
+  else
+  {
+    log_error("No value node found in the expression node");
+    abort();
+  }
+}
+
+// input    : an expression node
+// returns   :  literal value of the expression expression_node["identifier"] . Only applicatble to literals.
+std::string get_expression_lit_value(const nlohmann::json &expression_node)
+{
+  std::string expression_type = get_expression_type(expression_node);
+
+  if (ClarityGrammar::is_literal_type(expression_type) || expression_type == "principal")
+  {
+    return expression_node["identifier"].get<std::string>();
+  }
+  else
+  {
+    log_error("Expression is not a literal");
+    abort();
+  }
+}
+
+// input    : an expression node
+// returns   :  arguments of the expression node expression_node["args"]
+nlohmann::json get_expression_args(const nlohmann::json &expression_node)
+{
+  if (expression_node.contains("args"))
+  {
+    return expression_node["args"];
+  }
+  else
+  {
+    log_error("No args node found in the expression node");
+    abort();
+  }
+}
+
+// input    : an expression node
+// returns   :  objtype of the expression node expression_node["objtype"]
+nlohmann::json get_expression_objtype(const nlohmann::json &expression_node)
+{
+  if (expression_node.contains("objtype"))
+  {
+    return expression_node["objtype"];
+    
+  }
+  else
+  {
+    log_error("No objtype node found in the expression node");
+    abort();
+  }
+}
+
+// input    : objtype of the expression node
+// returns   :  nested objtype if any.
+nlohmann::json get_nested_objtype(const nlohmann::json &objtype)
+{
+  try
+  {
+    return objtype[3];
+  }
+  catch (const std::exception &e)
+  {
+    log_error("No nested objtype node found in the objtype node");
+    abort();
+  }
+}
+
+// input    : an expression node
+// returns   :  body of the expression node expression_node["body"]
+nlohmann::json get_expression_body(const nlohmann::json &expression_node)
+{
+  if (expression_node.contains("body"))
+  {
+    return expression_node["body"];
+  }
+  else
+  {
+    log_error("No body node found in the expression node");
+    abort();
+  }
+  
+}
+
+// input    : an expression node
+// returns   :  return type of the expression node as objtype expression_node["return_type"]
+nlohmann::json get_expression_return_type(const nlohmann::json &expression_node)
+{
+  if (expression_node.contains("return_type"))
+  {
+    return expression_node["return_type"];
+  }
+  else
+  {
+    log_error("No return_type node found in the expression node");
+    abort();
+  }
+  
+}
+
+// input    : an expression node
+// output   :  Location info of the expression stored in "span" of a node expression_node["span"]
+nlohmann::json  get_location_info(const nlohmann::json &expression_node)
+{
+  if (expression_node.contains("span"))
+  {
+    return expression_node["span"];
+  }
+  else
+  {
+    log_error("No span node found in the expression node");
+    abort();
+  }
+}
+
+// input    : an expression node
+// output   :  the cid of the expression node expression_node["cid"]
+// returns :: false if succesful, or true if failed.
+bool is_standard_principal(const nlohmann::json &expression_node)
+{
+  std::string principal_type = get_expression_type(expression_node);
+  return false;
+}
+
+
+bool is_literal_type(std::string nodeType)
+{
+  if (
+    (nodeType == "lit_int") || (nodeType == "lit_uint") ||
+    (nodeType == "lit_ascii") || (nodeType == "lit_bool") ||
+    (nodeType == "lit_buff") || (nodeType == "lit_utf8"))
+  {
+    return true;
+  }
+  return false;
+}
+
+bool is_state_variable(const std::string &ast_node_decorator)
+{
+  nlohmann::json ast_node_from_string = ast_node_decorator;
+  return is_state_variable(ast_node_from_string);
+}
+
+
 bool is_state_variable(const nlohmann::json &ast_node)
 {
   const std::vector<std::string> state_node_types{
     "data-var", "map", "trait", "constant", "def-ft", "def-nft"};
 
   if (
-    std::find(state_node_types.begin(), state_node_types.end(), ast_node[0]) !=
+    std::find(state_node_types.begin(), state_node_types.end(), ast_node) !=
     state_node_types.end())
     return true;
   else
@@ -51,7 +245,7 @@ bool is_state_variable(const nlohmann::json &ast_node)
 
 bool is_tuple_declaration(const nlohmann::json &ast_node)
 {
-  if (ast_node[1]["objtype"][0] == "tuple")
+  if (ast_node["objtype"][0] == "tuple")
     return true;
   else
     return false;
@@ -70,17 +264,29 @@ bool is_variable_declaration(const nlohmann::json &ast_node)
   return is_state_variable(ast_node);
 }
 
+// ml -overloaded the function to use string
+bool is_variable_declaration(const std::string &ast_node_decorator)
+{
+  return is_state_variable(ast_node_decorator);
+}
+
 bool is_function_definition(const nlohmann::json &ast_node)
 {
   const std::vector<std::string> state_node_types{
     "var-get", "read-only", "private", "public"};
 
   if (
-    std::find(state_node_types.begin(), state_node_types.end(), ast_node[0]) !=
+    std::find(state_node_types.begin(), state_node_types.end(), ast_node) !=
     state_node_types.end())
     return true;
   else
     return false;
+}
+
+bool is_function_definition(const std::string &ast_node_decorator)
+{
+  nlohmann::json ast_node_from_string = ast_node_decorator;
+  return is_function_definition(ast_node_from_string);
 }
 
 bool operation_is_optional_decl(const nlohmann::json &ast_node)
@@ -104,8 +310,10 @@ bool operation_is_binary(const nlohmann::json &ast_node)
     "/=", "%=", "<<=", ">>=", "&=", "|=", "^=", "**"};
 
   if (
-    std::find(binary_operators.begin(), binary_operators.end(), ast_node[0]) !=
-    binary_operators.end())
+    std::find(
+      binary_operators.begin(),
+      binary_operators.end(),
+      ast_node["identifier"]) != binary_operators.end())
     return true;
   else
     return false;
@@ -116,7 +324,7 @@ bool operation_is_unary(const nlohmann::json &ast_node)
   const std::vector<std::string> unary_operators{"--", "++", "-", "~", "!"};
 
   if (
-    std::find(unary_operators.begin(), unary_operators.end(), ast_node[0]) !=
+    std::find(unary_operators.begin(), unary_operators.end(), ast_node) !=
     unary_operators.end())
     return true;
   else
@@ -129,9 +337,8 @@ bool operation_is_optional(const nlohmann::json &ast_node)
 
   if (
     std::find(
-      conditional_operators.begin(),
-      conditional_operators.end(),
-      ast_node[0]) != conditional_operators.end())
+      conditional_operators.begin(), conditional_operators.end(), ast_node) !=
+    conditional_operators.end())
     return true;
   else
     return false;
@@ -145,7 +352,7 @@ bool operation_is_conditional(const nlohmann::json &ast_node)
     std::find(
       conditional_operators.begin(),
       conditional_operators.end(),
-      ast_node[0]) != conditional_operators.end())
+      ast_node["identifier"]) != conditional_operators.end())
     return true;
   else
     return false;
@@ -190,7 +397,8 @@ std::string get_optional_symbolId(const nlohmann::json &optional_type)
 // returns objtype for optional inside an objtype
 nlohmann::json get_optional_type(const nlohmann::json &objtype)
 {
-  return objtype[3];
+  nlohmann::json objtype_optional = get_nested_objtype(objtype);
+  return objtype_optional;
 }
 
 bool get_operation_type(nlohmann::json &expression_node)
@@ -276,6 +484,80 @@ bool get_operation_type(nlohmann::json &expression_node)
     */
 }
 
+// input    : The json expr type which contain the identifier
+// output   : The objtype json from the expr type
+// returns  : false if succesful, or true if failed.
+bool get_literal_type_from_expr(
+  const nlohmann::json &expr,
+  nlohmann::json &expression_node)
+{
+  std::string expr_type = get_expression_type(expr);
+
+  if (expr_type == "lit_uint")
+  {
+    auto j2 = R"(
+            ["uint", "uint_128", "128"]              
+          )"_json;
+    expression_node = j2;
+  }
+  else if (expr_type == "lit_int")
+  {
+    auto j2 = R"(
+            ["int", "int_128", "128"]              
+          )"_json;
+    expression_node = j2;
+  }
+  else if (expr_type == "lit_bool")
+  {
+    auto j2 = R"(
+            ["bool", "bool", "1"]              
+          )"_json;
+    expression_node = j2;
+  }
+  else if (expr_type == "lit_buff")
+  {
+    auto j2 = R"(
+            ["buffer", "buffer", "4"]              
+          )"_json;
+    expression_node = j2;
+  }
+  else if (expr_type == "lit_utf8")
+  {
+    auto j2 = R"(
+            ["string-utf8", "string-utf8", "16"]              
+          )"_json;
+    expression_node = j2;
+  }
+  else if (expr_type == "lit_ascii")
+  {
+    std::string literal_string = get_expression_identifier(expr);
+    std::string literal_string_length = std::to_string(literal_string.length());
+
+    expression_node = nlohmann::json::array(
+      {"string-ascii", "string-ascii", literal_string_length});
+  }
+  else
+  {
+    log_error("Unsupported operation type: {}", expr_type);
+    return true; // unexpected
+  }
+
+  return false;
+
+  /*
+  else if (nodeType == "TupleExpression")
+  {
+    return Tuple;
+  }
+  else if (nodeType == "Mapping")
+  {
+    return Mapping;
+  }
+  else if (nodeType == "FunctionCall")
+    
+    */
+}
+
 bool parse_value_node(nlohmann::json &expression_node)
 {
   // parse value node
@@ -316,11 +598,11 @@ bool parse_value_node(nlohmann::json &expression_node)
 
 bool parse_expression_element(nlohmann::json &expr_element_json)
 {
-  std::string expression_class = expr_element_json[0];
+  std::string expression_class_decorator = ClarityGrammar::get_declaration_decorator(expr_element_json);
 
   // determine if it's a variable / constant declaration or a function definition
-  bool var_decl = is_variable_declaration(expr_element_json);
-  bool func_def = is_function_definition(expr_element_json);
+  bool var_decl = is_variable_declaration(expression_class_decorator);
+  bool func_def = is_function_definition(expression_class_decorator);
 
   // add a nodeType for easier differenciation down the line.
   if (var_decl)
@@ -333,11 +615,11 @@ bool parse_expression_element(nlohmann::json &expr_element_json)
     //return process_function_definition(expr_element_json);
     expr_element_json[1]["nodeType"] = "FunctionDefinition";
     // do not process yet
-    return true;
+    return false;
   }
   else
   {
-    log_error("Unsupported expression class: {}", expression_class);
+    log_error("Unsupported expression class: {}", expression_class_decorator);
     return true;
   }
 
@@ -349,11 +631,14 @@ bool parse_expression_element(nlohmann::json &expr_element_json)
 // rule contract-body-element
 ContractBodyElementT get_contract_body_element_t(const nlohmann::json &element)
 {
-  if (element[1]["nodeType"] == "VariableDeclaration")
+  std::string element_type = get_expression_type(element);
+  if (
+    (element_type == "variable_declaration") ||
+    (element_type == "constant_declaration"))
   {
     return VarDecl;
   }
-  else if (element[1]["nodeType"] == "FunctionDefinition")
+  else if (element_type == "function_declaration")
   {
     return FunctionDef;
   }
@@ -362,7 +647,7 @@ ContractBodyElementT get_contract_body_element_t(const nlohmann::json &element)
     log_error(
       "Got contract-body-element nodeType={}. Unsupported "
       "contract-body-element type",
-      element["nodeType"].get<std::string>());
+      element["type"].get<std::string>());
     abort();
   }
   return ContractBodyElementTError;
@@ -409,7 +694,7 @@ TypeNameT get_type_name_t(const nlohmann::json &type_name)
     {
       return MappingTypeName;
     }
-    else if (typeString == "buff")
+    else if (typeString == "buffer")
     {
       //buff in clarity can be considered as array of bytes
 
@@ -444,12 +729,19 @@ TypeNameT get_type_name_t(const nlohmann::json &type_name)
       // For Literal, their typeString is like "int_const 100".
       return ElementaryTypeName;
     }
-
+    // for Special Variables and Functions
+    else if (typeIdentifier.compare(0, 7, "t_magic") == 0)
+    {
+      return BuiltinTypeName;
+    }
+    else if (typeString.compare(0, 11, "return_type") == 0)
+    {
+      return ReturnTypeName;
+    }
     else
     {
       log_error(
-        "Got type-name typeString={}. Unsupported type-name type",
-        type_name["typeString"].get<std::string>());
+        "Got type-name typeString={}. Unsupported type-name type", typeString);
       abort();
     }
   }
@@ -484,6 +776,7 @@ const char *type_name_to_str(TypeNameT type)
     ENUM_TO_STR(TupleTypeName)
     ENUM_TO_STR(MappingTypeName)
     ENUM_TO_STR(BuiltinTypeName)
+    ENUM_TO_STR(ReturnTypeName)
     ENUM_TO_STR(TypeNameTError)
   default:
   {
@@ -616,15 +909,15 @@ unsigned int bytesn_type_name_to_size(ElementaryTypeNameT type)
 // rule parameter-list
 ParameterListT get_parameter_list_t(const nlohmann::json &type_name)
 {
-  if (type_name["Parameters"].size() == 0)
+  if (type_name["args"].size() == 0)
   {
     return EMPTY;
   }
-  else if (type_name["Parameters"].size() == 1)
+  else if (type_name["args"].size() == 1)
   {
     return ONE_PARAM;
   }
-  else if (type_name["Parameters"].size() > 1)
+  else if (type_name["args"].size() > 1)
   {
     return MORE_THAN_ONE_PARAM;
   }
@@ -643,6 +936,42 @@ const char *parameter_list_to_str(ParameterListT type)
   default:
   {
     assert(!"Unknown parameter-list type");
+    return "UNKNOWN";
+  }
+  }
+}
+
+// function body
+FuncBodyT get_function_body_t(const nlohmann::json &body)
+{
+  
+  if ((body.is_array()) && (body.size() == 1))
+  {
+    return SingleStatement;
+  }
+  else if ((body.is_array()) && (body.size() > 1))
+  {
+    return MultipleStatement;
+  }
+  else
+  {
+    log_error(
+      "Got function block nodeType={}. Unsupported block type", body.dump());
+    abort();
+  }
+  return FuncBodyTError;
+}
+
+const char *function_body_to_str(FuncBodyT type)
+{
+  switch (type)
+  {
+    ENUM_TO_STR(SingleStatement)
+    ENUM_TO_STR(MultipleStatement)
+    ENUM_TO_STR(FuncBodyTError)
+  default:
+  {
+    assert(!"Unknown function body type");
     return "UNKNOWN";
   }
   }
@@ -775,76 +1104,90 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
     return NullExpr;
   }
 
-  std::string nodeType = expr[1]["expressionType"];
+  std::string nodeType = get_expression_type(expr);
 
-  if (nodeType == "Assignment" || nodeType == "BinaryOperation")
+  // if (nodeType == "Assignment" || nodeType == "BinaryOperation")
+  // {
+  //   return BinaryOperatorClass;
+  // }
+  // else if (nodeType == "UnaryOperation")
+  // {
+  //   return UnaryOperatorClass;
+  // }
+  // else if (nodeType == "Conditional")
+  // {
+  //   return ConditionalOperatorClass;
+  // }
+  if (nodeType == "native_function")
   {
-    return BinaryOperatorClass;
+    if (operation_is_binary(expr))
+    {
+      return BinaryOperatorClass;
+    }
   }
-  else if (nodeType == "UnaryOperation")
+  else if (nodeType == "conditional_expression")
   {
-    return UnaryOperatorClass;
+    if (operation_is_conditional(expr))
+    {
+      return ConditionalOperatorClass;
+    }
   }
-  else if (nodeType == "Conditional")
-  {
-    return ConditionalOperatorClass;
-  }
-  else if (nodeType == "Identifier" && expr.contains("referencedDeclaration"))
+  else if (nodeType == "variable")
   {
     return DeclRefExprClass;
   }
-  else if (nodeType == "Literal")
+  else if (is_literal_type(nodeType))
   {
     return Literal;
   }
-  else if (nodeType == "TupleExpression")
-  {
-    return Tuple;
-  }
-  else if (nodeType == "Optional")
-  {
-    return Optional;
-  }
-  else if (nodeType == "List")
-  {
-    return List;
-  }
+  // else if (nodeType == "TupleExpression")
+  // {
+  //   return Tuple;
+  // }
+  // else if (nodeType == "Optional")
+  // {
+  //   return Optional;
+  // }
+  // else if (nodeType == "List")
+  // {
+  //   return List;
+  // }
 
-  else if (nodeType == "Mapping")
-  {
-    return Mapping;
-  }
-  else if (nodeType == "FunctionCall")
-  {
-    if (expr["expression"]["nodeType"] == "NewExpression")
-      return NewExpression;
-    if (
-      expr["expression"]["nodeType"] == "ElementaryTypeNameExpression" &&
-      expr["kind"] == "typeConversion")
-      return ElementaryTypeNameExpression;
-    return CallExprClass;
-  }
-  else if (nodeType == "MemberAccess")
-  {
-    assert(expr.contains("expression"));
-    ClarityGrammar::TypeNameT type_name =
-      get_type_name_t(expr["expression"]["typeDescriptions"]);
-    if (type_name == ClarityGrammar::TypeNameT::ContractTypeName)
-      return ContractMemberCall;
-    else
-      //TODO Assume it's a builtin member
-      // due to that the BuiltinTypeName cannot cover all the builtin member
-      // e.g. string.concat ==> TypeConversionName
-      return BuiltinMemberCall;
-  }
-  else if (nodeType == "ImplicitCastExprClass")
-  {
-    return ImplicitCastExprClass;
-  }
-  else if (nodeType == "IndexAccess")
-  {
-    return IndexAccess;
-  }
+  // else if (nodeType == "Mapping")
+  // {
+  //   return Mapping;
+  // }
+  // else if (nodeType == "FunctionCall")
+  // {
+  //   if (expr["expression"]["nodeType"] == "NewExpression")
+  //     return NewExpression;
+  //   if (
+  //     expr["expression"]["nodeType"] == "ElementaryTypeNameExpression" &&
+  //     expr["kind"] == "typeConversion")
+  //     return ElementaryTypeNameExpression;
+  //   return CallExprClass;
+  // }
+  // else if (nodeType == "MemberAccess")
+  // {
+  //   assert(expr.contains("expression"));
+  //   ClarityGrammar::TypeNameT type_name =
+  //     get_type_name_t(expr["expression"]["typeDescriptions"]);
+  //   if (type_name == ClarityGrammar::TypeNameT::ContractTypeName)
+  //     return ContractMemberCall;
+  //   else
+  //     //TODO Assume it's a builtin member
+  //     // due to that the BuiltinTypeName cannot cover all the builtin member
+  //     // e.g. string.concat ==> TypeConversionName
+  //     return BuiltinMemberCall;
+  // }
+  // else if (nodeType == "ImplicitCastExprClass")
+  // {
+  //   return ImplicitCastExprClass;
+  // }
+  // else if (nodeType == "IndexAccess")
+  // {
+  //   return IndexAccess;
+  // }
   else
   {
     log_error(
@@ -856,29 +1199,29 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
 
 ExpressionT get_unary_expr_operator_t(const nlohmann::json &expr, bool uo_pre)
 {
-  if (expr["operator"] == "--")
+  if (expr["identifier"] == "--")
   {
     if (uo_pre)
       return UO_PreDec;
     else
       return UO_PostDec;
   }
-  else if (expr["operator"] == "++")
+  else if (expr["identifier"] == "++")
   {
     if (uo_pre)
       return UO_PreInc;
     else
       return UO_PostInc;
   }
-  else if (expr["operator"] == "-")
+  else if (expr["identifier"] == "-")
   {
     return UO_Minus;
   }
-  else if (expr["operator"] == "~")
+  else if (expr["identifier"] == "~")
   {
     return UO_Not;
   }
-  else if (expr["operator"] == "!")
+  else if (expr["identifier"] == "!")
   {
     return UO_LNot;
   }
@@ -886,7 +1229,7 @@ ExpressionT get_unary_expr_operator_t(const nlohmann::json &expr, bool uo_pre)
   {
     log_error(
       "Got expression operator={}. Unsupported expression operator",
-      expr["operator"].get<std::string>());
+      expr["identifier"].get<std::string>());
 
     abort();
   }
@@ -894,123 +1237,123 @@ ExpressionT get_unary_expr_operator_t(const nlohmann::json &expr, bool uo_pre)
 
 ExpressionT get_expr_operator_t(const nlohmann::json &expr)
 {
-  if (expr["operator"] == "=")
+  if (expr["identifier"] == "=")
   {
     return BO_Assign;
   }
-  else if (expr["operator"] == "+")
+  else if (expr["identifier"] == "+")
   {
     return BO_Add;
   }
-  else if (expr["operator"] == "-")
+  else if (expr["identifier"] == "-")
   {
     return BO_Sub;
   }
-  else if (expr["operator"] == "*")
+  else if (expr["identifier"] == "*")
   {
     return BO_Mul;
   }
-  else if (expr["operator"] == "/")
+  else if (expr["identifier"] == "/")
   {
     return BO_Div;
   }
-  else if (expr["operator"] == "%")
+  else if (expr["identifier"] == "%")
   {
     return BO_Rem;
   }
-  else if (expr["operator"] == "<<")
+  else if (expr["identifier"] == "<<")
   {
     return BO_Shl;
   }
-  else if (expr["operator"] == ">>")
+  else if (expr["identifier"] == ">>")
   {
     return BO_Shr;
   }
-  else if (expr["operator"] == "&")
+  else if (expr["identifier"] == "&")
   {
     return BO_And;
   }
-  else if (expr["operator"] == "^")
+  else if (expr["identifier"] == "^")
   {
     return BO_Xor;
   }
-  else if (expr["operator"] == "|")
+  else if (expr["identifier"] == "|")
   {
     return BO_Or;
   }
-  else if (expr["operator"] == ">")
+  else if (expr["identifier"] == ">")
   {
     return BO_GT;
   }
-  else if (expr["operator"] == "<")
+  else if (expr["identifier"] == "<")
   {
     return BO_LT;
   }
-  else if (expr["operator"] == ">=")
+  else if (expr["identifier"] == ">=")
   {
     return BO_GE;
   }
-  else if (expr["operator"] == "<=")
+  else if (expr["identifier"] == "<=")
   {
     return BO_LE;
   }
-  else if (expr["operator"] == "!=")
+  else if (expr["identifier"] == "!=")
   {
     return BO_NE;
   }
-  else if (expr["operator"] == "==")
+  else if (expr["identifier"] == "==")
   {
     return BO_EQ;
   }
-  else if (expr["operator"] == "&&")
+  else if (expr["identifier"] == "&&")
   {
     return BO_LAnd;
   }
-  else if (expr["operator"] == "||")
+  else if (expr["identifier"] == "||")
   {
     return BO_LOr;
   }
-  else if (expr["operator"] == "+=")
+  else if (expr["identifier"] == "+=")
   {
     return BO_AddAssign;
   }
-  else if (expr["operator"] == "-=")
+  else if (expr["identifier"] == "-=")
   {
     return BO_SubAssign;
   }
-  else if (expr["operator"] == "*=")
+  else if (expr["identifier"] == "*=")
   {
     return BO_MulAssign;
   }
-  else if (expr["operator"] == "/=")
+  else if (expr["identifier"] == "/=")
   {
     return BO_DivAssign;
   }
-  else if (expr["operator"] == "%=")
+  else if (expr["identifier"] == "%=")
   {
     return BO_RemAssign;
   }
-  else if (expr["operator"] == "<<=")
+  else if (expr["identifier"] == "<<=")
   {
     return BO_ShlAssign;
   }
-  else if (expr["operator"] == ">>=")
+  else if (expr["identifier"] == ">>=")
   {
     return BO_ShrAssign;
   }
-  else if (expr["operator"] == "&=")
+  else if (expr["identifier"] == "&=")
   {
     return BO_AndAssign;
   }
-  else if (expr["operator"] == "^=")
+  else if (expr["identifier"] == "^=")
   {
     return BO_XorAssign;
   }
-  else if (expr["operator"] == "|=")
+  else if (expr["identifier"] == "|=")
   {
     return BO_OrAssign;
   }
-  else if (expr["operator"] == "**")
+  else if (expr["identifier"] == "**")
   {
     return BO_Pow;
   }
@@ -1018,7 +1361,7 @@ ExpressionT get_expr_operator_t(const nlohmann::json &expr)
   {
     log_error(
       "Got expression operator={}. Unsupported expression operator",
-      expr["operator"].get<std::string>());
+      expr["identifier"].get<std::string>());
     abort();
   }
 

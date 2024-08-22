@@ -191,10 +191,63 @@ bool clarity_convertert::convert_uint_literal(
     {
       the_value.erase(0, 1);
     }
-
   convert_unsigned_integer_literal(uint_literal, the_value, dest);
   return false;
 }
+
 // TODO: Float literal.
 //    - Note: Currently clarity does NOT support floating point data types or fp arithmetic.
 //      Everything is done in fixed-point arithmetic as of clarity compiler v0.8.6.
+
+// input    : The typet from which the objtype has to be created
+// output   : The objtype json from the functions type
+// returns  : false if succesful, or true if failed.
+// 
+// This function assumes that for the array types there
+// will be a clar_lit_type field that describes which
+// subtype of an array it is
+bool clarity_convertert::get_literal_type_from_typet(
+  const typet &type,
+  nlohmann::json &expression_node)
+{
+  if (type.id() == typet::t_unsignedbv)
+  {
+    auto width = type.width().as_string();
+    expression_node = nlohmann::json::array({"uint", "uint_" + width, width});
+  }
+  else if (type.id() == typet::t_signedbv)
+  {
+    auto width = type.width().as_string();
+    expression_node = nlohmann::json::array({"int", "int_" + width, width});
+  }
+  else if (type.id() == typet::t_bool)
+  {
+    auto width = type.width().as_string();
+    expression_node = nlohmann::json::array({"bool", "bool", "1"});
+  }
+  else if (type.id() == typet::t_array)
+  {
+    auto buffer_type = type.get("#clar_lit_type").as_string();
+    if (buffer_type == "BUFF")
+    {
+      expression_node = nlohmann::json::array({"buffer", "buffer", "4"});
+    }
+    else if (buffer_type == "STRING_UTF8")
+    {
+      expression_node =
+        nlohmann::json::array({"string-utf8", "string-utf8", "16"});
+    }
+    else if (buffer_type == "STRING_ASCII")
+    {
+      auto width = type.width().as_string();
+      expression_node =
+        nlohmann::json::array({"string-ascii", "string-ascii", width});
+    }
+  }
+  else
+  {
+    return true; // unexpected
+  }
+
+  return false;
+}
