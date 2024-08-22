@@ -225,22 +225,22 @@ bool is_literal_type(std::string nodeType)
 
 bool is_state_variable(const std::string &ast_node_decorator)
 {
-  const std::vector<std::string> state_node_types{
-    "data-var", "map", "trait", "constant", "def-ft", "def-nft"};
-
-  if (
-    std::find(state_node_types.begin(), state_node_types.end(), ast_node_decorator) !=
-    state_node_types.end())
-    return true;
-  else
-    return false;
+  nlohmann::json ast_node_from_string = ast_node_decorator;
+  return is_state_variable(ast_node_from_string);
 }
 
 
 bool is_state_variable(const nlohmann::json &ast_node)
 {
-  std::string ast_node_decorator = get_declaration_decorator(ast_node);
-  return is_state_variable(ast_node_decorator);
+  const std::vector<std::string> state_node_types{
+    "data-var", "map", "trait", "constant", "def-ft", "def-nft"};
+
+  if (
+    std::find(state_node_types.begin(), state_node_types.end(), ast_node) !=
+    state_node_types.end())
+    return true;
+  else
+    return false;
 }
 
 bool is_tuple_declaration(const nlohmann::json &ast_node)
@@ -270,22 +270,23 @@ bool is_variable_declaration(const std::string &ast_node_decorator)
   return is_state_variable(ast_node_decorator);
 }
 
-bool is_function_definition(const std::string &ast_node_decorator)
+bool is_function_definition(const nlohmann::json &ast_node)
 {
   const std::vector<std::string> state_node_types{
     "var-get", "read-only", "private", "public"};
 
   if (
-    std::find(state_node_types.begin(), state_node_types.end(), ast_node_decorator) !=
+    std::find(state_node_types.begin(), state_node_types.end(), ast_node) !=
     state_node_types.end())
     return true;
   else
     return false;
 }
-bool is_function_definition(const nlohmann::json &ast_node)
+
+bool is_function_definition(const std::string &ast_node_decorator)
 {
-  std::string ast_node_decorator = get_declaration_decorator(ast_node);
-  return is_function_definition(ast_node_decorator);
+  nlohmann::json ast_node_from_string = ast_node_decorator;
+  return is_function_definition(ast_node_from_string);
 }
 
 bool operation_is_optional_decl(const nlohmann::json &ast_node)

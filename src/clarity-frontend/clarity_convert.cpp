@@ -2023,7 +2023,7 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
     (*current_functionDecl)[1]["identifier"].get<std::string>();
   log_debug(
     "clarity",
-    "	@@@ get_function_definition processing function {}",
+    "	@@@ processing function {}",
     current_functionName);
 
   // 4. Return type
@@ -2098,7 +2098,8 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
   {
     // convert parameters if the function has them
     // update the typet, since typet contains parameter annotations
-    for (const auto &decl : ClarityGrammar::get_expression_args(expression_node).items())
+    nlohmann::json function_args = ClarityGrammar::get_expression_args(expression_node);
+    for (const auto &decl : function_args.items())
     {
       const nlohmann::json &func_param_decl = decl.value();
 
