@@ -92,6 +92,31 @@ nlohmann::json get_expression_value_node(
 }
 
 // input    : an expression node
+// returns   :  some/none value of the expression expression_node["identifier"] . Only applicatble to Optionals
+std::string get_expression_optional_expr(const nlohmann::json &expression_node)
+{
+  std::string expression_type = get_expression_type(expression_node);
+
+  if (expression_type == "optional_expression")
+  {
+    std::string some_none = expression_node["identifier"].get<std::string>();
+    if (some_none != "some" && some_none != "none")
+    {
+      log_error("Invalid optional expression");
+      abort();
+    }
+    return some_none;
+  }
+  else
+  {
+    log_error("Expression is not a literal");
+    abort();
+  }
+}
+
+
+
+// input    : an expression node
 // returns   :  literal value of the expression expression_node["identifier"] . Only applicatble to literals.
 std::string get_expression_lit_value(const nlohmann::json &expression_node)
 {
@@ -118,8 +143,9 @@ nlohmann::json get_expression_args(const nlohmann::json &expression_node)
   }
   else
   {
-    log_error("No args node found in the expression node");
-    abort();
+    log_warning("No args node found in the expression node");
+    //abort();
+    return nlohmann::json::array();
   }
 }
 
@@ -134,6 +160,25 @@ nlohmann::json get_expression_objtype(const nlohmann::json &expression_node)
   }
   else
   {
+   nlohmann::json expression_args = get_expression_args(expression_node);
+   if (expression_args.size() > 0)
+   {
+      if(expression_args[0].contains("objtype"))
+      {
+        return expression_args[0]["objtype"];
+      }
+      else
+      {
+        nlohmann::json literal_type_expr;
+        if (ClarityGrammar::get_literal_type_from_expr(expression_args[0], literal_type_expr))
+        {
+          log_error("Failed to get literal type from expression");
+          abort();
+        }
+        return literal_type_expr;
+      }
+   }
+    
     log_error("No objtype node found in the expression node");
     abort();
   }
@@ -399,10 +444,18 @@ std::string get_optional_symbolId(const nlohmann::json &optional_type)
 
 // takes objtype as input
 // returns objtype for optional inside an objtype
+// Description : if objtype passed is of the parent expression node of an optional,
+// this this function will assume the lenght of objtype is greater than 3, 
+// because objtype will have a nested objtype inside it.
+// However, if the objtype length is less than 3, then it's a direct objtype
+// and should be returned as is.
 nlohmann::json get_optional_type(const nlohmann::json &objtype)
 {
-  nlohmann::json objtype_optional = get_nested_objtype(objtype);
-  return objtype_optional;
+  if (objtype.size() > 3)
+    return get_nested_objtype(objtype);
+  else
+    return objtype;
+  
 }
 
 bool get_operation_type(nlohmann::json &expression_node)
@@ -1143,6 +1196,10 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
   else if (is_literal_type(nodeType))
   {
     return Literal;
+  }
+  else if (nodeType == "optional_expression")
+  {
+    return Optional;
   }
   // else if (nodeType == "TupleExpression")
   // {

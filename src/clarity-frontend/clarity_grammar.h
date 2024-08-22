@@ -36,6 +36,7 @@ nlohmann::json get_expression_body(const nlohmann::json &expression_node);
 nlohmann::json get_expression_return_type(const nlohmann::json &expression_node);
 nlohmann::json get_location_info(const nlohmann::json &expression_node);
 bool is_expression_standard_principal(const nlohmann::json &expression_node);
+std::string get_expression_optional_expr(const nlohmann::json &expression_node);
 
 // end of helper functions
 bool is_literal_type(std::string type);

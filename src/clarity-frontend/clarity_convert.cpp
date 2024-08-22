@@ -2744,7 +2744,7 @@ bool clarity_convertert::get_expr(
   exprt &new_expr)
 {
   nlohmann::json inferred_type;
-  return get_expr(expr, nullptr, new_expr, inferred_type);
+  return get_expr(expr, literal_type, new_expr, inferred_type);
 }
 
 /**
@@ -3063,6 +3063,12 @@ bool clarity_convertert::get_expr(
 
     break;
   }
+  case ClarityGrammar::ExpressionT::Optional:
+  {
+    get_optional_instance(expr,literal_type, new_expr);
+
+    break;
+  }
 // ml- [TODO] deal with the rest of the expression types  
 #if 0
   case ClarityGrammar::ExpressionT::Tuple:
@@ -3221,12 +3227,7 @@ bool clarity_convertert::get_expr(
 
     break;
   }
-  case ClarityGrammar::ExpressionT::Optional:
-  {
-    get_optional_instance(expr, new_expr);
-
-    break;
-  }
+  
   case ClarityGrammar::ExpressionT::Mapping:
   {
     // convert
@@ -5147,10 +5148,11 @@ bool clarity_convertert::get_list_of_entry_type(
 
 bool clarity_convertert::get_optional_instance(
   const nlohmann::json &ast_node,
+  const nlohmann::json &parent_objtype,
   exprt &new_expr)
 {
   nlohmann::json objtype =
-    ClarityGrammar::get_optional_type(ast_node[1]["objtype"]);
+    ClarityGrammar::get_optional_type(parent_objtype);
   std::string id = ClarityGrammar::get_optional_symbolId(objtype);
   locationt location_begin;
   symbolt added_symbol;
@@ -5159,6 +5161,7 @@ bool clarity_convertert::get_optional_instance(
   process_c_defined_structs(
     id, ast_node, location_begin, added_symbol, inits, t);
 
+  //std::cout <<ast_node.dump(4)<<std::endl;
   size_t i = 0;
 
   //for (auto& [key, value]: optional_struct_members)
@@ -5178,11 +5181,12 @@ bool clarity_convertert::get_optional_instance(
     // it it looks like that should match the same methodology as for string-xxx types
     if (val_type == "")
     {
-      val_type = ast_node[1]["objtype"][3][0];
-      val_size = ast_node[1]["objtype"][3][2];
+      val_type = ClarityGrammar::get_nested_objtype(ClarityGrammar::get_expression_objtype(ast_node))[0];//ast_node[1]["objtype"][3][0];
+      val_size = ClarityGrammar::get_nested_objtype(ClarityGrammar::get_expression_objtype(ast_node))[2]; //ast_node[1]["objtype"][3][2];
     }
 
     const std::string mem_name = key; //it.key();
+    std::string node_type;
 
     // get type
     typet mem_type;
@@ -5190,37 +5194,38 @@ bool clarity_convertert::get_optional_instance(
 
     /* Create a temporary JSON object to ease processing */
     nlohmann::json temp_expression_node;
-    temp_expression_node["expressionType"] =
-      "Literal"; //fixme: gotta map this for non-literal values as well
-    temp_expression_node["span"] = ast_node[1]["span"];
-    temp_expression_node["identifier"] = mem_name;
-    temp_expression_node["cid"] = ast_node[1]["cid"];
-    temp_expression_node["objtype"] = objtype;
 
     // adjust value node accordingly.
     if (key == "is_none")
     {
-      temp_expression_node["value"] =
-        (ast_node[1]["value"][0] == "none") ? "true" : "false";
+      // we have to construct this node because this is not directly available in the ast_node
+      // this is an extra flag created in the optional struct to implement "is_none" functionality
+      temp_expression_node["identifier"] = (ClarityGrammar::get_expression_optional_expr(ast_node)=="none"?"true":"false");//(ast_node[1]["value"][0] == "none") ? "true" : "false";  
+      node_type = "lit_bool";
+      temp_expression_node["type"] = node_type; //fixme: gotta map this for non-literal values as well
+      temp_expression_node["span"] = ClarityGrammar::get_location_info(ast_node);
+      temp_expression_node["cid"] = ClarityGrammar::get_expression_cid(ast_node);
+      
     }
     else if (key == "value")
     {
       // if optional was set as none, then we don't need to set any value for the value field.
-      if (ast_node[1]["value"][0] == "none")
+      if (ClarityGrammar::get_expression_optional_expr(ast_node) == "none")
       {
         continue;
       }
 
-      temp_expression_node["value"] = ast_node[1]["value"][1];
+      temp_expression_node = ClarityGrammar::get_expression_args(ast_node)[0];
     }
 
-    // the first argument of this declarative node is meaningless to the code that reads it.
-    nlohmann::json temp_declarative_node = {"optional", temp_expression_node};
+    
+    temp_expression_node["objtype"] = objtype;
 
-    //std::cout <<temp_declarative_node.dump(4)<<std::endl;
+  
+    //std::cout <<temp_expression_node.dump(4)<<std::endl;
 
     exprt init;
-    if (get_expr(temp_declarative_node, objtype, init))
+    if (get_expr(temp_expression_node, objtype, init))
       return true;
 
     const struct_typet::componentt *c = &to_struct_type(t).components().at(i);
@@ -5233,9 +5238,10 @@ bool clarity_convertert::get_optional_instance(
     ++i;
   }
 
-  added_symbol.value = inits;
-  new_expr = added_symbol.value;
-  new_expr.identifier(id);
+  //added_symbol.value = inits;
+  //new_expr = added_symbol.value;
+  new_expr = inits;
+  //new_expr.identifier(id);
   return false;
 }
 
