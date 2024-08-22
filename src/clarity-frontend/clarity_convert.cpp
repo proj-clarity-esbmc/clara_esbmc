@@ -5006,7 +5006,7 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node)
 // ast_node -> the ast node containing the declaration info
 // outputs:
 // location as location_begin
-// symbol as added_symbol
+// symbol as added_symbol => null
 // struct type as t
 // returns :
 //  false for success
@@ -5044,24 +5044,6 @@ bool clarity_convertert::process_c_defined_structs(
   std::string debug_modulename =
     get_modulename_from_path(location_begin.file().as_string());
   current_fileName = debug_modulename;
-
-  // populate struct type symbol
-  symbolt symbol;
-
-  if (context.find_symbol(id) != nullptr)
-  {
-    //log_status("Symbol {} already exists in the context", id);
-    symbol = *context.find_symbol(id);
-  }
-  else
-  {
-    // the symbol should already be in the space. this is an error if you don't find the symbol already defined
-
-    return true;
-  }
-
-  //symbolt &added_symbol = symbol;
-  added_symbol = symbol;
 
   inits = gen_zero(t);
 
@@ -5257,6 +5239,7 @@ bool clarity_convertert::get_optional_instance(
   return false;
 }
 
+// input: ast_node is a value node of an expression
 bool clarity_convertert::get_principal_instance(
   const nlohmann::json &ast_node,
   exprt &new_expr)
@@ -5265,13 +5248,18 @@ bool clarity_convertert::get_principal_instance(
   id = "tag-struct principal";
 
   locationt location_begin;
-  symbolt added_symbol;
+  symbolt added_symbol;   // no longer required. should be removed [TODO]
   exprt inits;
   typet t;
-  process_c_defined_structs(
-    id, ast_node, location_begin, added_symbol, inits, t);
+  if (process_c_defined_structs(
+    id, ast_node, location_begin, added_symbol, inits, t))
+    {
+      log_error("Something went wrong... check logs.");
+      abort();
+    }
   t.set("#clar_type", "principal_instance");
 
+  nlohmann::json expression_value_node = ast_node;
   size_t i = 0;
 
   //for (auto& [key, value]: principal_struct_members)
@@ -5305,35 +5293,40 @@ bool clarity_convertert::get_principal_instance(
     // adjust value node accordingly.
     if (key == "contract_is_principal")
     {
-      temp_expression_node["value"] = ClarityGrammar::is_standard_principal(ast_node);
-        //(ast_node[1]["principalType"] == "contract" ? "true" : "false");
+      temp_expression_node["identifier"] = (ClarityGrammar::is_expression_standard_principal(expression_value_node)?"false":"true");
       value_type = "bool";
     }
     else if (key == "contract_is_standard")
     {
-      temp_expression_node["value"] =
-        (ast_node[1]["principalType"] == "standard" ? "true" : "false");
+      temp_expression_node["identifier"] = (ClarityGrammar::is_expression_standard_principal(expression_value_node)?"true":"false");
       value_type = "bool";
     }
     else if (key == "contract_name")
     {
-      temp_expression_node["value"]["lit_ascii"] = ast_node[1]["contractName"];
-      value_type = "string-ascii";
+      i++;
+      continue;
+      // temp_expression_node["identifier"] = ast_node[1]["contractName"];
+      // value_type = "string-ascii";
     }
     else if (key == "issuer_principal_bytes")
     {
-      temp_expression_node["value"]["lit_utf8"] =
-        ast_node[1]["issuerPrincipal"];
-      value_type = "string-utf8";
+      i++;
+      continue;
+      // temp_expression_node["value"]["lit_utf8"] =
+      //   ast_node[1]["issuerPrincipal"];
+      // value_type = "string-utf8";
     }
     else if (key == "version")
     {
-      temp_expression_node["value"]["lit_utf8"] = "1";
-      value_type = "string-utf8";
+      i++;
+      continue;
+      // temp_expression_node["value"]["lit_utf8"] = "1";
+      // value_type = "string-utf8";
     }
     else if (key == "issuer_principal_str")
     {
-      temp_expression_node["value"]["lit_ascii"] = "issuerPrincipalStr";
+      
+      temp_expression_node["identifier"] = ClarityGrammar::get_expression_identifier(expression_value_node);
       value_type = "string-ascii";
     }
 
@@ -5342,18 +5335,18 @@ bool clarity_convertert::get_principal_instance(
     nlohmann::json objtype = {
       value_type, value_type, value_size}; //{value[0],value[0],value[2]};
 
-    temp_expression_node["expressionType"] = "Literal";
-    temp_expression_node["span"] = ast_node[1]["span"];
-    temp_expression_node["identifier"] = mem_name;
-    temp_expression_node["cid"] = ast_node[1]["cid"];
+    temp_expression_node["type"] = "lit_bool";
+    temp_expression_node["span"] = ClarityGrammar::get_location_info(expression_value_node);
+    //temp_expression_node["identifier"] = mem_name;
+    temp_expression_node["cid"] = ClarityGrammar::get_experession_cid(expression_value_node);
     temp_expression_node["objtype"] = objtype;
 
-    //std::cout <<temp_expression_node.dump(4)<<std::endl;
+    
 
-    nlohmann::json temp_declarative_node = {"principal", temp_expression_node};
-
+    //nlohmann::json temp_declarative_node = {"principal", temp_expression_node};
+    std::cout <<temp_expression_node.dump(4)<<std::endl;
     exprt init;
-    if (get_expr(temp_declarative_node, objtype, init))
+    if (get_expr(temp_expression_node, objtype, init))
       return true;
 
     const struct_typet::componentt *c = &to_struct_type(t).components().at(i);
@@ -5366,9 +5359,10 @@ bool clarity_convertert::get_principal_instance(
     ++i;
   }
 
-  added_symbol.value = inits;
-  new_expr = added_symbol.value;
-  new_expr.identifier(id);
+  //added_symbol.value = inits;
+  //new_expr = added_symbol.value;
+  new_expr = inits;
+  //new_expr.identifier(id);
   return false;
 }
 

@@ -97,7 +97,7 @@ std::string get_expression_lit_value(const nlohmann::json &expression_node)
 {
   std::string expression_type = get_expression_type(expression_node);
 
-  if (ClarityGrammar::is_literal_type(expression_type) || expression_type == "principal")
+  if (ClarityGrammar::is_literal_type(expression_type) || is_principal_declaration(expression_node))
   {
     return expression_node["identifier"].get<std::string>();
   }
@@ -202,18 +202,22 @@ nlohmann::json  get_location_info(const nlohmann::json &expression_node)
 }
 
 // input    : an expression node
-// output   :  the cid of the expression node expression_node["cid"]
-// returns :: false if succesful, or true if failed.
-bool is_standard_principal(const nlohmann::json &expression_node)
+// returns   :  true if expression is a  standard principal declaration node, false otherwise
+bool is_expression_standard_principal(const nlohmann::json &expression_node)
 {
   std::string principal_type = get_expression_type(expression_node);
+  if ((principal_type == "standard_principal") )
+  {
+    return true;
+  }
+
   return false;
 }
 
 
 bool is_literal_type(std::string nodeType)
 {
-  if (
+  if( (nodeType == "standard_principal") || (nodeType == "contract_principal") ||
     (nodeType == "lit_int") || (nodeType == "lit_uint") ||
     (nodeType == "lit_ascii") || (nodeType == "lit_bool") ||
     (nodeType == "lit_buff") || (nodeType == "lit_utf8"))
