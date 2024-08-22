@@ -194,10 +194,18 @@ bool clarity_convertert::convert_uint_literal(
   convert_unsigned_integer_literal(uint_literal, the_value, dest);
   return false;
 }
+
 // TODO: Float literal.
 //    - Note: Currently clarity does NOT support floating point data types or fp arithmetic.
 //      Everything is done in fixed-point arithmetic as of clarity compiler v0.8.6.
 
+// input    : The typet from which the objtype has to be created
+// output   : The objtype json from the functions type
+// returns  : false if succesful, or true if failed.
+// 
+// This function assumes that for the array types there
+// will be a clar_lit_type field that describes which
+// subtype of an array it is
 bool clarity_convertert::get_literal_type_from_typet(
   const typet &type,
   nlohmann::json &expression_node)

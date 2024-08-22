@@ -1409,6 +1409,7 @@ bool clarity_convertert::get_var_decl(
   // For Clarity rule state-variable-declaration:
   // 1. populate typet
   typet t;
+  std::string ast_decorator =  ClarityGrammar::get_declaration_decorator(ast_node);
   nlohmann::json ast_expression_node = ClarityGrammar::get_expression_node(ast_node);
   // VariableDeclaration node contains both "typeName" and "typeDescriptions".
   // However, ExpressionStatement node just contains "typeDescriptions".
@@ -1469,7 +1470,7 @@ bool clarity_convertert::get_var_decl(
   }
 
   //bool is_state_var = ast_node["stateVariable"] == true;
-  bool is_state_var = ClarityGrammar::is_state_variable(ast_node[0]);
+  bool is_state_var = ClarityGrammar::is_state_variable(ast_decorator);
 
   // 2. populate id and name
   std::string name, id;
@@ -2263,17 +2264,13 @@ bool clarity_convertert::get_function_body(
 
 bool clarity_convertert::get_block(const nlohmann::json &block, exprt &new_expr)
 {
-  log_status(
-    "clarity"
-    "	@@@ got Block: ClarityGrammar::BlockT::{}",
-    block.dump());
 
   // For rule block
   locationt location;
   get_start_location_from_stmt(block, location);
 
   ClarityGrammar::BlockT type = ClarityGrammar::get_block_t(block);
-  log_status(
+  log_debug(
     "clarity",
     "	@@@ got Block: ClarityGrammar::BlockT::{}",
     ClarityGrammar::block_to_str(type));
@@ -2725,6 +2722,18 @@ bool clarity_convertert::get_expr(const nlohmann::json &expr, exprt &new_expr)
   return get_expr(expr, nullptr, new_expr);
 }
 
+
+/**
+     * @brief Populate the out parameter with the expression based on
+     * the clarity expression grammar.
+     * ml- use the overloaded function that returns the inferred type
+     *     from the expression
+     *
+     * @param expr The expression ast is to be converted to the IR
+     * @param new_expr Out parameter to hold the conversion
+     * @return true iff the conversion has failed
+     * @return false iff the conversion was successful
+     */
 bool clarity_convertert::get_expr(
   const nlohmann::json &expr,
   const nlohmann::json &literal_type,
@@ -2733,9 +2742,13 @@ bool clarity_convertert::get_expr(
   nlohmann::json inferred_type;
   return get_expr(expr, nullptr, new_expr, inferred_type);
 }
+
 /**
      * @brief Populate the out parameter with the expression based on
      * the clarity expression grammar.
+     * ml- overloaded the original function to add an inferred_type out
+     *     return. This will contain the objtype that this expression 
+     *     returns, since clarity AST does not have types for each expr
      *
      * More specifically, parse each expression in the AST json and
      * convert it to a exprt ("new_expr"). The expression may have sub-expression
@@ -2753,6 +2766,7 @@ bool clarity_convertert::get_expr(
      * A literal_type is a "typeDescriptions" ast_node.
      * we need this due to some info is missing in the child node.
      * @param new_expr Out parameter to hold the conversion
+     * @param inferred_type Out parameter to hold the objtype
      * @return true iff the conversion has failed
      * @return false iff the conversion was successful
      */
@@ -2789,10 +2803,6 @@ bool clarity_convertert::get_expr(
     if (get_literal_type_from_typet(new_expr.type(), binary_type_expr))
       return true;
 
-    log_debug(
-      "clarity",
-      " @@@ got Expr type BinaryOperatorClass: typet->objtype::{}",
-      binary_type_expr.dump());
     inferred_type.merge_patch(binary_type_expr);
     break;
   }
@@ -2835,6 +2845,7 @@ bool clarity_convertert::get_expr(
 
       inferred_type.merge_patch(binary_type_expr);
 
+      // ml- commenting out the solidity method.
       // Go through the symbol table and get the symbol
 
       // Soldity uses +ve odd numbers to refer to var or functions declared in the contract
@@ -2905,7 +2916,8 @@ bool clarity_convertert::get_expr(
   case ClarityGrammar::ExpressionT::Literal:
   {
     // make a type-name json for integer literal conversion
-    //const nlohmann::json &literal = expr["objtype"];
+    // in some cases the type can be passed from above, so use
+    // that
     nlohmann::json literal_type_expr;
     if (literal_type != nullptr)
     {
@@ -2917,26 +2929,20 @@ bool clarity_convertert::get_expr(
       {
         if (ClarityGrammar::get_literal_type_from_expr(expr, literal_type_expr))
           return true;
-        //expr.push_back(nlohmann::json::object_t::value_type("objtype", literal_type_expr));
       }
       else
       {
-        //literal_type_expr = expr["objtype"];
         literal_type_expr = ClarityGrammar::get_expression_objtype(expr);
       }
     }
 
-    //if (inferred_type != nullptr)
     inferred_type.merge_patch(literal_type_expr);
 
-    log_status(
-      "clarity"
-      "	@@@ got Literal type: ClarityGrammar::get_literal_type_from_expr::{}",
-      literal_type_expr.dump());
     ClarityGrammar::ElementaryTypeNameT type_name =
       ClarityGrammar::get_elementary_type_name_t(literal_type_expr);
     std::string the_value;
 
+    // ml-[TODO] commented the PRINCIPAL. figure out later
     // if (type_name == ClarityGrammar::ElementaryTypeNameT::PRINCIPAL)
     // {
     //   // for principal literals
@@ -2947,13 +2953,11 @@ bool clarity_convertert::get_expr(
 
       the_value = ClarityGrammar::get_expression_lit_value(expr);
     //}
-    log_debug(
-      "clarity",
-      "	@@@ got Literal: ClarityGrammar::ElementaryTypeNameT::{}",
-      ClarityGrammar::elementary_type_name_to_str(type_name));
 
+    // ml- original processing checked if the type was passed from
+    //     above. We dont need to because we will get the type either
+    //     way
     //if (literal_type != nullptr)
-
     {
       ClarityGrammar::ElementaryTypeNameT type = type_name;
 
@@ -3055,6 +3059,7 @@ bool clarity_convertert::get_expr(
 
     break;
   }
+// ml- [TODO] deal with the rest of the expression types  
 #if 0
   case ClarityGrammar::ExpressionT::Tuple:
   {
@@ -4670,13 +4675,9 @@ bool clarity_convertert::get_type_description(
   const nlohmann::json &type_name,
   typet &new_type)
 {
-  log_status(
-    "Got type description {} {}", "get_type_description", type_name.dump());
   // For Clarity rule type-name:
   ClarityGrammar::TypeNameT type = ClarityGrammar::get_type_name_t(type_name);
 
-  log_status(
-    "Got current functionName {} {}", "get_type_description", int(type));
   switch (type)
   {
   case ClarityGrammar::TypeNameT::ElementaryTypeName:
@@ -4686,11 +4687,6 @@ bool clarity_convertert::get_type_description(
   }
   case ClarityGrammar::TypeNameT::ParameterList:
   {
-    log_status(
-      "Got current functionName {} {}",
-      "get_type_description",
-      "ParameterList");
-
     // rule parameter-list
     // Used for Clarity function parameter or return list
     return get_parameter_list(type_name, new_type);
@@ -5665,6 +5661,8 @@ bool clarity_convertert::get_elementary_type_name_buff(
   std::string str_buff_size = objtype[2];
   const unsigned int bytes = std::stoi(str_buff_size);
   out = array_typet(unsigned_char_type(), from_integer(bytes, size_type()));
+  // ml- set the clar_lit_type so that parsing can figure
+  // out the array type
   out.set("#clar_lit_type", "BUFF");
   return false;
 }
@@ -5695,11 +5693,6 @@ bool clarity_convertert::get_elementary_type_name(
   ClarityGrammar::ElementaryTypeNameT type =
     ClarityGrammar::get_elementary_type_name_t(objtype);
 
-  log_status(
-    "clarity"
-    "	@@@ got ElementaryType: ClarityGrammar::ElementaryTypeNameT::{}",
-    int(type));
-
   switch (type)
   {
   // rule unsigned-integer-type
@@ -5720,7 +5713,7 @@ bool clarity_convertert::get_elementary_type_name(
 
   case ClarityGrammar::ElementaryTypeNameT::BOOL:
   {
-    // ml-[TODO] improve this
+    // ml-[TODO] improve this. Copied shamelessly from solidity code
     new_type = bool_type();
     c_type = "bool";
     new_type.set("#cpp_type", c_type);
@@ -5738,6 +5731,8 @@ bool clarity_convertert::get_elementary_type_name(
         integer2binary(value_length, bv_width(int_type())),
         integer2string(value_length),
         int_type()));
+    // ml- set the clar_lit_type so that parsing can figure
+    // out the array type
     new_type.set("#clar_lit_type", "STRING_ASCII");
     break;
   }
@@ -5753,6 +5748,8 @@ bool clarity_convertert::get_elementary_type_name(
         integer2binary(value_length, bv_width(int_type())),
         integer2string(value_length),
         int_type()));
+    // ml- set the clar_lit_type so that parsing can figure
+    // out the array type
     new_type.set("#clar_lit_type", "STRING_UTF8");
     break;
   }

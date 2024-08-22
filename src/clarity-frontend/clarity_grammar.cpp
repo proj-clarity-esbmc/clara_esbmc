@@ -43,6 +43,7 @@ std::string get_declaration_decorator(const nlohmann::json &ast_node)
   return ast_node[0].get<std::string>();
 }
 
+
 // input    : complete ast_node
 // returns   : : expression node located at ast_node[1]
 nlohmann::json get_expression_node(const nlohmann::json &ast_node)
@@ -221,6 +222,21 @@ bool is_literal_type(std::string nodeType)
   }
   return false;
 }
+
+bool is_state_variable(const std::string &ast_node)
+{
+  const std::vector<std::string> state_node_types{
+    "data-var", "map", "trait", "constant", "def-ft", "def-nft"};
+
+  if (
+    std::find(state_node_types.begin(), state_node_types.end(), ast_node) !=
+    state_node_types.end())
+    return true;
+  else
+    return false;
+}
+
+
 bool is_state_variable(const nlohmann::json &ast_node)
 {
   const std::vector<std::string> state_node_types{
@@ -463,6 +479,9 @@ bool get_operation_type(nlohmann::json &expression_node)
     */
 }
 
+// input    : The json expr type which contain the identifier
+// output   : The objtype json from the expr type
+// returns  : false if succesful, or true if failed.
 bool get_literal_type_from_expr(
   const nlohmann::json &expr,
   nlohmann::json &expression_node)

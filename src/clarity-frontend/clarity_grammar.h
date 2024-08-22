@@ -39,6 +39,7 @@ bool is_standard_principal(const nlohmann::json &expression_node);
 
 // end of helper functions
 bool is_literal_type(std::string type);
+bool is_state_variable(const std::string &ast_node);
 bool is_state_variable(const nlohmann::json &ast_node);
 bool is_variable_declaration(const nlohmann::json &ast_node);
 bool is_function_definitionn(const nlohmann::json &ast_node);
