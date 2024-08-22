@@ -3069,8 +3069,6 @@ bool clarity_convertert::get_expr(
 
     break;
   }
-// ml- [TODO] deal with the rest of the expression types  
-#if 0
   case ClarityGrammar::ExpressionT::Tuple:
   {
     /*
@@ -3091,142 +3089,15 @@ bool clarity_convertert::get_expr(
     if (get_tuple_instance(expr, new_expr))
       return true;
 
-    // older code : has useful comments to read
-    // assert(expr.contains("components"));
-
-    // switch (type)
-    // {
-    // // case 1
-    // case ClarityGrammar::TypeNameT::ArrayTypeName:
-    // {
-    //   assert(literal_type != nullptr);
-
-    //   // get elem type
-    //   nlohmann::json elem_literal_type =
-    //     make_array_elementary_type(literal_type);
-
-    //   // get size
-    //   exprt size;
-    //   size = constant_exprt(
-    //     integer2binary(expr["components"].size(), bv_width(int_type())),
-    //     integer2string(expr["components"].size()),
-    //     int_type());
-
-    //   // get array type
-    //   typet arr_type;
-    //   if (get_type_description(literal_type, arr_type))
-    //     return true;
-
-    //   // reallocate array size
-    //   arr_type = array_typet(arr_type.subtype(), size);
-
-    //   // declare static array tuple
-    //   exprt inits;
-    //   inits = gen_zero(arr_type);
-
-    //   // populate array
-    //   int i = 0;
-    //   for (const auto &arg : expr["components"].items())
-    //   {
-    //     exprt init;
-    //     if (get_expr(arg.value(), elem_literal_type, init))
-    //       return true;
-
-    //     inits.operands().at(i) = init;
-    //     i++;
-    //   }
-
-    //   new_expr = inits;
-    //   break;
-    // }
-
-    // // case 3
-    // case ClarityGrammar::TypeNameT::TupleTypeName: // case 3
-    // {
-    //   /*
-    //   we assume there are three types of tuple expr:
-    //   0. dump: (x,y);
-    //   1. fixed: (x,y) = (y,x);
-    //   2. function-related:
-    //       2.1. (x,y) = func();
-    //       2.2. return (x,y);
-
-    //   case 0:
-    //     1. create a struct type
-    //     2. create a struct type instance
-    //     3. new_expr = instance
-    //     e.g.
-    //     (x , y) ==>
-    //     struct Tuple
-    //     {
-    //       uint x,
-    //       uint y
-    //     };
-    //     Tuple tuple;
-
-    //   case 1:
-    //     1. add special handling in binary operation.
-    //        when matching struct_expr A = struct_expr B,
-    //        divided into A.operands()[i] = B.operands()[i]
-    //        and populated into a code_block.
-    //     2. new_expr = code_block
-    //     e.g.
-    //     (x, y) = (1, 2) ==>
-    //     {
-    //       tuple.x = 1;
-    //       tuple.y = 2;
-    //     }
-    //     ? any potential scope issue?
-
-    //   case 2:
-    //     1. when parsing the funciton definition, if the returnParam > 1
-    //        make the function return void instead, and create a struct type
-    //     2. when parsing the return statement, if the return value is a tuple,
-    //        create a struct type instance, do assignments,  and return empty;
-    //     3. when the lhs is tuple and rhs is func_call, get_tuple_instance_expr based
-    //        on the func_call, and do case 1.
-    //     e.g.
-    //     function test() returns (uint, uint)
-    //     {
-    //       return (1,2);
-    //     }
-    //     ==>
-    //     struct Tuple
-    //     {
-    //       uint x;
-    //       uint y;
-    //     }
-    //     function test()
-    //     {
-    //       Tuple tuple;
-    //       tuple.x = 1;
-    //       tuple.y = 2;
-    //       return;
-    //     }
-    //   */
-
-    //   // 1. construct struct type
-    //   if (get_tuple_definition(expr))
-    //     return true;
-
-    //   //2. construct struct_type instance
-    //   if (get_tuple_instance(expr, new_expr))
-    //     return true;
-
-    //   break;
-    // }
-
-    // // case 2
-    // default:
-    // {
-    //   if (get_expr(expr["components"][0], literal_type, new_expr))
-    //     return true;
-    //   break;
-    // }
-    // }
+   // if you find yourself in trouble, refer to Solidity frontend code for this same code.
+   // or check any code before 22nd Aug 2024 for the same switch case.
 
     break;
   }
+
+// ml- [TODO] deal with the rest of the expression types  
+#if 0
+  
   
   case ClarityGrammar::ExpressionT::Mapping:
   {
@@ -5181,8 +5052,8 @@ bool clarity_convertert::get_optional_instance(
     // it it looks like that should match the same methodology as for string-xxx types
     if (val_type == "")
     {
-      val_type = ClarityGrammar::get_nested_objtype(ClarityGrammar::get_expression_objtype(ast_node))[0];//ast_node[1]["objtype"][3][0];
-      val_size = ClarityGrammar::get_nested_objtype(ClarityGrammar::get_expression_objtype(ast_node))[2]; //ast_node[1]["objtype"][3][2];
+      val_type = ClarityGrammar::get_nested_objtype(parent_objtype)[0];//ast_node[1]["objtype"][3][0];
+      val_size = ClarityGrammar::get_nested_objtype(parent_objtype)[2]; //ast_node[1]["objtype"][3][2];
     }
 
     const std::string mem_name = key; //it.key();
@@ -5218,7 +5089,7 @@ bool clarity_convertert::get_optional_instance(
       temp_expression_node = ClarityGrammar::get_expression_args(ast_node)[0];
     }
 
-    
+    //because args do not have objtypes but we need objtypes for get_expr to work
     temp_expression_node["objtype"] = objtype;
 
   

@@ -265,7 +265,7 @@ bool is_literal_type(std::string nodeType)
   if( (nodeType == "standard_principal") || (nodeType == "contract_principal") ||
     (nodeType == "lit_int") || (nodeType == "lit_uint") ||
     (nodeType == "lit_ascii") || (nodeType == "lit_bool") ||
-    (nodeType == "lit_buff") || (nodeType == "lit_utf8"))
+    (nodeType == "lit_buffer") || (nodeType == "lit_utf8"))
   {
     return true;
   }
@@ -571,7 +571,7 @@ bool get_literal_type_from_expr(
           )"_json;
     expression_node = j2;
   }
-  else if (expr_type == "lit_buff")
+  else if (expr_type == "lit_buffer")
   {
     auto j2 = R"(
             ["buffer", "buffer", "4"]              
