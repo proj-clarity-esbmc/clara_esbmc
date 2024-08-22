@@ -1898,7 +1898,7 @@ bool clarity_convertert::get_error_definition(const nlohmann::json &ast_node)
   type.return_type() = empty_typet();
 
   locationt location_begin;
-  get_location_from_decl(ast_node[0], location_begin);
+  get_location_from_decl(ast_node, location_begin);
   std::string debug_modulename =
     get_modulename_from_path(location_begin.file().as_string());
 
@@ -1999,6 +1999,7 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
   if (check_intrinsic_function(ast_node))
     return false;
 #endif
+  nlohmann::json expression_node = ClarityGrammar::get_expression_node(ast_node);
   // 3. Set current_scope_var_num, current_functionDecl and old_functionDecl
   current_scope_var_num = 1;
   const nlohmann::json *old_functionDecl = current_functionDecl;
@@ -2029,7 +2030,7 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
   // 4. Return type
   code_typet type;
 
-  if ((get_type_description(ast_node[1]["return_type"], type.return_type())))
+  if ((get_type_description(ClarityGrammar::get_expression_return_type(expression_node), type.return_type())))
     return true;
   
 // special handling for return_type:
@@ -2053,11 +2054,11 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
 
   // 6. Populate "locationt location_begin"
   locationt location_begin;
-  get_location_from_decl(ast_node[1], location_begin);
+  get_location_from_decl(expression_node, location_begin);
 
   // 7. Populate "std::string id, name"
   std::string name, id;
-  get_function_definition_name(ast_node[1], name, id);
+  get_function_definition_name(expression_node, name, id);
 
   if (name == "func_dynamic")
     printf("@@ found func_dynamic\n");
@@ -2092,13 +2093,13 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
 #endif
 
   ClarityGrammar::ParameterListT params =
-    ClarityGrammar::get_parameter_list_t(ast_node[1]);
+    ClarityGrammar::get_parameter_list_t(expression_node);
 
   if (params != ClarityGrammar::ParameterListT::EMPTY)
   {
     // convert parameters if the function has them
     // update the typet, since typet contains parameter annotations
-    for (const auto &decl : ast_node[1]["args"].items())
+    for (const auto &decl : ClarityGrammar::get_expression_args(expression_node).items())
     {
       const nlohmann::json &func_param_decl = decl.value();
 
@@ -2115,11 +2116,14 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
   added_symbol.type = type;
 
   // 12. Convert body and embed the body into the same symbol
-  if (ast_node[1].contains("body"))
+  if (expression_node.contains("body"))
   {
     exprt body_exprt;
     if (get_function_body(
-          ast_node[1]["body"], body_exprt, type, ast_node[1]["return_type"]))
+          ClarityGrammar::get_expression_body(expression_node), 
+          body_exprt, 
+          type, 
+          ClarityGrammar::get_expression_return_type(expression_node)))
       return true;
 
     added_symbol.value = body_exprt;
@@ -2831,7 +2835,7 @@ bool clarity_convertert::get_expr(
   case ClarityGrammar::ExpressionT::DeclRefExprClass:
   {
     // ml- we will be using the cid to find the variable
-    int cid = ClarityGrammar::get_experession_cid(expr);
+    int cid = ClarityGrammar::get_expression_cid(expr);
     if (cid > 0)
     {
       // ml- for clarity we will assume that this is a variable declaration always
@@ -5693,6 +5697,11 @@ bool clarity_convertert::get_elementary_type_name(
   ClarityGrammar::ElementaryTypeNameT type =
     ClarityGrammar::get_elementary_type_name_t(objtype);
 
+  log_debug(
+    "clarity",
+    "	@@@ got ElementaryType: ClarityGrammar::ElementaryTypeNameT::{}",
+    fmt::underlying(type));
+
   switch (type)
   {
   // rule unsigned-integer-type
@@ -5899,11 +5908,7 @@ void clarity_convertert::get_var_decl_name(
     abort();
   }
 
-  name =
-    ast_node["identifier"]
-      .get<
-        std::
-          string>(); // assume Clarity AST json object has "name" field, otherwise throws an exception in nlohmann::json
+  name = ClarityGrammar::get_expression_identifier(ast_node);
 
   assert(ast_node.contains("cid"));
   if (
@@ -6048,7 +6053,7 @@ unsigned int clarity_convertert::get_line_number(
   unsigned int loc = -1;
   if (ast_node.is_array())
   {
-    ast_node[1]["span"]["start_line"].get<int>();
+    ClarityGrammar::get_expression_node(ast_node)["span"]["start_line"].get<int>();
   }
   else if (ast_node.is_object())
   {

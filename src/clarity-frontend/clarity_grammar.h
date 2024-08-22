@@ -26,7 +26,7 @@ std::string get_declaration_decorator(const nlohmann::json &ast_node);
 nlohmann::json get_expression_node(const nlohmann::json &ast_node);
 std::string get_expression_identifier(const nlohmann::json &ast_node);
 std::string get_expression_type(const nlohmann::json &expression_node);
-int get_experession_cid(const nlohmann::json &expression_node);
+int get_expression_cid(const nlohmann::json &expression_node);
 nlohmann::json get_expression_value_node(const nlohmann::json &expression_node);
 std::string get_expression_lit_value(const nlohmann::json &expression_node);
 nlohmann::json get_expression_args(const nlohmann::json &expression_node);
