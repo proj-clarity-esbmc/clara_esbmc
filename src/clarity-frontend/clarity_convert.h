@@ -156,8 +156,8 @@ protected:
     const nlohmann::json &ast_node,
     std::string &contract_name);
   bool get_empty_array_ref(const nlohmann::json &ast_node, exprt &new_expr);
-  bool get_tuple_definition(const nlohmann::json &ast_node);
-  bool get_tuple_instance(const nlohmann::json &ast_node, exprt &new_expr);
+  bool get_tuple_definition(const nlohmann::json &ast_node, const nlohmann::json &parent_objtype);
+  bool get_tuple_instance(const nlohmann::json &ast_node,const nlohmann::json &parent_objtype, exprt &new_expr);
   void get_tuple_name(
     const nlohmann::json &ast_node,
     std::string &name,
@@ -322,6 +322,9 @@ protected:
   std::string tgt_func;
   // --contract
   std::string tgt_cnt;
+
+  // --reference of the latest symbol added to the symbol table
+  symbolt *latest_symbol;
 
 private:
   bool get_elementary_type_name_uint(

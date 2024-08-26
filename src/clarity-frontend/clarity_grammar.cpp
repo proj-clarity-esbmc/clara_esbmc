@@ -1201,6 +1201,10 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
   {
     return Optional;
   }
+  else if (nodeType == "tuple_object")
+  {
+    return Tuple;
+  }
   // else if (nodeType == "TupleExpression")
   // {
   //   return Tuple;
