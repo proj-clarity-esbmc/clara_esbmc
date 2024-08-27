@@ -228,7 +228,7 @@ protected:
 
   std::string get_ctor_call_id(const std::string &contract_name);
   bool get_clar_builtin_ref(const nlohmann::json expr, exprt &new_expr);
-
+  bool get_clar_builtin_ref(const nlohmann::json expr, exprt &new_expr, const nlohmann::json &expr_type);
   // literal conversion functions
   bool convert_integer_literal(
     const nlohmann::json &integer_literal,

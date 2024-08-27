@@ -393,6 +393,7 @@ std::string get_optional_symbolId(const nlohmann::json &optional_type)
   return symbol_id;
 }
 
+
 // takes objtype as input
 // returns objtype for optional inside an objtype
 nlohmann::json get_optional_type(const nlohmann::json &objtype)
@@ -1124,6 +1125,12 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
     {
       return BinaryOperatorClass;
     }
+    else 
+    {
+      // ml- if the operation is not binary 
+      // then its a clarity built in function
+      return CallExprClass;
+    }
   }
   else if (nodeType == "conditional_expression")
   {
@@ -1132,7 +1139,7 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
       return ConditionalOperatorClass;
     }
   }
-  else if (nodeType == "variable")
+  else if (nodeType == "variable_name")
   {
     return DeclRefExprClass;
   }
@@ -1157,16 +1164,16 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
   // {
   //   return Mapping;
   // }
-  // else if (nodeType == "FunctionCall")
-  // {
-  //   if (expr["expression"]["nodeType"] == "NewExpression")
-  //     return NewExpression;
-  //   if (
-  //     expr["expression"]["nodeType"] == "ElementaryTypeNameExpression" &&
-  //     expr["kind"] == "typeConversion")
-  //     return ElementaryTypeNameExpression;
-  //   return CallExprClass;
-  // }
+  else if (nodeType == "user_function")
+  {
+    // if (expr["expression"]["nodeType"] == "NewExpression")
+    //   return NewExpression;
+    // if (
+    //   expr["expression"]["nodeType"] == "ElementaryTypeNameExpression" &&
+    //   expr["kind"] == "typeConversion")
+    //   return ElementaryTypeNameExpression;
+    return CallExprClass;
+  }
   // else if (nodeType == "MemberAccess")
   // {
   //   assert(expr.contains("expression"));

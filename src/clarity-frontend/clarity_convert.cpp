@@ -3243,218 +3243,81 @@ bool clarity_convertert::get_expr(
     //TODO
     break;
   }
+  #endif
   case ClarityGrammar::ExpressionT::CallExprClass:
   {
-    const nlohmann::json &callee_expr_json = expr["expression"];
+    const nlohmann::json &callee_expr_json = expr;
 
     // 0. check if it's a clarity built-in function
+    // in any case we first need to get the arguments type 
+    // passed to the function so process them first
+    side_effect_expr_function_callt call;
+    nlohmann::json first_arg_expr_type;
+
+    if (expr.contains("args"))
+    {
+      // populate params
+      unsigned num_args = 0;
+      
+      for (const auto &arg : ClarityGrammar::get_expression_args(expr))
+      {
+        exprt single_arg;
+        nlohmann::json single_arg_expr_type;
+        if (get_expr(arg, nullptr, single_arg, single_arg_expr_type))
+          return true;
+
+        call.arguments().push_back(single_arg);
+        
+        ++num_args;
+        if (first_arg_expr_type.empty()) 
+        {
+          first_arg_expr_type.merge_patch(single_arg_expr_type);
+        }
+      }  
+    }
+
+    // ml- check builtin first
     if (
-      !get_clar_builtin_ref(expr, new_expr) &&
+      !get_clar_builtin_ref(expr, new_expr, first_arg_expr_type) &&
       !check_intrinsic_function(callee_expr_json))
     {
+      
+      // ml- for builtin functions we need the type of the args
+      // so we process them first
+      
       // construct call
       typet type = to_code_type(new_expr.type()).return_type();
 
-      side_effect_expr_function_callt call;
       call.function() = new_expr;
       call.type() = type;
-
-      // populate params
-      // the number of arguments defined in the template
-      size_t define_size = to_code_type(new_expr.type()).arguments().size();
-      // the number of arguments actually inside the json file
-      const size_t arg_size = expr["arguments"].size();
-      if (define_size >= arg_size)
-      {
-        // we only populate the exact number of args according to the template
-        for (const auto &arg : expr["arguments"].items())
-        {
-          exprt single_arg;
-          if (get_expr(
-                arg.value(), arg.value()["typeDescriptions"], single_arg))
-            return true;
-
-          call.arguments().push_back(single_arg);
-        }
-      }
 
       new_expr = call;
       break;
     }
 
     // 1. Get callee expr
+    // ml- change the contract.function name from solidity to 
+    //     simple function search
     if (
-      callee_expr_json.contains("nodeType") &&
-      callee_expr_json["nodeType"] == "MemberAccess")
+      callee_expr_json.contains("type") &&
+      ClarityGrammar::get_expression_type(callee_expr_json) == "user_function")
     {
-      // ContractMemberCall
-
-      const int contract_func_id =
-        callee_expr_json["referencedDeclaration"].get<int>();
-      const nlohmann::json caller_expr_json = find_decl_ref(contract_func_id);
-      if (caller_expr_json == empty_json)
+      // ml- get the function declaration
+      if (get_func_decl_ref(callee_expr_json, new_expr))
         return true;
-
-      std::string ref_contract_name;
-      if (get_current_contract_name(caller_expr_json, ref_contract_name))
-        return true;
-
-      std::string name, id;
-      get_function_definition_name(caller_expr_json, name, id);
-
-      if (context.find_symbol(id) == nullptr)
-        // probably a built-in function
-        // that is not supported yet
-        return true;
-
-      const symbolt s = *context.find_symbol(id);
-      typet type = s.type;
-
-      new_expr = exprt("symbol", type);
-      new_expr.identifier(id);
-      new_expr.cmt_lvalue(true);
-      new_expr.name(name);
-      new_expr.set("#member_name", prefix + ref_contract_name);
-
-      // obtain the type of return value
-      // It can be retrieved directly from the original function declaration
-      typet t;
-      if (get_type_description(caller_expr_json["returnParameters"], t))
-        return true;
-
-      side_effect_expr_function_callt call;
+      
       call.function() = new_expr;
-      call.type() = t;
-
-      // populate params
-      auto param_nodes = caller_expr_json["parameters"]["parameters"];
-      unsigned num_args = 0;
-      nlohmann::json param = nullptr;
-      nlohmann::json::iterator itr = param_nodes.begin();
-
-      for (const auto &arg : expr["arguments"].items())
-      {
-        if (itr != param_nodes.end())
-        {
-          if ((*itr).contains("typeDescriptions"))
-          {
-            param = (*itr)["typeDescriptions"];
-          }
-          ++itr;
-        }
-
-        exprt single_arg;
-        if (get_expr(arg.value(), param, single_arg))
-          return true;
-
-        call.arguments().push_back(single_arg);
-        ++num_args;
-        param = nullptr;
-      }
+      call.type() = new_expr.type();
 
       new_expr = call;
       break;
     }
 
-    // wrap it in an ImplicitCastExpr to perform conversion of FunctionToPointerDecay
-    nlohmann::json implicit_cast_expr =
-      make_implicit_cast_expr(callee_expr_json, "FunctionToPointerDecay");
-    exprt callee_expr;
-    if (get_expr(implicit_cast_expr, callee_expr))
-      return true;
-
-    // 2. Get type
-    // extract from the return_type
-    assert(callee_expr.is_symbol());
-    if (expr["kind"] == "structConstructorCall")
-    {
-      // e.g. Book book = Book('Learn Java', 'TP', 1);
-      if (callee_expr.type().id() != irept::id_struct)
-        return true;
-
-      typet t = callee_expr.type();
-      exprt inits = gen_zero(t);
-
-      int ref_id = callee_expr_json["referencedDeclaration"].get<int>();
-      const nlohmann::json struct_ref = find_decl_ref(ref_id);
-      if (struct_ref == empty_json)
-        return true;
-
-      const nlohmann::json members = struct_ref["members"];
-      const nlohmann::json args = expr["arguments"];
-
-      // popluate components
-      for (size_t i = 0; i < inits.operands().size() && i < args.size(); i++)
-      {
-        exprt init;
-        if (get_expr(args.at(i), members.at(i)["typeDescriptions"], init))
-          return true;
-
-        const struct_union_typet::componentt *c =
-          &to_struct_type(t).components().at(i);
-        typet elem_type = c->type();
-
-        clarity_gen_typecast(ns, init, elem_type);
-        inits.operands().at(i) = init;
-      }
-
-      new_expr = inits;
-      break;
-    }
-
-    // funciton call expr
-    assert(callee_expr.type().is_code());
-    typet type = to_code_type(callee_expr.type()).return_type();
-
-    side_effect_expr_function_callt call;
-    call.function() = callee_expr;
-    call.type() = type;
-
-    // special case: handling revert and require
-    // insert a bool false as the first argument.
-    // drop the rest of params.
-    if (
-      callee_expr.type().get("#clar_name").as_string().find("revert") !=
-      std::string::npos)
-    {
-      call.arguments().push_back(false_exprt());
-      new_expr = call;
-
-      break;
-    }
-
-    // 3. populate param
-    assert(callee_expr_json.contains("referencedDeclaration"));
-
-    //! we might use int_const instead of the original param type (e.g. uint_8).
-    nlohmann::json param_nodes = callee_expr_json["argumentTypes"];
-    nlohmann::json param = nullptr;
-    nlohmann::json::iterator itr = param_nodes.begin();
-    unsigned num_args = 0;
-
-    for (const auto &arg : expr["arguments"].items())
-    {
-      exprt single_arg;
-      if (get_expr(arg.value(), *itr, single_arg))
-        return true;
-      call.arguments().push_back(single_arg);
-
-      ++num_args;
-      ++itr;
-      param = nullptr;
-
-      // Special case: require
-      // __ESBMC_assume only handle one param.
-      if (
-        callee_expr.type().get("#clar_name").as_string().find("require") !=
-        std::string::npos)
-        break;
-    }
-    log_debug("clarity", "  @@ num_args={}", num_args);
-
-    new_expr = call;
+    log_error("ClarityGrammar::ExpressionT::CallExprClass The function is neither user defined nor an intrinsic function");
+    return true;
     break;
   }
+  #if 0
   case ClarityGrammar::ExpressionT::ImplicitCastExprClass:
   {
     if (get_cast_expr(expr, new_expr, literal_type))
@@ -4469,7 +4332,7 @@ bool clarity_convertert::get_var_decl_ref(
     get_var_decl_name(decl, name, id);
     log_status(
       "clarity"
-      "	@@@ get_var_decl_ref finding id as function var::{}",
+      "	@@@ finding id as function var::{}",
       id);
 
     if (context.find_symbol(id) != nullptr)
@@ -4482,7 +4345,7 @@ bool clarity_convertert::get_var_decl_ref(
   {
     log_status(
       "clarity"
-      "	@@@ get_var_decl_ref finding state id as function var::{}",
+      "	@@@ finding state id as function var::{}",
       id);
 
     if (context.find_symbol(state_id) != nullptr)
@@ -4514,19 +4377,21 @@ bool clarity_convertert::get_func_decl_ref(
 {
   // Function to configure new_expr that has a +ve referenced id, referring to a function declaration
   // This allow to get func symbol before we add it to the symbol table
-  assert(decl["nodeType"] == "FunctionDefinition");
+  assert(
+    decl["type"] == "user_function" ||
+    decl["type"] == "native_function");
   std::string name, id;
   get_function_definition_name(decl, name, id);
 
-  typet type;
-  if (get_func_decl_ref_type(
-        decl, type)) // "type-name" as in state-variable-declaration
-    return true;
+  if (context.find_symbol(id) != nullptr)
+  {
+    new_expr = symbol_expr(*context.find_symbol(id));
+    return false;
+  }
 
-  new_expr = exprt("symbol", type);
-  new_expr.identifier(id);
-  new_expr.cmt_lvalue(true);
-  new_expr.name(name);
+  // ml- Should have found the function
+  log_error("Could not find function {} {}", name, id);
+  return true;
   return false;
 }
 
@@ -4601,72 +4466,58 @@ bool clarity_convertert::get_esbmc_builtin_ref(
   return false;
 }
 
-/*
-  check if it's a clarity built-in function
-  - if so, get the function definition reference, assign to new_expr and return false
-  - if not, return true
-*/
 bool clarity_convertert::get_clar_builtin_ref(
   const nlohmann::json expr,
   exprt &new_expr)
 {
+  return get_clar_builtin_ref(expr, new_expr, nullptr);
+}
+/*
+  check if it's a clarity built-in function
+  - if so, get the function definition reference, assign to new_expr and return false
+  - if not, return true
+  ml- overload this function to pass the expr type so that 
+      the correct builtin function is used
+*/
+bool clarity_convertert::get_clar_builtin_ref(
+  const nlohmann::json expr,
+  exprt &new_expr,
+  const nlohmann::json &expr_type)
+{
   // get the reference from the pre-populated symbol table
   // note that this could be either vars or funcs.
-  assert(expr.contains("nodeType"));
+  assert(expr.contains("type"));
 
-  if (expr["nodeType"].get<std::string>() == "FunctionCall")
+  if (ClarityGrammar::get_expression_type(expr) == "native_function")
   {
-    //  e.g. gasleft() <=> c:@gasleft
-    if (expr["expression"]["nodeType"].get<std::string>() != "Identifier")
-      // this means it's not a builtin funciton
-      return true;
-
-    std::string name = expr["expression"]["name"].get<std::string>();
+    
+    std::string name_identifier = ClarityGrammar::get_expression_identifier(expr); 
+    std::string name = name_identifier;
+    bool identifier_found = false;
+    
     std::string id = "c:@F@" + name;
-    if (context.find_symbol(id) == nullptr)
+    if (!expr_type.empty())
+    {
+      // check builtin function with qualifiers
+      // replace the - with _
+      std::string type_qualifier = expr_type[0];
+      std::replace( type_qualifier.begin(), type_qualifier.end(), '-', '_'); 
+      std::string id_qualifier = "c:@F@" + type_qualifier + "_" + name;
+
+      if (context.find_symbol(id_qualifier) != nullptr) {
+        identifier_found = true;
+        id = id_qualifier;
+      }
+    }
+    
+    // If the qualifer appended function not found then search for 
+    // direct named function
+    if (!identifier_found && context.find_symbol(id) == nullptr)
+    {
       return true;
+    }  
     const symbolt &sym = *context.find_symbol(id);
     new_expr = symbol_expr(sym);
-  }
-  else if (expr["nodeType"].get<std::string>() == "MemberAccess")
-  {
-    // e.g. string.concat() <=> c:@string_concat
-    std::string bs;
-    if (expr["expression"].contains("name"))
-      bs = expr["expression"]["name"].get<std::string>();
-    else if (
-      expr["expression"].contains("typeName") &&
-      expr["expression"]["typeName"].contains("name"))
-      bs = expr["expression"]["typeName"]["name"].get<std::string>();
-    else if (0)
-    {
-      //TODO：support something like <address>.balance
-    }
-    else
-      return true;
-
-    std::string mem = expr["memberName"].get<std::string>();
-    std::string id_var = "c:@" + bs + "_" + mem;
-    std::string id_func = "c:@F@" + bs + "_" + mem;
-    if (context.find_symbol(id_var) != nullptr)
-    {
-      symbolt &sym = *context.find_symbol(id_var);
-
-      if (sym.value.is_empty() || sym.value.is_zero())
-      {
-        // update: set the value to rand (default 0）
-        // since all the current support built-in vars are uint type.
-        // we just set the value to c:@F@nondet_uint
-        symbolt &r = *context.find_symbol("c:@F@nondet_uint");
-        sym.value = r.value;
-      }
-      new_expr = symbol_expr(sym);
-    }
-
-    else if (context.find_symbol(id_func) != nullptr)
-      new_expr = symbol_expr(*context.find_symbol(id_func));
-    else
-      return true;
   }
   else
     return true;
@@ -5732,7 +5583,7 @@ bool clarity_convertert::get_elementary_type_name(
   {
     // obj[2] contains size of object
     std::string str_value_length = objtype[2];
-    size_t value_length = std::stoi(str_value_length);
+    size_t value_length = std::stoi(str_value_length) + 1;
 
     new_type = array_typet(
       signed_char_type(),
@@ -5749,7 +5600,7 @@ bool clarity_convertert::get_elementary_type_name(
   {
     // TODO: and this
     std::string str_value_length = objtype[2];
-    size_t value_length = std::stoi(str_value_length);
+    size_t value_length = std::stoi(str_value_length) + 1;
 
     new_type = array_typet(
       signed_char_type(),
