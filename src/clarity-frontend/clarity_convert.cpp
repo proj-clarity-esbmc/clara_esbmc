@@ -3259,14 +3259,11 @@ bool clarity_convertert::get_expr(
       // populate params
       unsigned num_args = 0;
       
-      // ml- Traversing using auto requires indexing the args
-      // directly, otherwise would have to use iterators
-      // which woul make this ugly
-      for (const auto &arg : expr["args"].items())
+      for (const auto &arg : ClarityGrammar::get_expression_args(expr))
       {
         exprt single_arg;
         nlohmann::json single_arg_expr_type;
-        if (get_expr(arg.value(), nullptr, single_arg, single_arg_expr_type))
+        if (get_expr(arg, nullptr, single_arg, single_arg_expr_type))
           return true;
 
         call.arguments().push_back(single_arg);
