@@ -229,6 +229,28 @@ char* string_concat(char *x, char *y)
 	strcat(x, y);
 	return x;
 }
+
+
+char* string_ascii_concat(char *s1, char *s2)
+{
+	int l1 = strlen(s1);
+    int l2 = strlen(s2);
+	
+	// for this to work properly always pass --force-malloc-success
+    char *out = malloc(l1 + l2 + 1);
+	assert(out != NULL);
+    memcpy(out,s1, l1);
+    memcpy(out + l1,s2, l2);
+	out[l1 + l2] = 0;
+	return out;
+}
+
+char* concat(char *s1, char *s2)
+{
+	return string_ascii_concat(s1, s2);
+}
+
+// ml-[TODO] add other concat functions
 )";
 
 const std::string clar_byte = R"(
