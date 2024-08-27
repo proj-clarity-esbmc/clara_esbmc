@@ -1245,6 +1245,28 @@ bool clarity_convertert::convert()
           
           log_status("Parsing {} {} ", decl_decorator, identifier);
 
+          /* TEST TUPLE CODE FOR RECURSIVE flow */
+          if (expression_node.contains("objtype"))
+          {
+            nlohmann::json parent_objtype = ClarityGrammar::get_expression_objtype(expression_node);
+            std::string experssion_type = ClarityGrammar::get_expression_type(expression_node);
+            
+            if( (parent_objtype[0] == "tuple") && (experssion_type == "variable_declaration"))
+            {
+              nlohmann::json entity_attrib;
+              entity_attrib["entity"] = "named_tuple";
+              entity_attrib["parent_identifier"] = identifier;
+
+              expr[1]["value"]["attributes"] = entity_attrib;
+              //expr["value"]["attributes"]["parent_identifier"] = identifier;
+            }
+          }
+          
+
+
+
+          /* END TUPLE TEST CODE FOR RECURSIVE Flow*/
+
 //add_dummy_symbol();
 // ml- no need to do this with new AST
 #if 0
@@ -5330,12 +5352,17 @@ bool clarity_convertert::get_tuple_instance(
     //Fixme: right now it only handles elementary types
     // we will need to pass it the whole get_expr function to handle more complex types.
     // recursive call to get_expr
-    ClarityGrammar::ElementaryTypeNameT type_name =
-      ClarityGrammar::get_elementary_type_name_t(component_type);
+    // ClarityGrammar::ElementaryTypeNameT type_name =
+    //   ClarityGrammar::get_elementary_type_name_t(component_type);
 
     /* Create a temporary JSON object to ease processing */
     nlohmann::json temp_expression_node = ClarityGrammar::get_expression_value_node(it);
     temp_expression_node["objtype"] = component_type;
+    if (type == ClarityGrammar::TypeNameT::TupleTypeName)
+    {
+      temp_expression_node["attributes"]["entity"] = "unnamed_tuple";
+      temp_expression_node["attributes"]["parent_identifier"] = "orphan";
+    }
     std::cout <<temp_expression_node.dump(4)<<std::endl;
 
     // temp_expression_node["expressionType"] = "Literal";
@@ -5374,8 +5401,41 @@ void clarity_convertert::get_tuple_name(
   std::string &name,
   std::string &id)
 {
-  name =
+  // is this assumption valid ?
+  // [ToDo]: Check if this assumption is valid that objtype is only present in parent nodes.
+  
+  // check if it is a "value" node of a tuple... value node of a named tuple will have attributes
+  if (ast_node.contains("attributes"))
+  {
+    if (ast_node["attributes"].contains("entity"))
+    {
+      if (ast_node["attributes"]["entity"] == "named_tuple")
+      {
+        name = "tuple_" + ast_node["attributes"]["parent_identifier"].get<std::string>(); 
+      }
+      else  //unnamed tuple
+      {
+        name = "tuple_" + std::string("tuple#") + std::to_string(ClarityGrammar::get_expression_cid(ast_node));
+      }
+
+    }
+    else{
+      log_error("Invalid Tuple node found... attributes without entity. Aborting...");
+      abort();
+    }
+    
+  }
+  else if (ast_node.contains("objtype"))
+  {
+     name =
     "tuple_" + ClarityGrammar::get_expression_identifier(ast_node); //ast_node[1]["identifier"].get<std::string>();
+  }
+  else
+  {
+     name =
+    "tuple_" + std::string("tuple#") + std::to_string(ClarityGrammar::get_expression_cid(ast_node));
+  }
+ 
   id = prefix + "struct " + name;
 }
 
@@ -5390,7 +5450,7 @@ bool clarity_convertert::get_tuple_instance_name(
   if (c_name.empty())
     return true;
 
-  //name = "tuple_instance_" + ast_node[1]["identifier"].get<std::string>(); //+ "#"+ std::to_string(ast_node[1]["cid"].get<int>());
+  name = "tuple_instance_" + std::to_string(ClarityGrammar::get_expression_cid(ast_node)); //+ "#"+ std::to_string(ast_node[1]["cid"].get<int>());
   //name = ClarityGrammar::get_expression_identifier(ast_node);
     // ast_node[1]["identifier"]
     //   .get<
