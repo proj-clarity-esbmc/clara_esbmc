@@ -3250,20 +3250,38 @@ bool clarity_convertert::get_expr(
 
     // 0. check if it's a clarity built-in function
     // in any case we first need to get the arguments type 
-    // passed to the function
-    exprt first_arg;
-    nlohmann::json expression_type;
+    // passed to the function so process them first
+    side_effect_expr_function_callt call;
+    nlohmann::json first_arg_expr_type;
+
     if (expr.contains("args"))
     {
-      if (get_expr(expr["args"][0], nullptr, first_arg, expression_type))
-      {
-        return true;
-      }
+      // populate params
+      unsigned num_args = 0;
       
+      // ml- Traversing using auto requires indexing the args
+      // directly, otherwise would have to use iterators
+      // which woul make this ugly
+      for (const auto &arg : expr["args"].items())
+      {
+        exprt single_arg;
+        nlohmann::json single_arg_expr_type;
+        if (get_expr(arg.value(), nullptr, single_arg, single_arg_expr_type))
+          return true;
+
+        call.arguments().push_back(single_arg);
+        
+        ++num_args;
+        if (first_arg_expr_type.empty()) 
+        {
+          first_arg_expr_type.merge_patch(single_arg_expr_type);
+        }
+      }  
     }
 
+    // ml- check builtin first
     if (
-      !get_clar_builtin_ref(expr, new_expr, expression_type) &&
+      !get_clar_builtin_ref(expr, new_expr, first_arg_expr_type) &&
       !check_intrinsic_function(callee_expr_json))
     {
       
@@ -3273,35 +3291,8 @@ bool clarity_convertert::get_expr(
       // construct call
       typet type = to_code_type(new_expr.type()).return_type();
 
-      side_effect_expr_function_callt call;
       call.function() = new_expr;
       call.type() = type;
-
-      // populate params
-      // the number of arguments defined in the template
-      
-      // the number of arguments actually inside the json file
-      const size_t arg_size = expr["args"].size();
-      {
-        unsigned num_args = 0;        
-        for (const auto &arg : expr["args"].items())
-        {
-          // ml- First arg has been preprocessed so use thats
-          if (num_args == 0)
-          {
-            call.arguments().push_back(first_arg);
-          }
-          else
-          {
-            exprt single_arg;
-            if (get_expr(arg.value(), single_arg))
-              return true;
-
-            call.arguments().push_back(single_arg);
-          }          
-          ++num_args;
-        }
-      }
 
       new_expr = call;
       break;
@@ -3312,43 +3303,20 @@ bool clarity_convertert::get_expr(
     //     simple function search
     if (
       callee_expr_json.contains("type") &&
-      callee_expr_json["type"] == "user_function")
+      ClarityGrammar::get_expression_type(callee_expr_json) == "user_function")
     {
       // ml- get the function declaration
       if (get_func_decl_ref(callee_expr_json, new_expr))
         return true;
       
-      side_effect_expr_function_callt call;
       call.function() = new_expr;
       call.type() = new_expr.type();
-
-      // populate params
-      unsigned num_args = 0;
-      
-      for (const auto &arg : expr["args"].items())
-      {
-        // ml- we have processed the first argument
-        if (num_args == 0)
-        {
-          call.arguments().push_back(first_arg);
-        }
-        else
-        {
-          exprt single_arg;
-          if (get_expr(arg.value(), single_arg))
-            return true;
-
-          call.arguments().push_back(single_arg);
-        }
-        
-        ++num_args;
-      }
 
       new_expr = call;
       break;
     }
 
-    log_error("ClarityGrammar::ExpressionT::CallExprClass The function is neither user nor intrinsic");
+    log_error("ClarityGrammar::ExpressionT::CallExprClass The function is neither user defined nor an intrinsic function");
     return true;
     break;
   }
@@ -4523,13 +4491,9 @@ bool clarity_convertert::get_clar_builtin_ref(
   // note that this could be either vars or funcs.
   assert(expr.contains("type"));
 
-  if (expr["type"].get<std::string>() == "native_function")
+  if (ClarityGrammar::get_expression_type(expr) == "native_function")
   {
-    // //  e.g. gasleft() <=> c:@gasleft
-    // if (expr["expression"]["nodeType"].get<std::string>() != "Identifier")
-    //   // this means it's not a builtin funciton
-    //   return true;
-
+    
     std::string name_identifier = ClarityGrammar::get_expression_identifier(expr); 
     std::string name = name_identifier;
     bool identifier_found = false;
