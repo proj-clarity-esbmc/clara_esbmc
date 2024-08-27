@@ -4549,6 +4549,8 @@ bool clarity_convertert::get_clar_builtin_ref(
       }
     }
     
+    // If the qualifer appended function not found then search for 
+    // direct named function
     if (!identifier_found && context.find_symbol(id) == nullptr)
     {
       return true;
@@ -4556,46 +4558,6 @@ bool clarity_convertert::get_clar_builtin_ref(
     const symbolt &sym = *context.find_symbol(id);
     new_expr = symbol_expr(sym);
   }
-  // else if (expr["nodeType"].get<std::string>() == "MemberAccess")
-  // {
-  //   // e.g. string.concat() <=> c:@string_concat
-  //   std::string bs;
-  //   if (expr["expression"].contains("name"))
-  //     bs = expr["expression"]["name"].get<std::string>();
-  //   else if (
-  //     expr["expression"].contains("typeName") &&
-  //     expr["expression"]["typeName"].contains("name"))
-  //     bs = expr["expression"]["typeName"]["name"].get<std::string>();
-  //   else if (0)
-  //   {
-  //     //TODO：support something like <address>.balance
-  //   }
-  //   else
-  //     return true;
-
-  //   std::string mem = expr["memberName"].get<std::string>();
-  //   std::string id_var = "c:@" + bs + "_" + mem;
-  //   std::string id_func = "c:@F@" + bs + "_" + mem;
-  //   if (context.find_symbol(id_var) != nullptr)
-  //   {
-  //     symbolt &sym = *context.find_symbol(id_var);
-
-  //     if (sym.value.is_empty() || sym.value.is_zero())
-  //     {
-  //       // update: set the value to rand (default 0）
-  //       // since all the current support built-in vars are uint type.
-  //       // we just set the value to c:@F@nondet_uint
-  //       symbolt &r = *context.find_symbol("c:@F@nondet_uint");
-  //       sym.value = r.value;
-  //     }
-  //     new_expr = symbol_expr(sym);
-  //   }
-
-  //   else if (context.find_symbol(id_func) != nullptr)
-  //     new_expr = symbol_expr(*context.find_symbol(id_func));
-  //   else
-  //     return true;
-  // }
   else
     return true;
 
