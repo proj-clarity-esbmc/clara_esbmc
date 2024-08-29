@@ -72,7 +72,7 @@ std::string get_expression_type(
 // return   :  the cid of the expression node expression_node["cid"]
 int get_expression_cid(const nlohmann::json &expression_node)
 {
-  return expression_node["cid"].get<int>();
+  return expression_node["cid"].get<int16_t>();
 }
 
 // input    : an expression node

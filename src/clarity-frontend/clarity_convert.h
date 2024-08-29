@@ -156,6 +156,7 @@ protected:
     const nlohmann::json &ast_node,
     std::string &contract_name);
   bool get_empty_array_ref(const nlohmann::json &ast_node, exprt &new_expr);
+  bool is_nested_tuple(const nlohmann::json &ast_node);
   bool get_tuple_definition(const nlohmann::json &ast_node, const nlohmann::json &parent_objtype);
   bool get_tuple_instance(const nlohmann::json &ast_node,const nlohmann::json &parent_objtype, exprt &new_expr);
   void get_tuple_name(
