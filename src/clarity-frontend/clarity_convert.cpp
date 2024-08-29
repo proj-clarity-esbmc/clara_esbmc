@@ -4929,23 +4929,15 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node, co
         exp_value_node["attributes"]["entity"] = "named_tuple";
         exp_value_node["attributes"]["parent_identifier"] = ClarityGrammar::get_expression_identifier(it);
 
-        get_tuple_name(exp_value_node, mem_name, mem_id);
-        
-
-        locationt location_begin;
-        get_location_from_decl(it, location_begin);
-
-        // get debug module name
-        std::string debug_modulename =
-          get_modulename_from_path(location_begin.file().as_string());
-        current_fileName = debug_modulename;
-
-        // populate struct type symbol
-        symbolt symbol;
-        get_default_symbol(symbol, debug_modulename, mem_type, mem_name, mem_id, location_begin);
-        symbol.is_type = true;
-        symbolt *nested_symbol = move_symbol_to_context(symbol);
         get_tuple_definition(exp_value_node, arg_objtype);
+        
+        get_tuple_name(exp_value_node, mem_name, mem_id);
+        if (context.find_symbol(mem_id) == nullptr)
+        {
+          log_error("Nested Tuple {} not found in the symbol table. Aborting...", mem_id);
+          return true;
+        }
+        symbolt *nested_symbol = context.find_symbol(mem_id);
         mem_type = nested_symbol->type;
       }
       else
@@ -4975,8 +4967,6 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node, co
   //t.location() = location_begin;
   added_symbol->type = t;
   added_symbol->is_type = true;
-
-  //added_symbol->dump();
 
   return false;
 }
@@ -5369,9 +5359,6 @@ bool clarity_convertert::get_tuple_instance(
 
   const symbolt &sym = *context.find_symbol(id);
 
-  //const symbolt &sym = *latest_symbol;
-  //std::string name = sym.name.as_string();
-  //std::string id;
 
   // get type
   typet t = sym.type;
@@ -5379,12 +5366,13 @@ bool clarity_convertert::get_tuple_instance(
   assert(t.id() == typet::id_struct);
 
   symbolt *added_symbol ;
+  // if it's a nested tuple, we don't need to create a new symbol 
+  // because the symbol will already be created in get_tuple_definition
   if (!is_nested_tuple(ast_node))
   {
     // get instance name,id
     if (get_tuple_instance_name(ast_node, name, id))
       return true;
-  // get_tuple_name(ast_node, name, id);
       
 
     // get location
@@ -5419,15 +5407,13 @@ bool clarity_convertert::get_tuple_instance(
   int as = std::stoi(parent_objtype[2].get<std::string>());
   assert(is <= as);
 
-  // for (nlohmann::json::iterator it = objtype[1].begin(); it != objtype[1].end();
-  //      ++it)
-  //nlohmann::json tupleElements = ast_node[1]["objtype"][1];
+  
   nlohmann::json tuple_keys = ClarityGrammar::get_expression_args(ast_node);
   //std::cout <<objtype.dump(4)<<std::endl;
 
   //  //for loop to iterate over all keys of objtype
   // ml- this is an array. need to traverse the array
-  //for (nlohmann::json::iterator it = objtype.begin(); it != objtype.end(); ++it)
+  
   for (auto &it : tuple_keys)
   {
     //get the type of the component
@@ -5465,6 +5451,8 @@ bool clarity_convertert::get_tuple_instance(
     ++i;
   }
 
+  // we don't need to set the value to this added symbol for nested tuples
+  // because if we do, it will start showing up as a variable of given type
   if (!is_nested_tuple(ast_node))
   {
     added_symbol->value = inits;
@@ -5474,9 +5462,6 @@ bool clarity_convertert::get_tuple_instance(
   {
     new_expr = inits;
   }
-  // added_symbol->value = inits;
-  // new_expr = added_symbol->value;
-  // new_expr.identifier(id);
   return false;
 }
 
@@ -6102,14 +6087,19 @@ unsigned int clarity_convertert::get_line_number(
     ]
     */
   unsigned int loc = -1;
-  if (ast_node.is_array())
+  if (ast_node.contains("span"))
   {
-    ClarityGrammar::get_expression_node(ast_node)["span"]["start_line"].get<int>();
+    nlohmann::json span = ClarityGrammar::get_location_info(ast_node);
+    loc = span["start_line"].get<int>();
   }
-  else if (ast_node.is_object())
-  {
-    ast_node["span"]["start_line"].get<int>();
-  }
+  // if (ast_node.is_array())
+  // {
+  //   ClarityGrammar::get_expression_node(ast_node)["span"]["start_line"].get<int>();
+  // }
+  // else if (ast_node.is_object())
+  // {
+  //   ast_node["span"]["start_line"].get<int>();
+  // }
   return loc;
 }
 

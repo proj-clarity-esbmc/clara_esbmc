@@ -10,14 +10,14 @@ class crypto_hash
 {
 public:
   std::shared_ptr<crypto_hash_private> p_crypto;
-  unsigned int hash[5];
+  unsigned char hash[20];
 
   bool operator<(const crypto_hash &h2) const;
 
   size_t to_size_t() const
   {
     size_t result = hash[0];
-    for (int i = 1; i < 5; i++)
+    for (int i = 1; i < 20; i++)
       // Do we care about overlaps?
       result ^= hash[i];
     return result;
