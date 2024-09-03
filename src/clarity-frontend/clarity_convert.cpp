@@ -1548,42 +1548,6 @@ bool clarity_convertert::get_var_decl(
     decl.operands().push_back(val);
   }
 
-  // special handle for contract type
-  // e.g.
-  //  Base x ==> Base x = new Base();
-  else if (
-    ClarityGrammar::get_type_name_t(ast_node["typeName"]["typeDescriptions"]) ==
-    ClarityGrammar::ContractTypeName)
-  {
-    // 1. get constract name
-    assert(
-      ast_node["typeName"]["nodeType"].get<std::string>() ==
-      "UserDefinedTypeName");
-    const std::string contract_name =
-      ast_node["typeName"]["pathNode"]["name"].get<std::string>();
-
-    // 2. since the contract type variable has no initial value, i.e. explicit constructor call,
-    // we construct an implicit constructor expression
-    exprt val;
-    if (get_implicit_ctor_ref(val, contract_name))
-      return true;
-
-    // 3. make it to a temporary object
-    side_effect_exprt tmp_obj("temporary_object", val.type());
-    codet code_expr("expression");
-    code_expr.operands().push_back(val);
-    tmp_obj.initializer(code_expr);
-    tmp_obj.location() = val.location();
-    val.swap(tmp_obj);
-
-    // 4. generate typecast for Clarity contract
-    clarity_gen_typecast(ns, val, t);
-
-    // 5. add constructor call to declaration operands
-    added_symbol.value = val;
-    decl.operands().push_back(val);
-  }
-
   decl.location() = location_begin;
   new_expr = decl;
 
@@ -3244,6 +3208,54 @@ bool clarity_convertert::get_expr(
     break;
   }
   #endif
+  case ClarityGrammar::ExpressionT::LetDeclaration:
+  {
+    // First process the temporary variables of let
+    code_blockt _block;
+    unsigned ctr = 0;
+    exprt last;
+    // items() returns a key-value pair with key being the index
+    for (auto const &stmt_kv : ClarityGrammar::get_expression_body(expr))
+    {
+      exprt statement;
+      if (get_expr(stmt_kv, statement))
+        return true;
+
+      symbol_exprt result_expr("tmp_result_" + std::to_string(ctr), statement.type());
+      code_assignt assign_result(result_expr, statement);
+      //convert_expression_to_code(statement);
+      _block.operands().push_back(assign_result);
+      ++ctr;
+      last = statement;
+    }
+    log_debug("calara", " \t@@@ CompoundStmt has {} statements", ctr);
+
+    // locationt location_end;
+    // get_final_location_from_stmt(expr, location_end);
+
+    // _block.end_location(location_end);
+    //new_expr = _block;
+    typet t = last.type();
+
+    // symbol_exprt result_expr("tmp_result", t);
+    // code_assignt assign_result(result_expr, last);
+
+    // _block.operands().pop_back();
+    // _block.operands().push_back(assign_result);
+    // ClarityGrammar::get_literal_type_from_expr(last);
+    // if (get_type(last.getType(), t))
+    //   return true;
+
+    // exprt subStmt;
+    // if (get_expr(*stmtExpr.getSubStmt(), subStmt))
+    //   return true;
+
+    side_effect_exprt stmt_expr("statement_expression", t);
+    stmt_expr.copy_to_operands(_block);
+
+    new_expr = stmt_expr;
+    break;
+  }
   case ClarityGrammar::ExpressionT::CallExprClass:
   {
     const nlohmann::json &callee_expr_json = expr;

@@ -269,6 +269,12 @@ enum ExpressionT
   // FunctionCall
   CallExprClass,
 
+  // LetStatements
+  LetDeclaration,
+
+  // LetVariable
+  LetVariableDecl,
+
   // auxiliary type for implicit casting in Clarity, e.g. function return value
   // Clarity does NOT provide such information.
   ImplicitCastExprClass,

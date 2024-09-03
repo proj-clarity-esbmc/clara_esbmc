@@ -1159,6 +1159,14 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
   // {
   //   return List;
   // }
+  else if (nodeType == "let")
+  {
+    return LetDeclaration;
+  }
+  else if (nodeType == "let_variable_declaration")
+  {
+    return LetVariableDecl;
+  }  
 
   // else if (nodeType == "Mapping")
   // {
