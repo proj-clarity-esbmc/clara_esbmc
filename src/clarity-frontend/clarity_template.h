@@ -52,10 +52,7 @@ struct principal
 {
     bool contract_is_principal;
     bool contract_is_standard;
-    //char contract_name[128]; //128 bytes long contract name
-    //char issuer_principal_bytes[20];
-    //char version;
-    char issuer_principal_str[149];
+    char issuer_principal_str[222];
   
 };
 

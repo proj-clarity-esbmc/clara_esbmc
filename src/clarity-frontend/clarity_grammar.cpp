@@ -1205,18 +1205,13 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
   {
     return Tuple;
   }
-  // else if (nodeType == "TupleExpression")
-  // {
-  //   return Tuple;
-  // }
-  // else if (nodeType == "Optional")
-  // {
-  //   return Optional;
-  // }
-  // else if (nodeType == "List")
-  // {
-  //   return List;
-  // }
+  else if (nodeType == "list")
+  {
+    return List;
+  }
+  
+
+ 
 
   // else if (nodeType == "Mapping")
   // {

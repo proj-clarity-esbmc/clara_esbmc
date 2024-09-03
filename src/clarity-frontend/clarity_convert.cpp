@@ -3122,6 +3122,11 @@ bool clarity_convertert::get_expr(
 
     break;
   }
+  case ClarityGrammar::ExpressionT::List:
+  {
+    get_list_of_entry_type(expr, literal_type, new_expr);
+    break;
+  }
 
 // ml- [TODO] deal with the rest of the expression types  
 #if 0
@@ -3521,11 +3526,7 @@ bool clarity_convertert::get_expr(
   case ClarityGrammar::ExpressionT::ContractMemberCall:
   case ClarityGrammar::ExpressionT::StructMemberCall:
 
-  case ClarityGrammar::ExpressionT::List:
-  {
-    get_list_of_entry_type(expr, new_expr);
-    break;
-  }
+  
   case ClarityGrammar::ExpressionT::BuiltinMemberCall:
   {
     if (get_clar_builtin_ref(expr, new_expr))
@@ -4879,11 +4880,11 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node, co
     get_default_symbol(symbol, debug_modulename, t, name, id, location_begin);
     symbol.is_type = true;
     added_symbol = move_symbol_to_context(symbol);
+    
   }  
   
   
   t = added_symbol->type;
-  
   t.tag("struct " + name);
   // populate params
   
@@ -4940,9 +4941,15 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node, co
         symbolt *nested_symbol = context.find_symbol(mem_id);
         mem_type = nested_symbol->type;
       }
+      else if (mem_type.get("#clar_type") == "principal")
+      {
+        //std::cout <<mem_type.pretty()<<std::endl;
+        mem_id = "tag-struct principal";
+        
+      }
       else
       {
-        mem_type.tag("struct " + mem_name);
+        //mem_type.tag("struct " + mem_name);
       }
 
     }
@@ -5026,10 +5033,10 @@ bool clarity_convertert::process_c_defined_structs(
 }
 
 bool clarity_convertert::get_list_of_entry_type(
-  const nlohmann::json &ast_node,
+  const nlohmann::json &ast_node, const nlohmann::json &parent_objtype,
   exprt &new_expr)
 {
-  std::string id = get_list_struct_id(ast_node[1]["objtype"]);
+  std::string id = get_list_struct_id(parent_objtype);
   locationt location_begin;
   symbolt added_symbol;
   exprt inits;
@@ -5050,7 +5057,7 @@ bool clarity_convertert::get_list_of_entry_type(
         .get("#cpp_type")
         .as_string(); //fixme : unreliable way of getting type
     std::string val_size = "1";
-    nlohmann::json value_node = ast_node[1]["value"];
+    //nlohmann::json value_node = ast_node[1]["value"];
 
     if (key == "size")
     {
@@ -5061,9 +5068,15 @@ bool clarity_convertert::get_list_of_entry_type(
 
     if (val_type == "")
     {
-      val_type = ast_node[1]["objtype"][3]["objtype"][0];
-      val_size = ast_node[1]["objtype"][2];
+      val_type = ClarityGrammar::get_nested_objtype(parent_objtype)[0];//ast_node[1]["objtype"][3]["objtype"][0];
+      val_size = parent_objtype[2];
+      
     }
+
+    nlohmann::json list_args = ClarityGrammar::get_expression_args(ast_node); 
+    int args_size = list_args.size();
+
+    assert(args_size == std::stoi(val_size));
 
     const std::string mem_name = key;
 
@@ -5080,20 +5093,17 @@ bool clarity_convertert::get_list_of_entry_type(
     int value_length = std::stoi(val_size);
     for (entry_indx = 0; entry_indx < value_length; entry_indx++)
     {
-      nlohmann::json temp_expression_node;
-      temp_expression_node["expressionType"] = "Literal";
-      temp_expression_node["span"] = ast_node[1]["span"];
-      temp_expression_node["identifier"] = mem_name;
-      temp_expression_node["cid"] = ast_node[1]["cid"];
+      nlohmann::json temp_expression_node = list_args[entry_indx];
+      //temp_expression_node["expressionType"] = "Literal";
+      //temp_expression_node["span"] = ast_node[1]["span"];
+      //temp_expression_node["identifier"] = mem_name;
+      //temp_expression_node["cid"] = ast_node[1]["cid"];
       temp_expression_node["objtype"] = objtype;
-      temp_expression_node["value"] =
-        ast_node[1]["value"]
-                [entry_indx +
-                 1]; //+1 because [0] index contains "list" identifier
+      //temp_expression_node["value"] = ast_node[1]["value"][entry_indx +1]; //+1 because [0] index contains "list" identifier
 
-      nlohmann::json temp_declarative_node = {"list", temp_expression_node};
+      //std::cout <<temp_expression_node.dump()<<std::endl;
       exprt init;
-      if (get_expr(temp_declarative_node, objtype, init))
+      if (get_expr(temp_expression_node, objtype, init))
         return true;
 
       buff_inits.operands().at(entry_indx) = init;
@@ -5393,8 +5403,8 @@ bool clarity_convertert::get_tuple_instance(
     symbol.file_local = false;
     symbol.is_extern = false;
     added_symbol = move_symbol_to_context(symbol);
+    
   }
-  
   
 
   // populate initial value
@@ -5440,12 +5450,16 @@ bool clarity_convertert::get_tuple_instance(
       return true;
     
     struct_typet::componentt *c = &to_struct_type(t).components().at(i);
-    to_struct_type(t).components().at(i).type() = init.type();
+    //to_struct_type(t).components().at(i).type() = init.type();
     
+    //std::cout <<"######"<<std::endl;
+    //std::cout <<c->type().pretty()<<std::endl;
     typet elem_type = c->type();
-  
+    
     clarity_gen_typecast(ns, init, elem_type);
+    //std::cout <<init.type().pretty()<<std::endl;
     inits.operands().at(i) = init;
+    //std::cout <<"-------"<<std::endl;
 
     // update
     ++i;
@@ -5659,8 +5673,10 @@ clarity_convertert::get_list_struct_id(const nlohmann::json &objtype)
 {
   // get the id of the struct that represents the list
   // e.g. list_uint128_t
+  nlohmann::json child_objtype = ClarityGrammar::get_nested_objtype(objtype);
   return "tag-struct " + objtype[0].get<std::string>() + "_" +
-         objtype[3]["objtype"][0].get<std::string>();
+        child_objtype[0].get<std::string>();
+
 }
 
 bool clarity_convertert::get_list_type(
@@ -5816,6 +5832,8 @@ bool clarity_convertert::get_elementary_type_name(
     {
       const symbolt &sym = *context.find_symbol(symbol_id);
       new_type = sym.type;
+      new_type.set("#cpp_type", "void");
+      new_type.set("#clar_type", "principal");
     }
     break;
   }
