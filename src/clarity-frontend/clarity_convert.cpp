@@ -1265,6 +1265,16 @@ bool clarity_convertert::convert()
               expr[1]["value"]["attributes"] = entity_attrib;
               //expr["value"]["attributes"]["parent_identifier"] = identifier;
             }
+            else if( (parent_objtype[0] == "list") && (experssion_type == "variable_declaration"))
+            {
+              nlohmann::json entity_attrib;
+              entity_attrib["entity"] = "list";
+              entity_attrib["parent_identifier"] = identifier;
+              entity_attrib["parent_cid"] = ClarityGrammar::get_expression_cid(expression_node);
+
+              expr[1]["value"]["attributes"] = entity_attrib;
+              //expr["value"]["attributes"]["parent_identifier"] = identifier;
+            }
           }
           
 
@@ -1573,6 +1583,8 @@ bool clarity_convertert::get_var_decl(
     clarity_gen_typecast(ns, val, t);
 
     added_symbol.value = val;
+
+    
     decl.operands().push_back(val);
   }
 
@@ -5011,8 +5023,9 @@ bool clarity_convertert::process_c_defined_structs(
   t = sym.type;
   assert(t.id() == typet::id_struct);
 
+  added_symbol = sym;
   // get instance name,id
-  get_state_var_decl_name(ast_node, name, id);
+  //get_state_var_decl_name(ast_node, name, id);
 
   // get location
   //locationt location_begin;
@@ -5036,7 +5049,8 @@ bool clarity_convertert::get_list_of_entry_type(
   const nlohmann::json &ast_node, const nlohmann::json &parent_objtype,
   exprt &new_expr)
 {
-  std::string id = get_list_struct_id(parent_objtype);
+  std::string id,name;
+  id = get_list_instance_id(ast_node, name);//get_list_struct_id(parent_objtype);
   locationt location_begin;
   symbolt added_symbol;
   exprt inits;
@@ -5119,9 +5133,11 @@ bool clarity_convertert::get_list_of_entry_type(
     ++i;
   }
 
-  added_symbol.value = inits;
-  new_expr = added_symbol.value;
+  //added_symbol.value = inits;
+  //new_expr = added_symbol.value;
+  new_expr = inits;
   new_expr.identifier(id);
+  //new_expr.type() = added_symbol.type;
 
   return false;
 }
@@ -5663,6 +5679,33 @@ bool clarity_convertert::get_elementary_type_name_int(
   out = signedbv_typet(int_size);
 
   return false;
+}
+
+// Get the id of the variable instance of the list
+// it is found in the parent ast node as "identifier"
+// or can be found inside attributes as "parent_identifier"
+// Input : ast_node of "value" key of parent ast_node
+// Output : name of the instance variable.
+// returns : id of the instance variable
+std::string clarity_convertert::get_list_instance_id(const nlohmann::json &ast_node, std::string name)
+{
+  std::string id;
+  if (ast_node.contains("attributes"))
+  {
+    if (ast_node["attributes"].contains("entity"))
+    {
+      if (ast_node["attributes"]["entity"] == "list")
+      {
+        name = ast_node["attributes"]["parent_identifier"].get<std::string>();
+        id = "clar:@C@" + current_contractName + "@" + name + "#" + std::to_string(ast_node["attributes"]["parent_cid"].get<int16_t>());
+        return id;
+      }
+    }
+  }
+
+  log_error("Invalid List node found.... Aborting...");
+  abort();
+
 }
 
 // get the id of the struct that represents the list
