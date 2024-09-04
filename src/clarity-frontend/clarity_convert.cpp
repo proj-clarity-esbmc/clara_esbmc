@@ -3327,10 +3327,10 @@ bool clarity_convertert::get_expr(
     {
       codet decls("decl-block");
       unsigned ctr = 0;
-      for (auto const &arg_kv : ClarityGrammar::get_expression_args(expr))
+      for (auto const &let_arg : ClarityGrammar::get_expression_args(expr))
       {
         exprt single_decl;
-        if (get_expr(arg_kv, single_decl))
+        if (get_expr(let_arg, single_decl))
           return true;
         decls.operands().push_back(single_decl);
         ++ctr;  
@@ -3342,10 +3342,10 @@ bool clarity_convertert::get_expr(
     // Now handle the body of the let or begin
     unsigned ctr = 0;
     exprt last_expr;
-    for (auto const &stmt_kv : ClarityGrammar::get_expression_body(expr))
+    for (auto const &body_expr : ClarityGrammar::get_expression_body(expr))
     {
       exprt statement;
-      if (get_expr(stmt_kv, statement))
+      if (get_expr(body_expr, statement))
         return true;
 
       // ml- Need to create a temporary result so that all body elements
