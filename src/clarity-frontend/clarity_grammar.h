@@ -53,6 +53,7 @@ bool operation_is_conditional(const nlohmann::json &ast_node);
 bool operation_is_unary(const nlohmann::json &ast_node);
 bool operation_is_binary(const nlohmann::json &ast_node);
 bool operation_is_optional_decl(const nlohmann::json &ast_node);
+bool operation_is_let_begin(const nlohmann::json &ast_node);
 nlohmann::json get_optional_type(const nlohmann::json &objtype);
 std::string get_optional_symbolId(const nlohmann::json &optional_type);
 
@@ -269,8 +270,8 @@ enum ExpressionT
   // FunctionCall
   CallExprClass,
 
-  // LetStatements
-  LetDeclaration,
+  // LetBeginStatements
+  LetBeginDeclaration,
 
   // LetVariable
   LetVariableDecl,

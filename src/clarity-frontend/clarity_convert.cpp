@@ -1400,6 +1400,104 @@ bool clarity_convertert::get_var_decl_stmt(
   return false;
 }
 
+// input    : The expression node containing the variable details
+// output   : The new expression containing the var declaration
+// returns  : false if succesful, or true if failed.
+// 
+// This function declares a variable in the function for a let
+// block. It is similar to the get_var_decl but does not use the 
+// level 0 ast node, rather uses the generic expression node
+// [TODO] Maybe refactor the get_var_decl to use both types of nodes
+bool clarity_convertert::get_let_var_decl(
+  const nlohmann::json &ast_node,
+  exprt &new_expr)
+{
+  // 1. populate typet from the body expression
+  typet t;
+
+  // check if body exists
+  bool has_init = ast_node.contains(
+    "body"); // in clarity we do not use "initialValue"
+  
+  if (!has_init)
+  {
+    log_error("Let variable argument should have a body");
+    return true;
+  }
+  // Get the body first so that we can get the type
+  nlohmann::json init_value = ClarityGrammar::get_expression_body(ast_node);
+
+
+  exprt val;
+  // we will assuming here that there is one body element 
+  // which contains the lets initial value
+  if (get_expr(init_value[0],  val))
+    return true;
+  
+  t = val.type();
+
+  // Now we handle the rest of the declaration
+  // 2. populate id and name
+  std::string name, id;
+
+  if (current_functionDecl)
+  {
+    assert(current_functionName != "");
+    get_var_decl_name(ast_node, name, id);
+  }
+  else
+  {
+    log_error("ESBMC could not find the parent scope for this local variable");
+    return true;
+  }
+
+  // 3. populate location
+  locationt location_begin;
+  get_location_from_decl(ast_node, location_begin);
+
+  // 4. populate debug module name
+  std::string debug_modulename =
+    get_modulename_from_path(location_begin.file().as_string());
+
+  // 5. set symbol attributes
+  symbolt symbol;
+  get_default_symbol(symbol, debug_modulename, t, name, id, location_begin);
+
+  bool is_state_var = false;
+  symbol.lvalue = true;
+  symbol.static_lifetime = is_state_var;
+  symbol.file_local = !is_state_var;
+  symbol.is_extern = false;
+
+  if (symbol.static_lifetime && !symbol.is_extern && !has_init)
+  {
+    // set default value as zero
+    symbol.value = gen_zero(t, true);
+    symbol.value.zero_initializer(true);
+  }
+
+  // 6. add symbol into the context
+  // just like clang-c-frontend, we have to add the symbol before converting the initial assignment
+  symbolt &added_symbol = *move_symbol_to_context(symbol);
+
+  // 7. populate init value if there is any
+  code_declt decl(symbol_expr(added_symbol));
+
+  if (has_init)
+  {
+    clarity_gen_typecast(ns, val, t);
+
+    added_symbol.value = val;
+    decl.operands().push_back(val);
+  }
+
+  decl.location() = location_begin;
+  new_expr = decl;
+
+  return false;
+
+}
+
 // rule state-variable-declaration
 // rule variable-declaration-statement
 bool clarity_convertert::get_var_decl(
@@ -3208,51 +3306,65 @@ bool clarity_convertert::get_expr(
     break;
   }
   #endif
-  case ClarityGrammar::ExpressionT::LetDeclaration:
+  case ClarityGrammar::ExpressionT::LetVariableDecl:
   {
-    // First process the temporary variables of let
+    exprt let_var_decl;
+
+    if (get_let_var_decl(expr, let_var_decl))
+      return true;
+    new_expr = let_var_decl;
+    //new_expr = code_skipt();
+    break;
+  }
+  case ClarityGrammar::ExpressionT::LetBeginDeclaration:
+  {
+  
+    // first expression would be the declarations of temp
+    // variables but only in case of let
+    // For begin the arguments will be empty
     code_blockt _block;
+    if (ClarityGrammar::get_expression_args(expr).size() > 0)
+    {
+      codet decls("decl-block");
+      unsigned ctr = 0;
+      for (auto const &arg_kv : ClarityGrammar::get_expression_args(expr))
+      {
+        exprt single_decl;
+        if (get_expr(arg_kv, single_decl))
+          return true;
+        decls.operands().push_back(single_decl);
+        ++ctr;  
+      }
+    
+      _block.operands().push_back(decls);
+    }
+
+    // Now handle the body of the let or begin
     unsigned ctr = 0;
-    exprt last;
-    // items() returns a key-value pair with key being the index
+    exprt last_expr;
     for (auto const &stmt_kv : ClarityGrammar::get_expression_body(expr))
     {
       exprt statement;
       if (get_expr(stmt_kv, statement))
         return true;
 
+      // ml- Need to create a temporary result so that all body elements
+      // are treated as expression or assignment. Otherwise the 
+      // later side_effect_exprt of statement_expression will not
+      // handle it
       symbol_exprt result_expr("tmp_result_" + std::to_string(ctr), statement.type());
       code_assignt assign_result(result_expr, statement);
-      //convert_expression_to_code(statement);
       _block.operands().push_back(assign_result);
       ++ctr;
-      last = statement;
+      last_expr = statement;
     }
-    log_debug("calara", " \t@@@ CompoundStmt has {} statements", ctr);
 
-    // locationt location_end;
-    // get_final_location_from_stmt(expr, location_end);
-
-    // _block.end_location(location_end);
-    //new_expr = _block;
-    typet t = last.type();
-
-    // symbol_exprt result_expr("tmp_result", t);
-    // code_assignt assign_result(result_expr, last);
-
-    // _block.operands().pop_back();
-    // _block.operands().push_back(assign_result);
-    // ClarityGrammar::get_literal_type_from_expr(last);
-    // if (get_type(last.getType(), t))
-    //   return true;
-
-    // exprt subStmt;
-    // if (get_expr(*stmtExpr.getSubStmt(), subStmt))
-    //   return true;
-
+    // ml- side_effect_exprt type can handle a block as statement expression
+    // It needs to be initialized with "statement_expression" and the
+    // block is passed as the operand
+    typet t = last_expr.type();
     side_effect_exprt stmt_expr("statement_expression", t);
     stmt_expr.copy_to_operands(_block);
-
     new_expr = stmt_expr;
     break;
   }
@@ -4358,7 +4470,7 @@ bool clarity_convertert::get_var_decl_ref(
     log_status(
       "clarity"
       "	@@@ finding state id as function var::{}",
-      id);
+      state_id);
 
     if (context.find_symbol(state_id) != nullptr)
       new_expr = symbol_expr(*context.find_symbol(state_id));

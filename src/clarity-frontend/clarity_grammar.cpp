@@ -319,6 +319,21 @@ bool operation_is_binary(const nlohmann::json &ast_node)
     return false;
 }
 
+bool operation_is_let_begin(const nlohmann::json &ast_node)
+{
+  const std::vector<std::string> let_begin_operators{
+    "let",  "begin"};
+
+  if (
+    std::find(
+      let_begin_operators.begin(),
+      let_begin_operators.end(),
+      ast_node["identifier"]) != let_begin_operators.end())
+    return true;
+  else
+    return false;
+}
+
 bool operation_is_unary(const nlohmann::json &ast_node)
 {
   const std::vector<std::string> unary_operators{"--", "++", "-", "~", "!"};
@@ -1125,6 +1140,10 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
     {
       return BinaryOperatorClass;
     }
+    else if (operation_is_let_begin(expr))
+    {
+      return LetBeginDeclaration;
+    }
     else 
     {
       // ml- if the operation is not binary 
@@ -1159,10 +1178,6 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
   // {
   //   return List;
   // }
-  else if (nodeType == "let")
-  {
-    return LetDeclaration;
-  }
   else if (nodeType == "let_variable_declaration")
   {
     return LetVariableDecl;
@@ -1438,6 +1453,8 @@ const char *expression_to_str(ExpressionT type)
     ENUM_TO_STR(Tuple)
     ENUM_TO_STR(Mapping)
     ENUM_TO_STR(CallExprClass)
+    ENUM_TO_STR(LetBeginDeclaration)
+    ENUM_TO_STR(LetVariableDecl)
     ENUM_TO_STR(ImplicitCastExprClass)
     ENUM_TO_STR(IndexAccess)
     ENUM_TO_STR(NewExpression)
