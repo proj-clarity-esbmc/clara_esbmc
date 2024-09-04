@@ -1158,7 +1158,7 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
       return ConditionalOperatorClass;
     }
   }
-  else if (nodeType == "variable_name")
+  else if (nodeType == "variable")
   {
     return DeclRefExprClass;
   }
