@@ -3683,9 +3683,22 @@ bool clarity_convertert::get_current_contract_name(
   return true;
 }
 
+
 bool clarity_convertert::get_binary_operator_expr(
   const nlohmann::json &expr,
   exprt &new_expr)
+{
+  nlohmann::json exp_args = ClarityGrammar::get_expression_args(expr);
+  nlohmann::json type_inferred;
+  
+  return get_multiple_operator_expr(expr, new_expr, type_inferred, exp_args.size() - 1);
+}
+
+bool clarity_convertert::get_multiple_operator_expr(
+  const nlohmann::json &expr,
+  exprt &new_expr,
+  nlohmann::json &inferred_type,
+  int args_starting_index =  0)
 {
   // 1. Convert LHS and RHS
   // For "Assignment" expression, it's called "leftHandSide" or "rightHandSide".
@@ -3705,23 +3718,70 @@ bool clarity_convertert::get_binary_operator_expr(
   // {
   //   nlohmann::json literalType_l = expr["leftExpression"]["typeDescriptions"];
   //   nlohmann::json literalType_r = expr["rightExpression"]["typeDescriptions"];
-  nlohmann::json type_l;
   nlohmann::json type_r;
+  nlohmann::json type_l;
+    
   nlohmann::json exp_args = ClarityGrammar::get_expression_args(expr);
 
-  if (get_expr(exp_args[0], nullptr, lhs, type_l))
+  if (1 == exp_args.size())
+  {
+    // For some reason Clarity allows single arg bin ops
+    // in which case just return the arg instead of operator
+    if (get_expr(exp_args[0], nullptr, lhs, type_l))
+      return true;
+    
+    new_expr = lhs;
+    inferred_type = type_l;
+    return false;
+
+  }
+  else if (0 == args_starting_index - 1)
+  {
+    log_debug(
+      "clarity",
+      "	@@@ got binop.getOpcode: starting index is 1::{}",
+      args_starting_index);
+    if (get_expr(exp_args[0], nullptr, lhs, type_l))
+      return true;
+    log_debug(
+      "clarity",
+      "	@@@ got binop.getOpcode: starting index is 1 type_l::{}",
+      type_l.dump());
+    
+  }
+  else 
+  {
+    log_debug(
+      "clarity",
+      "	@@@ got binop.getOpcode: recursive starting index is ::{}",
+      args_starting_index);
+    if (get_multiple_operator_expr(expr, lhs, type_l, args_starting_index - 1))
+      return true;
+  }
+
+  if (get_expr(exp_args[args_starting_index], nullptr, rhs, type_r))
     return true;
 
-  if (get_expr(exp_args[1], nullptr, rhs, type_r))
-    return true;
-
+  log_debug(
+      "clarity",
+      "	@@@ got binop.getOpcode: type_r::{}",
+      type_r.dump());
+    
   // ml-[TODO] need to check compatibility of the two expressions
   // }
   // else
   //   assert(!"should not be here - unrecognized LHS and RHS keywords in expression JSON");
 
   // preliminary step for recursive BinaryOperation
-  current_BinOp_type.push(&(type_l));
+  if (type_r.size() == 0)
+  {
+    current_BinOp_type.push(&(type_l));
+  }
+  else
+  {
+    current_BinOp_type.push(&(type_r));
+  }
+  
 
   // 2. Get type
   typet t;
