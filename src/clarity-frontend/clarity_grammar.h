@@ -38,6 +38,7 @@ nlohmann::json get_location_info(const nlohmann::json &expression_node);
 bool is_expression_standard_principal(const nlohmann::json &expression_node);
 std::string get_expression_optional_expr(const nlohmann::json &expression_node);
 
+
 // end of helper functions
 bool is_literal_type(std::string type);
 bool is_state_variable(const std::string &ast_node_decorator);
@@ -46,6 +47,7 @@ bool is_variable_declaration(const std::string &ast_node_decorator);
 bool is_variable_declaration(const nlohmann::json &ast_node);
 bool is_function_definitionn(const std::string &ast_node_decorator);
 bool is_function_definitionn(const nlohmann::json &ast_node);
+bool is_response_declaration(const nlohmann::json &ast_node);
 bool is_tuple_declaration(const nlohmann::json &ast_node);
 bool is_principal_declaration(const nlohmann::json &ast_node);
 bool parse_expression_element(nlohmann::json &expr_element_json);
@@ -90,6 +92,9 @@ enum TypeNameT
 
   // return type
   ReturnTypeName,
+
+  // clarity response Type
+  ResponseTypeName,
 
   TypeNameTError
 };
@@ -260,6 +265,8 @@ enum ExpressionT
 
   //rule optional
   Optional,
+
+  Response,
 
   // rule list
   List,

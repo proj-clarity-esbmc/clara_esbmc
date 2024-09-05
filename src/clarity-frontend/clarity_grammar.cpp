@@ -36,6 +36,9 @@ const std::map<ElementaryTypeNameT, unsigned int> bytesn_size_map = {
   {UINT_LITERAL, 128},
   {INT_LITERAL, 128}};
 
+
+
+
 // input    : complete ast_node
 // returns  : ast_node[0] e-g "data-var" , "constant" etc
 std::string get_declaration_decorator(const nlohmann::json &ast_node)
@@ -294,7 +297,15 @@ bool is_state_variable(const nlohmann::json &ast_node)
 
 bool is_tuple_declaration(const nlohmann::json &ast_node)
 {
-  if (ast_node["objtype"][0] == "tuple")
+  if (ClarityGrammar::get_expression_objtype(ast_node)[0] == "tuple")
+    return true;
+  else
+    return false;
+}
+
+bool is_response_declaration(const nlohmann::json &ast_node)
+{
+  if (ast_node["objtype"][0] == "response")
     return true;
   else
     return false;
@@ -757,9 +768,14 @@ TypeNameT get_type_name_t(const nlohmann::json &type_name)
 
       return BuffTypeName;
     }
+    if (typeString == "response")
+    {
+
+      return ResponseTypeName;
+    }
     else if (typeString == "list")
     {
-      //list in clarity can be considered as array of bytes
+      //list in clarity can be considered as array of items
 
       return ListTypeName;
     }
@@ -1201,6 +1217,10 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
   {
     return Optional;
   }
+  else if (nodeType == "response_expression")
+  {
+    return Response;
+  }
   else if (nodeType == "tuple_object")
   {
     return Tuple;
@@ -1495,6 +1515,7 @@ const char *expression_to_str(ExpressionT type)
     ENUM_TO_STR(ExpressionTError)
     ENUM_TO_STR(Optional)
     ENUM_TO_STR(List)
+    ENUM_TO_STR(Response)
   default:
   {
     assert(!"Unknown expression type");
