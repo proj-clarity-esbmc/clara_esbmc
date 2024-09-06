@@ -302,6 +302,23 @@ bool operation_is_optional_decl(const nlohmann::json &ast_node)
     return false;
 }
 
+bool operation_is_multiop(const nlohmann::json &ast_node)
+{
+  const std::vector<std::string> multiop_operators{
+    "+",  "-",  "*",   "/",   "and",  "or", "bit-and",  "bit-or",
+    "bit-xor", "is-eq"};
+
+  if (
+    std::find(
+      multiop_operators.begin(),
+      multiop_operators.end(),
+      ast_node["identifier"]) != multiop_operators.end())
+    return true;
+  else
+    return false;
+}
+
+
 bool operation_is_binary(const nlohmann::json &ast_node)
 {
   const std::vector<std::string> binary_operators{
@@ -1136,7 +1153,11 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
   // }
   if (nodeType == "native_function")
   {
-    if (operation_is_binary(expr))
+    if (operation_is_multiop(expr))
+    {
+      return MultiOperatorClass;
+    }
+    else if (operation_is_binary(expr))
     {
       return BinaryOperatorClass;
     }
@@ -1299,15 +1320,15 @@ ExpressionT get_expr_operator_t(const nlohmann::json &expr)
   {
     return BO_Shr;
   }
-  else if (expr["identifier"] == "&")
+  else if (expr["identifier"] == "bit-and")
   {
     return BO_And;
   }
-  else if (expr["identifier"] == "^")
+  else if (expr["identifier"] == "bit-xor")
   {
     return BO_Xor;
   }
-  else if (expr["identifier"] == "|")
+  else if (expr["identifier"] == "bit-or")
   {
     return BO_Or;
   }
@@ -1331,15 +1352,15 @@ ExpressionT get_expr_operator_t(const nlohmann::json &expr)
   {
     return BO_NE;
   }
-  else if (expr["identifier"] == "==")
+  else if (expr["identifier"] == "is-eq")
   {
     return BO_EQ;
   }
-  else if (expr["identifier"] == "&&")
+  else if (expr["identifier"] == "and")
   {
     return BO_LAnd;
   }
-  else if (expr["identifier"] == "||")
+  else if (expr["identifier"] == "or")
   {
     return BO_LOr;
   }
@@ -1403,6 +1424,7 @@ const char *expression_to_str(ExpressionT type)
   switch (type)
   {
     ENUM_TO_STR(BinaryOperatorClass)
+    ENUM_TO_STR(MultiOperatorClass)
     ENUM_TO_STR(BO_Assign)
     ENUM_TO_STR(BO_Add)
     ENUM_TO_STR(BO_Sub)

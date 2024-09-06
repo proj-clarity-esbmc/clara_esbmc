@@ -2862,6 +2862,18 @@ bool clarity_convertert::get_expr(
   {
   case ClarityGrammar::ExpressionT::BinaryOperatorClass:
   {
+    nlohmann::json multiop_type_expr;
+    if (get_multiple_operator_expr(expr, new_expr))
+      return true;
+
+    if (get_literal_type_from_typet(new_expr.type(), multiop_type_expr))
+      return true;
+
+    inferred_type = multiop_type_expr;
+    break;
+  }
+  case ClarityGrammar::ExpressionT::MultiOperatorClass:
+  {
     nlohmann::json binary_type_expr;
     if (get_binary_operator_expr(expr, new_expr))
       return true;
@@ -3696,6 +3708,17 @@ bool clarity_convertert::get_binary_operator_expr(
 
 bool clarity_convertert::get_multiple_operator_expr(
   const nlohmann::json &expr,
+  exprt &new_expr)
+{
+  nlohmann::json exp_args = ClarityGrammar::get_expression_args(expr);
+  nlohmann::json type_inferred;
+  
+  return get_multiple_operator_expr(expr, new_expr, type_inferred, exp_args.size() - 1);
+
+}
+
+bool clarity_convertert::get_multiple_operator_expr(
+  const nlohmann::json &expr,
   exprt &new_expr,
   nlohmann::json &inferred_type,
   int args_starting_index =  0)
@@ -3737,24 +3760,11 @@ bool clarity_convertert::get_multiple_operator_expr(
   }
   else if (0 == args_starting_index - 1)
   {
-    log_debug(
-      "clarity",
-      "	@@@ got binop.getOpcode: starting index is 1::{}",
-      args_starting_index);
     if (get_expr(exp_args[0], nullptr, lhs, type_l))
       return true;
-    log_debug(
-      "clarity",
-      "	@@@ got binop.getOpcode: starting index is 1 type_l::{}",
-      type_l.dump());
-    
   }
   else 
   {
-    log_debug(
-      "clarity",
-      "	@@@ got binop.getOpcode: recursive starting index is ::{}",
-      args_starting_index);
     if (get_multiple_operator_expr(expr, lhs, type_l, args_starting_index - 1))
       return true;
   }
@@ -3762,11 +3772,6 @@ bool clarity_convertert::get_multiple_operator_expr(
   if (get_expr(exp_args[args_starting_index], nullptr, rhs, type_r))
     return true;
 
-  log_debug(
-      "clarity",
-      "	@@@ got binop.getOpcode: type_r::{}",
-      type_r.dump());
-    
   // ml-[TODO] need to check compatibility of the two expressions
   // }
   // else
@@ -3802,7 +3807,7 @@ bool clarity_convertert::get_multiple_operator_expr(
     ClarityGrammar::get_expr_operator_t(expr);
   log_debug(
     "clarity",
-    "	@@@ got binop.getOpcode: ClarityGrammar::{}",
+    "	@@@ got multiop.getOpcode: ClarityGrammar::{}",
     ClarityGrammar::expression_to_str(opcode));
 
   switch (opcode)
