@@ -1602,6 +1602,8 @@ bool clarity_convertert::get_var_decl(
 
     added_symbol.type = val.type();
     added_symbol.value = val;
+
+    
     
     decl.operands().push_back(val);
   }
@@ -3140,7 +3142,7 @@ bool clarity_convertert::get_expr(
     */
 
     // 1. construct struct type
-    if (get_tuple_definition(expr, literal_type))
+    if (get_tuple_definition(expr, literal_type, new_expr))
       return true;
 
     //2. construct struct_type instance
@@ -4976,7 +4978,29 @@ bool clarity_convertert::get_array_to_pointer_type(
   return false;
 }
 
-// checks if the as_node provided is for a nested tuple or top-level tuple
+
+// checks if the as_node provided is for a nested response or top-level response
+// nested tuple will have an attribute "caller_function" set to "get_response_type_instance"
+bool clarity_convertert::is_nested_response(const nlohmann::json &ast_node)
+{
+  if (ast_node["attributes"].contains("caller_function"))
+  {
+      if (ast_node["attributes"]["caller_function"] == "get_response_type_instance")
+      {
+        // no need to perform any further operations
+        // as the types have already been defined in the symbol table
+        return true;
+      }
+  }
+  else
+  {
+      return false;
+  }
+  return false;  
+}
+
+// checks if the ast_node provided is for a nested tuple or top-level tuple
+// nested tuple will have an attribute "caller_function" set to "get_tuple_instance"
 bool clarity_convertert::is_nested_tuple(const nlohmann::json &ast_node)
 {
   if (ast_node["attributes"].contains("caller_function"))
@@ -4994,7 +5018,7 @@ bool clarity_convertert::is_nested_tuple(const nlohmann::json &ast_node)
   }
   return false;  
 }
-bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node, const nlohmann::json &parent_objtype)
+bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node, const nlohmann::json &parent_objtype, exprt &new_expr)
 {
 
   // // get name/id:
@@ -5055,10 +5079,9 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node, co
   //for (nlohmann::json::iterator it = objtype.begin(); it != objtype.end(); ++it)
   for (auto &it : tuple_keys)
   {
-    struct_typet::componentt comp;
+    
     nlohmann::json arg_objtype = objtype[counter];
-    //std::cout <<"arg_objtype: "<<arg_objtype.dump(4)<<std::endl;
-
+  
     // manually create a member_name
     // follow the naming rule defined in get_var_decl_name
     assert(!current_contractName.empty());
@@ -5085,17 +5108,9 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node, co
         exp_value_node["objtype"] = arg_objtype;
         exp_value_node["attributes"]["entity"] = "named_tuple";
         exp_value_node["attributes"]["parent_identifier"] = ClarityGrammar::get_expression_identifier(it);
-
-        get_tuple_definition(exp_value_node, arg_objtype);
-        
-        get_tuple_name(exp_value_node, mem_name, mem_id);
-        if (context.find_symbol(mem_id) == nullptr)
-        {
-          log_error("Nested Tuple {} not found in the symbol table. Aborting...", mem_id);
-          return true;
-        }
-        symbolt *nested_symbol = context.find_symbol(mem_id);
-        mem_type = nested_symbol->type;
+        exprt nested_tuple;
+        get_tuple_definition(exp_value_node, arg_objtype, nested_tuple);
+        mem_type = nested_tuple.type();
       }
       else if (mem_type.get("#clar_type") == "principal")
       {
@@ -5110,15 +5125,9 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node, co
 
     }
 
-
+    struct_typet::componentt comp(mem_name, mem_name, mem_type);
     // construct comp
-    comp.type() = mem_type;
-    comp.type().set("#member_name", t.tag());
-    comp.identifier(mem_id);
-    comp.cmt_lvalue(true);
-    comp.name(mem_name);
-    comp.pretty_name(mem_name);
-    //comp.set_access("internal");
+   
 
     // update struct type component
     to_struct_type(t).components().push_back(comp);
@@ -5131,6 +5140,7 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node, co
   added_symbol->type = t;
   added_symbol->is_type = true;
 
+  new_expr = symbol_expr(*added_symbol);
   return false;
 }
 
@@ -5218,6 +5228,13 @@ bool clarity_convertert::get_response_type_definition(const nlohmann::json &expr
   {
     // retrieve the symbol
     struct_sym = context.find_symbol(id);
+    if (is_nested_response(expr))
+    {
+      // no need to perform any further operations
+      // as the types have already been defined in the symbol table
+     
+      return false;
+    }
     
   }
    
@@ -5253,22 +5270,21 @@ bool clarity_convertert::get_response_type_definition(const nlohmann::json &expr
 
   if(component_type.id() == typet::id_struct)
   {
+    nlohmann::json exp_value_node = ClarityGrammar::get_expression_args(expr)[0];
+    exp_value_node["objtype"] = comp2_objtype;
+    exp_value_node["attributes"]["parent_identifier"] = ClarityGrammar::get_expression_identifier(expr);
     if (component_type.get("#clar_type") == "tuple")
     {
-      nlohmann::json exp_value_node = ClarityGrammar::get_expression_args(expr)[0];
-      exp_value_node["objtype"] = comp2_objtype;
+      
       exp_value_node["attributes"]["entity"] = "named_tuple";
-      exp_value_node["attributes"]["parent_identifier"] = ClarityGrammar::get_expression_identifier(expr);
-
-      get_tuple_definition(exp_value_node, comp2_objtype);
+      get_tuple_definition(exp_value_node, comp2_objtype, new_expr);
+      component_type = new_expr.type();
+      component_type.set("#clar_type", "tuple");
     }
     else if (component_type.get("#clar_type") == "response")
     {
-      nlohmann::json exp_value_node = ClarityGrammar::get_expression_args(expr)[0];
-      exp_value_node["objtype"] = comp2_objtype;
+      
       exp_value_node["attributes"]["entity"] = "response";
-      exp_value_node["attributes"]["parent_identifier"] = ClarityGrammar::get_expression_identifier(expr);
-
       get_response_type_definition(exp_value_node, comp2_objtype, new_expr);
       component_type = new_expr.type();
       component_type.set("#clar_type", "response");
@@ -5298,7 +5314,9 @@ bool clarity_convertert::get_response_type_definition(const nlohmann::json &expr
       exp_value_node["attributes"]["entity"] = "named_tuple";
       exp_value_node["attributes"]["parent_identifier"] = ClarityGrammar::get_expression_identifier(expr);
 
-      get_tuple_definition(exp_value_node, comp2_objtype);
+      get_tuple_definition(exp_value_node, comp2_objtype, new_expr);
+      component_type = new_expr.type();
+      component_type.set("#clar_type", "tuple");
     }
     else if (component_type.get("#clar_type") == "response")
     {
@@ -5405,32 +5423,35 @@ bool clarity_convertert::get_response_type_instance(const nlohmann::json &expr, 
     typet response_val_type = to_struct_type(t).components()[val_index].type();
     // create a new instance of response_val
    
-
+    nlohmann::json nested_expression_node = args[0];
     // check if response_val is a struct
     if (response_val_type.id() == typet::id_struct)
     {
       exprt nested_val;
-      nlohmann::json nested_expression_node = args[0];// ClarityGrammar::get_expression_args(args[0])[0];
+      // ClarityGrammar::get_expression_args(args[0])[0];
       nested_expression_node["objtype"] = val_objtype;
       nested_expression_node["attributes"]["parent_identifier"] = ClarityGrammar::get_expression_identifier(expr);
+      
       if (response_val_type.get("#clar_type") == "tuple")
       {
-        
+        nested_expression_node["attributes"]["caller_function"] = "get_tuple_instance";  
         nested_expression_node["attributes"]["entity"] = "named_tuple";
-        get_tuple_instance(nested_expression_node, val_objtype, nested_val);
+        //get_tuple_instance(nested_expression_node, val_objtype, nested_val);
+        
       }
       else if (response_val_type.get("#clar_type") == "response")
       {
-        
+        nested_expression_node["attributes"]["caller_function"] = "get_response_type_instance";
         nested_expression_node["attributes"]["entity"] = "response";
-        get_response_type_instance(nested_expression_node, val_objtype, nested_val);
+        //get_response_type_instance(nested_expression_node, val_objtype, nested_val);
       }
-      response_val = nested_val;
+      //response_val = nested_val;
+      
     }
-    else
+    //else
     {
       
-      if (get_expr(args[0], val_objtype, response_val))
+      if (get_expr(nested_expression_node, val_objtype, response_val))
         return true;
     }
 
@@ -5818,45 +5839,10 @@ bool clarity_convertert::get_tuple_instance(
   t.set("#clar_type", "tuple_instance");
   assert(t.id() == typet::id_struct);
 
-  symbolt *added_symbol ;
-  // if it's a nested tuple, we don't need to create a new symbol 
-  // because the symbol will already be created in get_tuple_definition
-  //if (!is_nested_tuple(ast_node))
-  // {
-  //   // get instance name,id
-  //   if (get_tuple_instance_name(ast_node, name, id))
-  //     return true;
-    
-  //    if (context.find_symbol(id) == nullptr)
-  //    return true;
-
-  //   added_symbol = context.find_symbol(id);
-
-  //   // // get location
-  //   // locationt location_begin;
-  //   // get_location_from_decl(ast_node, location_begin);
-
-  //   // // get debug module name
-  //   // std::string debug_modulename =
-  //   //   get_modulename_from_path(location_begin.file().as_string());
-  //   // current_fileName = debug_modulename;
-
-  //   // // populate struct type symbol
-  //   // symbolt instance_symbol;
-  //   // get_default_symbol(instance_symbol, debug_modulename, t, name, id, location_begin);
-
-  //   // instance_symbol.lvalue = true;
-  //   // instance_symbol.static_lifetime = true;
-  //   // instance_symbol.file_local = false;
-  //   // instance_symbol.is_extern = false;
-  //   // added_symbol = move_symbol_to_context(instance_symbol);
-    
-  // }
-  
-
   // populate initial value
 
   exprt inits = gen_zero(t);
+
   nlohmann::json objtype = ClarityGrammar::get_nested_objtype(parent_objtype);
 
   size_t i = 0;
@@ -5897,32 +5883,19 @@ bool clarity_convertert::get_tuple_instance(
       return true;
     
     struct_typet::componentt *c = &to_struct_type(t).components().at(i);
-    //to_struct_type(t).components().at(i).type() = init.type();
     
-    //std::cout <<"######"<<std::endl;
-    //std::cout <<c->type().pretty()<<std::endl;
     typet elem_type = c->type();
     
     clarity_gen_typecast(ns, init, elem_type);
-    //std::cout <<init.type().pretty()<<std::endl;
+    
     inits.operands().at(i) = init;
-    //std::cout <<"-------"<<std::endl;
+    
 
     // update
     ++i;
   }
 
-  // we don't need to set the value to this added symbol for nested tuples
-  // because if we do, it will start showing up as a variable of given type
-  // if (!is_nested_tuple(ast_node))
-  // {
-  //   added_symbol->value = inits;
-  //   new_expr = added_symbol->value;
-  // }
-  // else
-  // {
-  //   new_expr = inits;
-  // }
+  
   new_expr = inits;
   return false;
 }
