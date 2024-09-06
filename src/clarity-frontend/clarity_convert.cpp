@@ -1600,8 +1600,8 @@ bool clarity_convertert::get_var_decl(
     //std::cout <<val.pretty()<<std::endl;
     clarity_gen_typecast(ns, val, t);
 
+    added_symbol.type = val.type();
     added_symbol.value = val;
-
     
     decl.operands().push_back(val);
   }
@@ -3164,6 +3164,7 @@ bool clarity_convertert::get_expr(
     get_response_type_definition(expr, literal_type, new_expr);
 
     // assign values to the component
+    get_response_type_instance(expr,literal_type,new_expr);
 
     break;
   }
@@ -4698,7 +4699,6 @@ symbolt* clarity_convertert::create_struct_symbol(const nlohmann::json &expr, ty
   t = struct_typet();
   t.is_type(true);
   std::string struct_name = ClarityGrammar::get_expression_identifier(expr);
-  std::string struct_type;// = get_struct_symbol_type(expr);
   std::string struct_id;// = prefix + struct_type + "_" + struct_name;
   struct_id = get_struct_symbol_id(expr, struct_name);
   t.tag(struct_id);
@@ -4768,7 +4768,7 @@ bool clarity_convertert::get_type_description(
     new_type = struct_typet();
     new_type.set("#cpp_type", "void");
     new_type.set("#clar_type", "response");
-    new_type.is_type(true);
+
 
     break;
   }
@@ -5250,7 +5250,7 @@ bool clarity_convertert::get_response_type_definition(const nlohmann::json &expr
   {
     if (component_type.get("#clar_type") == "tuple")
     {
-      nlohmann::json exp_value_node = ClarityGrammar::get_expression_value_node(expr);
+      nlohmann::json exp_value_node = ClarityGrammar::get_expression_args(expr)[0];
       exp_value_node["objtype"] = comp2_objtype;
       exp_value_node["attributes"]["entity"] = "named_tuple";
       exp_value_node["attributes"]["parent_identifier"] = ClarityGrammar::get_expression_identifier(expr);
@@ -5266,14 +5266,14 @@ bool clarity_convertert::get_response_type_definition(const nlohmann::json &expr
 
       get_response_type_definition(exp_value_node, comp2_objtype, new_expr);
       component_type = new_expr.type();
+      component_type.set("#clar_type", "response");
     }
   
   }
-  else
-  {
+  
    name = "ok_val";
 
-  }
+  
   struct_typet::componentt comp_ok_val(name,name,component_type);
   to_struct_type(t).components().push_back(comp_ok_val);
 
@@ -5304,20 +5304,145 @@ bool clarity_convertert::get_response_type_definition(const nlohmann::json &expr
 
       get_response_type_definition(exp_value_node, comp2_objtype, new_expr);
       component_type = new_expr.type();
+      component_type.set("#clar_type", "response");
     }
   }
-  else
-  {
+  
    name = "err_val";
-  }
+  
   struct_typet::componentt comp_err_val(name,name,component_type);
   to_struct_type(t).components().push_back(comp_err_val);
 
+  
   struct_sym->type = t;
 
   new_expr = symbol_expr(*struct_sym);
 
+
   return false;
+}
+
+
+bool clarity_convertert::get_response_type_instance(const nlohmann::json &expr, const nlohmann::json &parent_objtype, exprt &new_expr)
+{
+  // Get type symbol. Should be in the format tag-struct response_<identifier>
+  std::string name;
+
+  nlohmann::json ok_obj = ClarityGrammar::get_nested_objtype(parent_objtype)[0];
+  nlohmann::json err_obj = ClarityGrammar::get_nested_objtype(parent_objtype)[1];
+
+
+
+  // get the name of the response instance
+  std::string id;
+  int cid = -1;
+  
+  id = get_response_symbolId(expr, name);
+  typet t  ;
+  symbolt * instance_symbol;
+
+  if (context.find_symbol(id) == nullptr)
+  {
+    log_error("Type {} not found in the symbol table for Response Type instance. Aborting...", id);
+    abort();
+  }
+  else
+  {
+    // retrieve the symbol
+    instance_symbol = context.find_symbol(id);
+    
+  }
+   
+
+  // get the type of symbol
+  t = instance_symbol->type;
+
+  assert(t.id() == typet::id_struct);
+
+  // check args and see if it's an "ok" or an "err" arg or both
+  nlohmann::json args = ClarityGrammar::get_expression_args(expr);
+  
+  exprt inits;
+  inits = gen_zero(t);
+
+  exprt is_ok;
+  //this will determine if we need to fill ok_val or err_val (1 = ok_val, 2 = err_val)
+  int val_index = 1;    
+  exprt response_val;
+  // this will contain ok objtype or err objtype based on "is_ok" flag.
+  nlohmann::json val_objtype;   
+
+  // check if indentifier in args[0] is an "ok" or an "err" arg
+  std::string value_identifier = ClarityGrammar::get_expression_identifier(expr);
+  if (value_identifier == "ok")
+  {
+    // ok_val
+    is_ok = true_exprt(); 
+    val_index = 1;
+    val_objtype = ok_obj;//ClarityGrammar::get_nested_objtype(parent_objtype)[0];
+  }
+  else
+  {
+    // err_val
+    is_ok = false_exprt(); 
+    val_index = 2;
+    val_objtype = err_obj;//ClarityGrammar::get_nested_objtype(parent_objtype)[1];
+  }
+  const struct_typet::componentt *c_temp = &to_struct_type(t).components().at(0);
+  typet elem_type_temp = c_temp->type();
+  clarity_gen_typecast(ns, is_ok, elem_type_temp);
+  //index 0 in components is "is_ok" flag
+  inits.operands().at(0) = is_ok;   
+
+
+    
+    // get the type of response_val
+    typet response_val_type = to_struct_type(t).components()[val_index].type();
+    // create a new instance of response_val
+   
+
+    // check if response_val is a struct
+    if (response_val_type.id() == typet::id_struct)
+    {
+      exprt nested_val;
+      nlohmann::json nested_expression_node = args[0];// ClarityGrammar::get_expression_args(args[0])[0];
+      nested_expression_node["objtype"] = val_objtype;
+      nested_expression_node["attributes"]["parent_identifier"] = ClarityGrammar::get_expression_identifier(expr);
+      if (response_val_type.get("#clar_type") == "tuple")
+      {
+        
+        nested_expression_node["attributes"]["entity"] = "named_tuple";
+        get_tuple_instance(nested_expression_node, val_objtype, nested_val);
+      }
+      else if (response_val_type.get("#clar_type") == "response")
+      {
+        
+        nested_expression_node["attributes"]["entity"] = "response";
+        get_response_type_instance(nested_expression_node, val_objtype, nested_val);
+      }
+      response_val = nested_val;
+    }
+    else
+    {
+      
+      if (get_expr(args[0], val_objtype, response_val))
+        return true;
+    }
+
+    const struct_typet::componentt *c = &to_struct_type(t).components().at(val_index);
+    typet elem_type = c->type();
+
+    clarity_gen_typecast(ns, response_val, elem_type);
+    // update the response_val instance
+    inits.operands().at(val_index) = response_val;
+    
+  
+  
+
+  new_expr = inits;
+
+  return false;
+
 }
 
 std::string clarity_convertert::get_response_symbolId(const nlohmann::json &expr, std::string &name)
@@ -6279,11 +6404,7 @@ void clarity_convertert::get_state_var_decl_name(
     {
       get_tuple_name(ast_node, name, id);
     }
-    // else if (ast_node.contains("objtype") && 
-    //         (ClarityGrammar::get_expression_objtype(ast_node)[0] == "response"))
-    // {
-    //   id = get_response_symbolId(ast_node, name);
-    // }
+
     else
     {
       id = "clar:@C@" + contract_name + "@" + name + "#" +

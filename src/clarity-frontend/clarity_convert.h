@@ -82,6 +82,7 @@ protected:
   std::string get_struct_symbol_type(const nlohmann::json &expr);
   symbolt* create_struct_symbol(const nlohmann::json &expr, typet &t);
   bool get_response_type_definition(const nlohmann::json &expr, const nlohmann::json &parent_objtype, exprt &new_expr);
+  bool get_response_type_instance(const nlohmann::json &expr, const nlohmann::json &parent_objtype, exprt &new_expr);
   std::string get_list_struct_id(const nlohmann::json &objtype);
   bool get_list_type(const nlohmann::json &parent_objtype, typet &out);
   bool get_list_of_entry_type(const nlohmann::json &ast_node, const nlohmann::json &parent_objtype, exprt &new_expr);
