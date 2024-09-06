@@ -52,7 +52,7 @@ struct principal
 {
     bool contract_is_principal;
     bool contract_is_standard;
-    char issuer_principal_str[222];
+    char issuer_principal_str[149];
   
 };
 

@@ -4701,7 +4701,7 @@ symbolt* clarity_convertert::create_struct_symbol(const nlohmann::json &expr, ty
   std::string struct_name = ClarityGrammar::get_expression_identifier(expr);
   std::string struct_id;// = prefix + struct_type + "_" + struct_name;
   struct_id = get_struct_symbol_id(expr, struct_name);
-  t.tag(struct_id);
+  t.tag("struct " + struct_name);
   symbolt *s = create_symbol(expr, struct_name, struct_id, t);
   s->is_type = true;
   return s;
@@ -5001,7 +5001,9 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node, co
   std::string name, id;
   typet t;
   symbolt *added_symbol;
-  get_tuple_name(ast_node, name, id);
+  //get_tuple_name(ast_node, name, id);
+
+  id = get_struct_symbol_id(ast_node, name);
 
   if (context.find_symbol(id) != nullptr)
   {
@@ -5016,28 +5018,30 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node, co
     }
   }
   else{
-   // case : unnamed tuple
-    get_type_description(parent_objtype, t);
-    // get location
-    locationt location_begin;
-    get_location_from_decl(ast_node, location_begin);
 
-    // get debug module name
-    std::string debug_modulename =
-      get_modulename_from_path(location_begin.file().as_string());
-    current_fileName = debug_modulename;
+    added_symbol = create_struct_symbol(ast_node, t);
+  //  // case : unnamed tuple
+  //   get_type_description(parent_objtype, t);
+  //   // get location
+  //   locationt location_begin;
+  //   get_location_from_decl(ast_node, location_begin);
 
-    // populate struct type symbol
-    symbolt symbol;
-    get_default_symbol(symbol, debug_modulename, t, name, id, location_begin);
-    symbol.is_type = true;
-    added_symbol = move_symbol_to_context(symbol);
+  //   // get debug module name
+  //   std::string debug_modulename =
+  //     get_modulename_from_path(location_begin.file().as_string());
+  //   current_fileName = debug_modulename;
+
+  //   // populate struct type symbol
+  //   symbolt symbol;
+  //   get_default_symbol(symbol, debug_modulename, t, name, id, location_begin);
+  //   symbol.is_type = true;
+  //   added_symbol = move_symbol_to_context(symbol);
     
   }  
   
   
   t = added_symbol->type;
-  t.tag("struct " + name);
+  //t.tag("struct " + name);
   // populate params
   
   size_t counter = 0;
@@ -5340,7 +5344,7 @@ bool clarity_convertert::get_response_type_instance(const nlohmann::json &expr, 
   
   id = get_response_symbolId(expr, name);
   typet t  ;
-  symbolt * instance_symbol;
+  symbolt * struct_symbol;
 
   if (context.find_symbol(id) == nullptr)
   {
@@ -5350,13 +5354,13 @@ bool clarity_convertert::get_response_type_instance(const nlohmann::json &expr, 
   else
   {
     // retrieve the symbol
-    instance_symbol = context.find_symbol(id);
+    struct_symbol = context.find_symbol(id);
     
   }
    
 
   // get the type of symbol
-  t = instance_symbol->type;
+  t = struct_symbol->type;
 
   assert(t.id() == typet::id_struct);
 
@@ -5800,50 +5804,54 @@ bool clarity_convertert::get_tuple_instance(
   const nlohmann::json &parent_objtype,
   exprt &new_expr)
 {
-   std::string name, id;
-   get_tuple_name(ast_node, name, id);
+  std::string name, id;
+  id = get_struct_symbol_id(ast_node, name); //get_tuple_name(ast_node, name, id);
 
    if (context.find_symbol(id) == nullptr)
      return true;
 
-  const symbolt &sym = *context.find_symbol(id);
+  const symbolt &struct_sym = *context.find_symbol(id);
 
 
   // get type
-  typet t = sym.type;
+  typet t = struct_sym.type;
   t.set("#clar_type", "tuple_instance");
   assert(t.id() == typet::id_struct);
 
   symbolt *added_symbol ;
   // if it's a nested tuple, we don't need to create a new symbol 
   // because the symbol will already be created in get_tuple_definition
-  if (!is_nested_tuple(ast_node))
-  {
-    // get instance name,id
-    if (get_tuple_instance_name(ast_node, name, id))
-      return true;
-      
-
-    // get location
-    locationt location_begin;
-    get_location_from_decl(ast_node, location_begin);
-
-    // get debug module name
-    std::string debug_modulename =
-      get_modulename_from_path(location_begin.file().as_string());
-    current_fileName = debug_modulename;
-
-    // populate struct type symbol
-    symbolt symbol;
-    get_default_symbol(symbol, debug_modulename, t, name, id, location_begin);
-
-    symbol.lvalue = true;
-    symbol.static_lifetime = true;
-    symbol.file_local = false;
-    symbol.is_extern = false;
-    added_symbol = move_symbol_to_context(symbol);
+  //if (!is_nested_tuple(ast_node))
+  // {
+  //   // get instance name,id
+  //   if (get_tuple_instance_name(ast_node, name, id))
+  //     return true;
     
-  }
+  //    if (context.find_symbol(id) == nullptr)
+  //    return true;
+
+  //   added_symbol = context.find_symbol(id);
+
+  //   // // get location
+  //   // locationt location_begin;
+  //   // get_location_from_decl(ast_node, location_begin);
+
+  //   // // get debug module name
+  //   // std::string debug_modulename =
+  //   //   get_modulename_from_path(location_begin.file().as_string());
+  //   // current_fileName = debug_modulename;
+
+  //   // // populate struct type symbol
+  //   // symbolt instance_symbol;
+  //   // get_default_symbol(instance_symbol, debug_modulename, t, name, id, location_begin);
+
+  //   // instance_symbol.lvalue = true;
+  //   // instance_symbol.static_lifetime = true;
+  //   // instance_symbol.file_local = false;
+  //   // instance_symbol.is_extern = false;
+  //   // added_symbol = move_symbol_to_context(instance_symbol);
+    
+  // }
   
 
   // populate initial value
@@ -5906,15 +5914,16 @@ bool clarity_convertert::get_tuple_instance(
 
   // we don't need to set the value to this added symbol for nested tuples
   // because if we do, it will start showing up as a variable of given type
-  if (!is_nested_tuple(ast_node))
-  {
-    added_symbol->value = inits;
-    new_expr = added_symbol->value;
-  }
-  else
-  {
-    new_expr = inits;
-  }
+  // if (!is_nested_tuple(ast_node))
+  // {
+  //   added_symbol->value = inits;
+  //   new_expr = added_symbol->value;
+  // }
+  // else
+  // {
+  //   new_expr = inits;
+  // }
+  new_expr = inits;
   return false;
 }
 
@@ -6399,14 +6408,14 @@ void clarity_convertert::get_state_var_decl_name(
   // The prefix is used to avoid duplicate names
   if (!contract_name.empty())
   {
-    if ((ast_node.contains("objtype") &&
-         (ClarityGrammar::is_tuple_declaration(ast_node))) || 
-         (ClarityGrammar::get_expression_type(ast_node) == "tuple_key"))
-    {
-      get_tuple_name(ast_node, name, id);
-    }
+    // if ((ast_node.contains("objtype") &&
+    //      (ClarityGrammar::is_tuple_declaration(ast_node))) || 
+    //      (ClarityGrammar::get_expression_type(ast_node) == "tuple_key"))
+    // {
+    //   get_tuple_name(ast_node, name, id);
+    // }
 
-    else
+    // else
     {
       id = "clar:@C@" + contract_name + "@" + name + "#" +
            i2string(ast_node["cid"].get<std::int16_t>());
