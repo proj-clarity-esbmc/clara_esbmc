@@ -5220,6 +5220,7 @@ bool clarity_convertert::get_response_type_definition(const nlohmann::json &expr
 
   // get the type of symbol
   t = struct_sym->type;
+  t.tag("struct " + name);
   assert(t.id() == typet::id_struct);
 
   // create first component "is_ok" flag
@@ -5464,7 +5465,7 @@ std::string clarity_convertert::get_response_symbolId(const nlohmann::json &expr
     
   }
   std::string struct_id = prefix + "struct " + struct_type + "_" + name;
-  return struct_id;    //error
+  return struct_id;    
 }
 
 bool clarity_convertert::get_list_of_entry_type(
