@@ -367,11 +367,16 @@ void clarity_convertert::convert_dummy_uint_literal()
         DEFINING STRUCTS AND USING THEM FOR SYMBOL TYPES
 
         Translate the following :
-        
+        typedef struct 
+        {
+          std::string nested_name;
+
+        } nested_principal;
         typedef struct 
         {
           std::string name;
           std::string homeTeam;
+          nested_principal nested;
         } principal;
 
         principal myPrincipal;
@@ -854,7 +859,7 @@ void clarity_convertert::add_dummy_symbol()
       */
 #define STRING_CONSTANT_ENABLED
 #define UNSIGNED_INT_CONSTANT_ENABLED
-    //#define BUILTIN_FUNCTIONCALL_ENABLED
+#define BUILTIN_FUNCTIONCALL_ENABLED
     //#define PUBLIC_FUNCTION_ENABLED
 
 #ifdef UNSIGNED_INT_CONSTANT_ENABLED
@@ -1244,6 +1249,38 @@ bool clarity_convertert::convert()
           
           
           log_status("Parsing {} {} ", decl_decorator, identifier);
+
+          /* TEST TUPLE CODE FOR RECURSIVE flow */
+          if (expression_node.contains("objtype"))
+          {
+            nlohmann::json parent_objtype = ClarityGrammar::get_expression_objtype(expression_node);
+            std::string experssion_type = ClarityGrammar::get_expression_type(expression_node);
+            
+            if( (parent_objtype[0] == "tuple") && (experssion_type == "variable_declaration"))
+            {
+              nlohmann::json entity_attrib;
+              entity_attrib["entity"] = "named_tuple";
+              entity_attrib["parent_identifier"] = identifier;
+
+              expr[1]["value"]["attributes"] = entity_attrib;
+              //expr["value"]["attributes"]["parent_identifier"] = identifier;
+            }
+            else if( (parent_objtype[0] == "list") && (experssion_type == "variable_declaration"))
+            {
+              nlohmann::json entity_attrib;
+              entity_attrib["entity"] = "list";
+              entity_attrib["parent_identifier"] = identifier;
+              entity_attrib["parent_cid"] = ClarityGrammar::get_expression_cid(expression_node);
+
+              expr[1]["value"]["attributes"] = entity_attrib;
+              //expr["value"]["attributes"]["parent_identifier"] = identifier;
+            }
+          }
+          
+
+
+
+          /* END TUPLE TEST CODE FOR RECURSIVE Flow*/
 
 //add_dummy_symbol();
 // ml- no need to do this with new AST
@@ -1640,9 +1677,12 @@ bool clarity_convertert::get_var_decl(
     if (get_expr(init_value, objtype, val))
       return true;
 
+    //std::cout <<val.pretty()<<std::endl;
     clarity_gen_typecast(ns, val, t);
 
     added_symbol.value = val;
+
+    
     decl.operands().push_back(val);
   }
 
@@ -2806,7 +2846,7 @@ bool clarity_convertert::get_expr(
   exprt &new_expr)
 {
   nlohmann::json inferred_type;
-  return get_expr(expr, nullptr, new_expr, inferred_type);
+  return get_expr(expr, literal_type, new_expr, inferred_type);
 }
 
 /**
@@ -3137,8 +3177,12 @@ bool clarity_convertert::get_expr(
 
     break;
   }
-// ml- [TODO] deal with the rest of the expression types  
-#if 0
+  case ClarityGrammar::ExpressionT::Optional:
+  {
+    get_optional_instance(expr,literal_type, new_expr);
+
+    break;
+  }
   case ClarityGrammar::ExpressionT::Tuple:
   {
     /*
@@ -3152,155 +3196,28 @@ bool clarity_convertert::get_expr(
     */
 
     // 1. construct struct type
-    if (get_tuple_definition(expr))
+    if (get_tuple_definition(expr, literal_type))
       return true;
 
     //2. construct struct_type instance
-    if (get_tuple_instance(expr, new_expr))
+    if (get_tuple_instance(expr, literal_type, new_expr))
       return true;
 
-    // older code : has useful comments to read
-    // assert(expr.contains("components"));
-
-    // switch (type)
-    // {
-    // // case 1
-    // case ClarityGrammar::TypeNameT::ArrayTypeName:
-    // {
-    //   assert(literal_type != nullptr);
-
-    //   // get elem type
-    //   nlohmann::json elem_literal_type =
-    //     make_array_elementary_type(literal_type);
-
-    //   // get size
-    //   exprt size;
-    //   size = constant_exprt(
-    //     integer2binary(expr["components"].size(), bv_width(int_type())),
-    //     integer2string(expr["components"].size()),
-    //     int_type());
-
-    //   // get array type
-    //   typet arr_type;
-    //   if (get_type_description(literal_type, arr_type))
-    //     return true;
-
-    //   // reallocate array size
-    //   arr_type = array_typet(arr_type.subtype(), size);
-
-    //   // declare static array tuple
-    //   exprt inits;
-    //   inits = gen_zero(arr_type);
-
-    //   // populate array
-    //   int i = 0;
-    //   for (const auto &arg : expr["components"].items())
-    //   {
-    //     exprt init;
-    //     if (get_expr(arg.value(), elem_literal_type, init))
-    //       return true;
-
-    //     inits.operands().at(i) = init;
-    //     i++;
-    //   }
-
-    //   new_expr = inits;
-    //   break;
-    // }
-
-    // // case 3
-    // case ClarityGrammar::TypeNameT::TupleTypeName: // case 3
-    // {
-    //   /*
-    //   we assume there are three types of tuple expr:
-    //   0. dump: (x,y);
-    //   1. fixed: (x,y) = (y,x);
-    //   2. function-related:
-    //       2.1. (x,y) = func();
-    //       2.2. return (x,y);
-
-    //   case 0:
-    //     1. create a struct type
-    //     2. create a struct type instance
-    //     3. new_expr = instance
-    //     e.g.
-    //     (x , y) ==>
-    //     struct Tuple
-    //     {
-    //       uint x,
-    //       uint y
-    //     };
-    //     Tuple tuple;
-
-    //   case 1:
-    //     1. add special handling in binary operation.
-    //        when matching struct_expr A = struct_expr B,
-    //        divided into A.operands()[i] = B.operands()[i]
-    //        and populated into a code_block.
-    //     2. new_expr = code_block
-    //     e.g.
-    //     (x, y) = (1, 2) ==>
-    //     {
-    //       tuple.x = 1;
-    //       tuple.y = 2;
-    //     }
-    //     ? any potential scope issue?
-
-    //   case 2:
-    //     1. when parsing the funciton definition, if the returnParam > 1
-    //        make the function return void instead, and create a struct type
-    //     2. when parsing the return statement, if the return value is a tuple,
-    //        create a struct type instance, do assignments,  and return empty;
-    //     3. when the lhs is tuple and rhs is func_call, get_tuple_instance_expr based
-    //        on the func_call, and do case 1.
-    //     e.g.
-    //     function test() returns (uint, uint)
-    //     {
-    //       return (1,2);
-    //     }
-    //     ==>
-    //     struct Tuple
-    //     {
-    //       uint x;
-    //       uint y;
-    //     }
-    //     function test()
-    //     {
-    //       Tuple tuple;
-    //       tuple.x = 1;
-    //       tuple.y = 2;
-    //       return;
-    //     }
-    //   */
-
-    //   // 1. construct struct type
-    //   if (get_tuple_definition(expr))
-    //     return true;
-
-    //   //2. construct struct_type instance
-    //   if (get_tuple_instance(expr, new_expr))
-    //     return true;
-
-    //   break;
-    // }
-
-    // // case 2
-    // default:
-    // {
-    //   if (get_expr(expr["components"][0], literal_type, new_expr))
-    //     return true;
-    //   break;
-    // }
-    // }
+   // if you find yourself in trouble, refer to Solidity frontend code for this same code.
+   // or check any code before 22nd Aug 2024 for the same switch case.
 
     break;
   }
-  case ClarityGrammar::ExpressionT::Optional:
+  case ClarityGrammar::ExpressionT::List:
   {
-    get_optional_instance(expr, new_expr);
-
+    get_list_of_entry_type(expr, literal_type, new_expr);
     break;
   }
+
+// ml- [TODO] deal with the rest of the expression types  
+#if 0
+  
+  
   case ClarityGrammar::ExpressionT::Mapping:
   {
     // convert
@@ -3620,11 +3537,7 @@ bool clarity_convertert::get_expr(
   case ClarityGrammar::ExpressionT::ContractMemberCall:
   case ClarityGrammar::ExpressionT::StructMemberCall:
 
-  case ClarityGrammar::ExpressionT::List:
-  {
-    get_list_of_entry_type(expr, new_expr);
-    break;
-  }
+  
   case ClarityGrammar::ExpressionT::BuiltinMemberCall:
   {
     if (get_clar_builtin_ref(expr, new_expr))
@@ -4972,59 +4885,136 @@ bool clarity_convertert::get_array_to_pointer_type(
   return false;
 }
 
-bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node)
+// checks if the as_node provided is for a nested tuple or top-level tuple
+bool clarity_convertert::is_nested_tuple(const nlohmann::json &ast_node)
 {
-  struct_typet t = struct_typet();
+  if (ast_node["attributes"].contains("caller_function"))
+  {
+      if (ast_node["attributes"]["caller_function"] == "get_tuple_instance")
+      {
+        // no need to perform any further operations
+        // as the types have already been defined in the symbol table
+        return true;
+      }
+  }
+  else
+  {
+      return false;
+  }
+  return false;  
+}
+bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node, const nlohmann::json &parent_objtype)
+{
 
-  // get name/id:
+  // // get name/id:
   std::string name, id;
+  typet t;
+  symbolt *added_symbol;
   get_tuple_name(ast_node, name, id);
 
-  // get type:
+  if (context.find_symbol(id) != nullptr)
+  {
+    // case : named tuple
+    //if symbol already exists, that means we are most likely working with a named tuple
+    added_symbol = context.find_symbol(id); 
+    if (is_nested_tuple(ast_node))
+    {
+      // no need to perform any further operations
+      // as the types have already been defined in the symbol table
+      return false;
+    }
+  }
+  else{
+   // case : unnamed tuple
+    get_type_description(parent_objtype, t);
+    // get location
+    locationt location_begin;
+    get_location_from_decl(ast_node, location_begin);
+
+    // get debug module name
+    std::string debug_modulename =
+      get_modulename_from_path(location_begin.file().as_string());
+    current_fileName = debug_modulename;
+
+    // populate struct type symbol
+    symbolt symbol;
+    get_default_symbol(symbol, debug_modulename, t, name, id, location_begin);
+    symbol.is_type = true;
+    added_symbol = move_symbol_to_context(symbol);
+    
+  }  
+  
+  
+  t = added_symbol->type;
   t.tag("struct " + name);
-
-  // get location
-  locationt location_begin;
-  get_location_from_decl(ast_node[1], location_begin);
-
-  // get debug module name
-  std::string debug_modulename =
-    get_modulename_from_path(location_begin.file().as_string());
-  current_fileName = debug_modulename;
-
-  // populate struct type symbol
-  symbolt symbol;
-  get_default_symbol(symbol, debug_modulename, t, name, id, location_begin);
-  symbol.is_type = true;
-  symbolt &added_symbol = *move_symbol_to_context(symbol);
-
   // populate params
-  //TODO: flatten the nested tuple (e.g. ((x,y),z) = (func(),1); )
+  
   size_t counter = 0;
-  nlohmann::json objtype = ast_node[1]["objtype"][1];
+  nlohmann::json objtype = ClarityGrammar::get_nested_objtype(parent_objtype);
+  nlohmann::json tuple_keys = ClarityGrammar::get_expression_args(ast_node);
+
   //std::cout <<objtype.dump(4)<<std::endl;
 
   //  //for loop to iterate over all keys of objtype
   // ml- this is an array. need to traverse the array
   //for (nlohmann::json::iterator it = objtype.begin(); it != objtype.end(); ++it)
-  for (auto &it : objtype)
+  for (auto &it : tuple_keys)
   {
     struct_typet::componentt comp;
+    nlohmann::json arg_objtype = objtype[counter];
+    //std::cout <<"arg_objtype: "<<arg_objtype.dump(4)<<std::endl;
 
     // manually create a member_name
     // follow the naming rule defined in get_var_decl_name
     assert(!current_contractName.empty());
     //const std::string mem_name = "mem" + std::to_string(counter);
-    const std::string mem_name = it[0]; //it.key();
-    const std::string mem_id = "clar:@C@" + current_contractName + "@" + name +
+    std::string mem_name = ClarityGrammar::get_expression_identifier(it);
+    std::string mem_id = "clar:@C@" + current_contractName + "@" + name +
                                "@" + mem_name + "#" +
-                               i2string(ast_node[1]["cid"].get<std::int16_t>());
+                              i2string(ClarityGrammar::get_expression_cid(it));
 
     // get type
     typet mem_type;
     //if (get_type_description(it.value(), mem_type))
-    if (get_type_description(it[1], mem_type))
+    if (get_type_description(arg_objtype, mem_type))
       return true;
+
+    // check if mem_type is struct_typet
+    if (mem_type.id() == typet::id_struct)    
+    {
+      
+      if (mem_type.get("#clar_type") == "tuple")
+      {
+        
+        nlohmann::json exp_value_node = ClarityGrammar::get_expression_value_node(it);
+        exp_value_node["objtype"] = arg_objtype;
+        exp_value_node["attributes"]["entity"] = "named_tuple";
+        exp_value_node["attributes"]["parent_identifier"] = ClarityGrammar::get_expression_identifier(it);
+
+        get_tuple_definition(exp_value_node, arg_objtype);
+        
+        get_tuple_name(exp_value_node, mem_name, mem_id);
+        if (context.find_symbol(mem_id) == nullptr)
+        {
+          log_error("Nested Tuple {} not found in the symbol table. Aborting...", mem_id);
+          return true;
+        }
+        symbolt *nested_symbol = context.find_symbol(mem_id);
+        mem_type = nested_symbol->type;
+      }
+      else if (mem_type.get("#clar_type") == "principal")
+      {
+        //std::cout <<mem_type.pretty()<<std::endl;
+        mem_id = "tag-struct principal";
+        
+      }
+      else
+      {
+        //mem_type.tag("struct " + mem_name);
+      }
+
+    }
+
 
     // construct comp
     comp.type() = mem_type;
@@ -5036,15 +5026,15 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node)
     //comp.set_access("internal");
 
     // update struct type component
-    t.components().push_back(comp);
+    to_struct_type(t).components().push_back(comp);
 
     // update cnt
     ++counter;
   }
 
-  t.location() = location_begin;
-  added_symbol.type = t;
-  added_symbol.is_type = true;
+  //t.location() = location_begin;
+  added_symbol->type = t;
+  added_symbol->is_type = true;
 
   return false;
 }
@@ -5055,7 +5045,7 @@ bool clarity_convertert::get_tuple_definition(const nlohmann::json &ast_node)
 // ast_node -> the ast node containing the declaration info
 // outputs:
 // location as location_begin
-// symbol as added_symbol
+// symbol as added_symbol => null
 // struct type as t
 // returns :
 //  false for success
@@ -5082,8 +5072,9 @@ bool clarity_convertert::process_c_defined_structs(
   t = sym.type;
   assert(t.id() == typet::id_struct);
 
+  added_symbol = sym;
   // get instance name,id
-  get_state_var_decl_name(ast_node, name, id);
+  //get_state_var_decl_name(ast_node, name, id);
 
   // get location
   //locationt location_begin;
@@ -5093,24 +5084,6 @@ bool clarity_convertert::process_c_defined_structs(
   std::string debug_modulename =
     get_modulename_from_path(location_begin.file().as_string());
   current_fileName = debug_modulename;
-
-  // populate struct type symbol
-  symbolt symbol;
-
-  if (context.find_symbol(id) != nullptr)
-  {
-    //log_status("Symbol {} already exists in the context", id);
-    symbol = *context.find_symbol(id);
-  }
-  else
-  {
-    // the symbol should already be in the space. this is an error if you don't find the symbol already defined
-
-    return true;
-  }
-
-  //symbolt &added_symbol = symbol;
-  added_symbol = symbol;
 
   inits = gen_zero(t);
 
@@ -5122,10 +5095,11 @@ bool clarity_convertert::process_c_defined_structs(
 }
 
 bool clarity_convertert::get_list_of_entry_type(
-  const nlohmann::json &ast_node,
+  const nlohmann::json &ast_node, const nlohmann::json &parent_objtype,
   exprt &new_expr)
 {
-  std::string id = get_list_struct_id(ast_node[1]["objtype"]);
+  std::string id,name;
+  id = get_list_instance_id(ast_node, name);//get_list_struct_id(parent_objtype);
   locationt location_begin;
   symbolt added_symbol;
   exprt inits;
@@ -5146,7 +5120,7 @@ bool clarity_convertert::get_list_of_entry_type(
         .get("#cpp_type")
         .as_string(); //fixme : unreliable way of getting type
     std::string val_size = "1";
-    nlohmann::json value_node = ast_node[1]["value"];
+    //nlohmann::json value_node = ast_node[1]["value"];
 
     if (key == "size")
     {
@@ -5157,9 +5131,15 @@ bool clarity_convertert::get_list_of_entry_type(
 
     if (val_type == "")
     {
-      val_type = ast_node[1]["objtype"][3]["objtype"][0];
-      val_size = ast_node[1]["objtype"][2];
+      val_type = ClarityGrammar::get_nested_objtype(parent_objtype)[0];//ast_node[1]["objtype"][3]["objtype"][0];
+      val_size = parent_objtype[2];
+      
     }
+
+    nlohmann::json list_args = ClarityGrammar::get_expression_args(ast_node); 
+    int args_size = list_args.size();
+
+    assert(args_size == std::stoi(val_size));
 
     const std::string mem_name = key;
 
@@ -5176,20 +5156,17 @@ bool clarity_convertert::get_list_of_entry_type(
     int value_length = std::stoi(val_size);
     for (entry_indx = 0; entry_indx < value_length; entry_indx++)
     {
-      nlohmann::json temp_expression_node;
-      temp_expression_node["expressionType"] = "Literal";
-      temp_expression_node["span"] = ast_node[1]["span"];
-      temp_expression_node["identifier"] = mem_name;
-      temp_expression_node["cid"] = ast_node[1]["cid"];
+      nlohmann::json temp_expression_node = list_args[entry_indx];
+      //temp_expression_node["expressionType"] = "Literal";
+      //temp_expression_node["span"] = ast_node[1]["span"];
+      //temp_expression_node["identifier"] = mem_name;
+      //temp_expression_node["cid"] = ast_node[1]["cid"];
       temp_expression_node["objtype"] = objtype;
-      temp_expression_node["value"] =
-        ast_node[1]["value"]
-                [entry_indx +
-                 1]; //+1 because [0] index contains "list" identifier
+      //temp_expression_node["value"] = ast_node[1]["value"][entry_indx +1]; //+1 because [0] index contains "list" identifier
 
-      nlohmann::json temp_declarative_node = {"list", temp_expression_node};
+      //std::cout <<temp_expression_node.dump()<<std::endl;
       exprt init;
-      if (get_expr(temp_declarative_node, objtype, init))
+      if (get_expr(temp_expression_node, objtype, init))
         return true;
 
       buff_inits.operands().at(entry_indx) = init;
@@ -5205,19 +5182,22 @@ bool clarity_convertert::get_list_of_entry_type(
     ++i;
   }
 
-  added_symbol.value = inits;
-  new_expr = added_symbol.value;
+  //added_symbol.value = inits;
+  //new_expr = added_symbol.value;
+  new_expr = inits;
   new_expr.identifier(id);
+  //new_expr.type() = added_symbol.type;
 
   return false;
 }
 
 bool clarity_convertert::get_optional_instance(
   const nlohmann::json &ast_node,
+  const nlohmann::json &parent_objtype,
   exprt &new_expr)
 {
   nlohmann::json objtype =
-    ClarityGrammar::get_optional_type(ast_node[1]["objtype"]);
+    ClarityGrammar::get_optional_type(parent_objtype);
   std::string id = ClarityGrammar::get_optional_symbolId(objtype);
   locationt location_begin;
   symbolt added_symbol;
@@ -5226,6 +5206,7 @@ bool clarity_convertert::get_optional_instance(
   process_c_defined_structs(
     id, ast_node, location_begin, added_symbol, inits, t);
 
+  //std::cout <<ast_node.dump(4)<<std::endl;
   size_t i = 0;
 
   //for (auto& [key, value]: optional_struct_members)
@@ -5245,11 +5226,12 @@ bool clarity_convertert::get_optional_instance(
     // it it looks like that should match the same methodology as for string-xxx types
     if (val_type == "")
     {
-      val_type = ast_node[1]["objtype"][3][0];
-      val_size = ast_node[1]["objtype"][3][2];
+      val_type = ClarityGrammar::get_nested_objtype(parent_objtype)[0];//ast_node[1]["objtype"][3][0];
+      val_size = ClarityGrammar::get_nested_objtype(parent_objtype)[2]; //ast_node[1]["objtype"][3][2];
     }
 
     const std::string mem_name = key; //it.key();
+    std::string node_type;
 
     // get type
     typet mem_type;
@@ -5257,37 +5239,38 @@ bool clarity_convertert::get_optional_instance(
 
     /* Create a temporary JSON object to ease processing */
     nlohmann::json temp_expression_node;
-    temp_expression_node["expressionType"] =
-      "Literal"; //fixme: gotta map this for non-literal values as well
-    temp_expression_node["span"] = ast_node[1]["span"];
-    temp_expression_node["identifier"] = mem_name;
-    temp_expression_node["cid"] = ast_node[1]["cid"];
-    temp_expression_node["objtype"] = objtype;
 
     // adjust value node accordingly.
     if (key == "is_none")
     {
-      temp_expression_node["value"] =
-        (ast_node[1]["value"][0] == "none") ? "true" : "false";
+      // we have to construct this node because this is not directly available in the ast_node
+      // this is an extra flag created in the optional struct to implement "is_none" functionality
+      temp_expression_node["identifier"] = (ClarityGrammar::get_expression_optional_expr(ast_node)=="none"?"true":"false");//(ast_node[1]["value"][0] == "none") ? "true" : "false";  
+      node_type = "lit_bool";
+      temp_expression_node["type"] = node_type; //fixme: gotta map this for non-literal values as well
+      temp_expression_node["span"] = ClarityGrammar::get_location_info(ast_node);
+      temp_expression_node["cid"] = ClarityGrammar::get_expression_cid(ast_node);
+      
     }
     else if (key == "value")
     {
       // if optional was set as none, then we don't need to set any value for the value field.
-      if (ast_node[1]["value"][0] == "none")
+      if (ClarityGrammar::get_expression_optional_expr(ast_node) == "none")
       {
         continue;
       }
 
-      temp_expression_node["value"] = ast_node[1]["value"][1];
+      temp_expression_node = ClarityGrammar::get_expression_args(ast_node)[0];
     }
 
-    // the first argument of this declarative node is meaningless to the code that reads it.
-    nlohmann::json temp_declarative_node = {"optional", temp_expression_node};
+    //because args do not have objtypes but we need objtypes for get_expr to work
+    temp_expression_node["objtype"] = objtype;
 
-    //std::cout <<temp_declarative_node.dump(4)<<std::endl;
+  
+    //std::cout <<temp_expression_node.dump(4)<<std::endl;
 
     exprt init;
-    if (get_expr(temp_declarative_node, objtype, init))
+    if (get_expr(temp_expression_node, objtype, init))
       return true;
 
     const struct_typet::componentt *c = &to_struct_type(t).components().at(i);
@@ -5300,12 +5283,14 @@ bool clarity_convertert::get_optional_instance(
     ++i;
   }
 
-  added_symbol.value = inits;
-  new_expr = added_symbol.value;
-  new_expr.identifier(id);
+  //added_symbol.value = inits;
+  //new_expr = added_symbol.value;
+  new_expr = inits;
+  //new_expr.identifier(id);
   return false;
 }
 
+// input: ast_node is a value node of an expression
 bool clarity_convertert::get_principal_instance(
   const nlohmann::json &ast_node,
   exprt &new_expr)
@@ -5314,13 +5299,18 @@ bool clarity_convertert::get_principal_instance(
   id = "tag-struct principal";
 
   locationt location_begin;
-  symbolt added_symbol;
+  symbolt added_symbol;   // no longer required. should be removed [TODO]
   exprt inits;
   typet t;
-  process_c_defined_structs(
-    id, ast_node, location_begin, added_symbol, inits, t);
+  if (process_c_defined_structs(
+    id, ast_node, location_begin, added_symbol, inits, t))
+    {
+      log_error("Something went wrong... check logs.");
+      abort();
+    }
   t.set("#clar_type", "principal_instance");
 
+  nlohmann::json expression_value_node = ast_node;
   size_t i = 0;
 
   //for (auto& [key, value]: principal_struct_members)
@@ -5347,6 +5337,7 @@ bool clarity_convertert::get_principal_instance(
 
     // manually create a member_name
     const std::string mem_name = key; //it.key();
+    std::string node_type ;
 
     /* Create a temporary JSON object to ease processing */
     nlohmann::json temp_expression_node;
@@ -5354,36 +5345,44 @@ bool clarity_convertert::get_principal_instance(
     // adjust value node accordingly.
     if (key == "contract_is_principal")
     {
-      temp_expression_node["value"] = ClarityGrammar::is_standard_principal(ast_node);
-        //(ast_node[1]["principalType"] == "contract" ? "true" : "false");
+      temp_expression_node["identifier"] = (ClarityGrammar::is_expression_standard_principal(expression_value_node)?"false":"true");
       value_type = "bool";
+      node_type = "lit_bool";
     }
     else if (key == "contract_is_standard")
     {
-      temp_expression_node["value"] =
-        (ast_node[1]["principalType"] == "standard" ? "true" : "false");
+      temp_expression_node["identifier"] = (ClarityGrammar::is_expression_standard_principal(expression_value_node)?"true":"false");
       value_type = "bool";
+      node_type = "lit_bool";
     }
     else if (key == "contract_name")
     {
-      temp_expression_node["value"]["lit_ascii"] = ast_node[1]["contractName"];
-      value_type = "string-ascii";
+      i++;
+      continue;
+      // temp_expression_node["identifier"] = ast_node[1]["contractName"];
+      // value_type = "string-ascii";
     }
     else if (key == "issuer_principal_bytes")
     {
-      temp_expression_node["value"]["lit_utf8"] =
-        ast_node[1]["issuerPrincipal"];
-      value_type = "string-utf8";
+      i++;
+      continue;
+      // temp_expression_node["value"]["lit_utf8"] =
+      //   ast_node[1]["issuerPrincipal"];
+      // value_type = "string-utf8";
     }
     else if (key == "version")
     {
-      temp_expression_node["value"]["lit_utf8"] = "1";
-      value_type = "string-utf8";
+      i++;
+      continue;
+      // temp_expression_node["value"]["lit_utf8"] = "1";
+      // value_type = "string-utf8";
     }
     else if (key == "issuer_principal_str")
     {
-      temp_expression_node["value"]["lit_ascii"] = "issuerPrincipalStr";
+      
+      temp_expression_node["identifier"] = ClarityGrammar::get_expression_identifier(expression_value_node);
       value_type = "string-ascii";
+      node_type = "lit_ascii";
     }
 
     // get type
@@ -5391,18 +5390,18 @@ bool clarity_convertert::get_principal_instance(
     nlohmann::json objtype = {
       value_type, value_type, value_size}; //{value[0],value[0],value[2]};
 
-    temp_expression_node["expressionType"] = "Literal";
-    temp_expression_node["span"] = ast_node[1]["span"];
-    temp_expression_node["identifier"] = mem_name;
-    temp_expression_node["cid"] = ast_node[1]["cid"];
+    temp_expression_node["type"] = node_type;
+    temp_expression_node["span"] = ClarityGrammar::get_location_info(expression_value_node);
+    //temp_expression_node["identifier"] = mem_name;
+    temp_expression_node["cid"] = ClarityGrammar::get_expression_cid(expression_value_node);
     temp_expression_node["objtype"] = objtype;
 
+    
+
+    //nlohmann::json temp_declarative_node = {"principal", temp_expression_node};
     //std::cout <<temp_expression_node.dump(4)<<std::endl;
-
-    nlohmann::json temp_declarative_node = {"principal", temp_expression_node};
-
     exprt init;
-    if (get_expr(temp_declarative_node, objtype, init))
+    if (get_expr(temp_expression_node, objtype, init))
       return true;
 
     const struct_typet::componentt *c = &to_struct_type(t).components().at(i);
@@ -5415,113 +5414,133 @@ bool clarity_convertert::get_principal_instance(
     ++i;
   }
 
-  added_symbol.value = inits;
-  new_expr = added_symbol.value;
-  new_expr.identifier(id);
+  //added_symbol.value = inits;
+  //new_expr = added_symbol.value;
+  new_expr = inits;
+  //new_expr.identifier(id);
   return false;
 }
 
 bool clarity_convertert::get_tuple_instance(
   const nlohmann::json &ast_node,
+  const nlohmann::json &parent_objtype,
   exprt &new_expr)
 {
-  std::string name, id;
-  get_tuple_name(ast_node, name, id);
+   std::string name, id;
+   get_tuple_name(ast_node, name, id);
 
-  if (context.find_symbol(id) == nullptr)
-    return true;
+   if (context.find_symbol(id) == nullptr)
+     return true;
+
   const symbolt &sym = *context.find_symbol(id);
+
 
   // get type
   typet t = sym.type;
   t.set("#clar_type", "tuple_instance");
   assert(t.id() == typet::id_struct);
 
-  // get instance name,id
-  if (get_tuple_instance_name(ast_node, name, id))
-    return true;
+  symbolt *added_symbol ;
+  // if it's a nested tuple, we don't need to create a new symbol 
+  // because the symbol will already be created in get_tuple_definition
+  if (!is_nested_tuple(ast_node))
+  {
+    // get instance name,id
+    if (get_tuple_instance_name(ast_node, name, id))
+      return true;
+      
 
-  // get location
-  locationt location_begin;
-  get_location_from_decl(ast_node[1], location_begin);
+    // get location
+    locationt location_begin;
+    get_location_from_decl(ast_node, location_begin);
 
-  // get debug module name
-  std::string debug_modulename =
-    get_modulename_from_path(location_begin.file().as_string());
-  current_fileName = debug_modulename;
+    // get debug module name
+    std::string debug_modulename =
+      get_modulename_from_path(location_begin.file().as_string());
+    current_fileName = debug_modulename;
 
-  // populate struct type symbol
-  symbolt symbol;
-  get_default_symbol(symbol, debug_modulename, t, name, id, location_begin);
+    // populate struct type symbol
+    symbolt symbol;
+    get_default_symbol(symbol, debug_modulename, t, name, id, location_begin);
 
-  symbol.lvalue = true;
-  symbol.static_lifetime = true;
-  symbol.file_local = false;
-  symbol.is_extern = false;
-  symbolt &added_symbol = *move_symbol_to_context(symbol);
+    symbol.lvalue = true;
+    symbol.static_lifetime = true;
+    symbol.file_local = false;
+    symbol.is_extern = false;
+    added_symbol = move_symbol_to_context(symbol);
+    
+  }
+  
 
   // populate initial value
 
   exprt inits = gen_zero(t);
-  nlohmann::json objtype = ast_node[1]["objtype"];
+  nlohmann::json objtype = ClarityGrammar::get_nested_objtype(parent_objtype);
 
   size_t i = 0;
   int is = inits.operands().size();
-  int as = std::stoi(objtype[2].get<std::string>());
+  int as = std::stoi(parent_objtype[2].get<std::string>());
   assert(is <= as);
 
-  // for (nlohmann::json::iterator it = objtype[1].begin(); it != objtype[1].end();
-  //      ++it)
-  nlohmann::json tupleElements = ast_node[1]["objtype"][1];
+  
+  nlohmann::json tuple_keys = ClarityGrammar::get_expression_args(ast_node);
   //std::cout <<objtype.dump(4)<<std::endl;
 
   //  //for loop to iterate over all keys of objtype
   // ml- this is an array. need to traverse the array
-  //for (nlohmann::json::iterator it = objtype.begin(); it != objtype.end(); ++it)
-  for (auto &it : tupleElements)
+  
+  for (auto &it : tuple_keys)
   {
     //get the type of the component
-    nlohmann::json component_type = it[1]; //it.value();
-    std::string tuple_key = it[0];         //it.key();
+    nlohmann::json component_type = objtype[i];
+    std::string tuple_key = ClarityGrammar::get_expression_identifier(it);
     ClarityGrammar::TypeNameT type =
       ClarityGrammar::get_type_name_t(component_type);
 
-    //Fixme: right now it only handles elementary types
-    // we will need to pass it the whole get_expr function to handle more complex types.
-    // recursive call to get_expr
-    ClarityGrammar::ElementaryTypeNameT type_name =
-      ClarityGrammar::get_elementary_type_name_t(component_type);
 
     /* Create a temporary JSON object to ease processing */
-    nlohmann::json temp_expression_node;
-    temp_expression_node["expressionType"] = "Literal";
-    temp_expression_node["span"] = ast_node[1]["span"];
-    temp_expression_node["identifier"] = tuple_key;
-    temp_expression_node["cid"] = ast_node[1]["cid"];
+    nlohmann::json temp_expression_node = ClarityGrammar::get_expression_value_node(it);
     temp_expression_node["objtype"] = component_type;
-    temp_expression_node["value"] = ast_node[1]["value"][1][tuple_key];
+    if (type == ClarityGrammar::TypeNameT::TupleTypeName)
+    {
+      temp_expression_node["attributes"]["entity"] = "named_tuple";
+      temp_expression_node["attributes"]["parent_identifier"] = ClarityGrammar::get_expression_identifier(it);
+      //this particular attribute is used to differentiate inside get_tuple_definition if we need to components to a type or not.
+      // check get_tuple_definition for more details
+      temp_expression_node["attributes"]["caller_function"] = "get_tuple_instance";
+    }
 
-    nlohmann::json temp_declarative_node = {"tuple", temp_expression_node};
-
-    //std::string the_value = expr[1][tuple_key].get<std::string>();
-    //std::cout << temp_declarative_node.dump(4) << std::endl;
     exprt init;
-    if (get_expr(temp_declarative_node, component_type, init))
+    if (get_expr(temp_expression_node, component_type, init))
       return true;
-
-    const struct_typet::componentt *c = &to_struct_type(t).components().at(i);
+    
+    struct_typet::componentt *c = &to_struct_type(t).components().at(i);
+    //to_struct_type(t).components().at(i).type() = init.type();
+    
+    //std::cout <<"######"<<std::endl;
+    //std::cout <<c->type().pretty()<<std::endl;
     typet elem_type = c->type();
-
+    
     clarity_gen_typecast(ns, init, elem_type);
+    //std::cout <<init.type().pretty()<<std::endl;
     inits.operands().at(i) = init;
+    //std::cout <<"-------"<<std::endl;
 
     // update
     ++i;
   }
 
-  added_symbol.value = inits;
-  new_expr = added_symbol.value;
-  new_expr.identifier(id);
+  // we don't need to set the value to this added symbol for nested tuples
+  // because if we do, it will start showing up as a variable of given type
+  if (!is_nested_tuple(ast_node))
+  {
+    added_symbol->value = inits;
+    new_expr = added_symbol->value;
+  }
+  else
+  {
+    new_expr = inits;
+  }
   return false;
 }
 
@@ -5530,11 +5549,41 @@ void clarity_convertert::get_tuple_name(
   std::string &name,
   std::string &id)
 {
-  name =
-    "tuple_" +
-    ast_node[1]["identifier"]
-      .get<
-        std::string>(); //+ "#" + std::to_string(ast_node[1]["cid"].get<int>());
+  // is this assumption valid ?
+  // [ToDo]: Check if this assumption is valid that objtype is only present in parent nodes.
+  
+  // check if it is a "value" node of a tuple... value node of a named tuple will have attributes
+  if (ast_node.contains("attributes"))
+  {
+    if (ast_node["attributes"].contains("entity"))
+    {
+      if (ast_node["attributes"]["entity"] == "named_tuple")
+      {
+        name = "tuple_" + ast_node["attributes"]["parent_identifier"].get<std::string>(); 
+      }
+      else  //unnamed tuple
+      {
+        name = "tuple_" + std::string("tuple_") + std::to_string(ClarityGrammar::get_expression_cid(ast_node));
+      }
+
+    }
+    else{
+      log_error("Invalid Tuple node found... attributes without entity. Aborting...");
+      abort();
+    }
+    
+  }
+  else if (ast_node.contains("objtype"))
+  {
+     name =
+    "tuple_" + ClarityGrammar::get_expression_identifier(ast_node); //ast_node[1]["identifier"].get<std::string>();
+  }
+  else
+  {
+     name =
+    "tuple_" + std::to_string(ClarityGrammar::get_expression_cid(ast_node));
+  }
+ 
   id = prefix + "struct " + name;
 }
 
@@ -5549,12 +5598,33 @@ bool clarity_convertert::get_tuple_instance_name(
   if (c_name.empty())
     return true;
 
-  //name = "tuple_instance_" + ast_node[1]["identifier"].get<std::string>(); //+ "#"+ std::to_string(ast_node[1]["cid"].get<int>());
-  name =
-    ast_node[1]["identifier"]
-      .get<
-        std::string>(); //+ "#"+ std::to_string(ast_node[1]["cid"].get<int>());
-  id = "clar:@C@" + c_name + "@" + name;
+  if (ast_node.contains("attributes"))
+  {
+    if (ast_node["attributes"].contains("entity"))
+    {
+      if (ast_node["attributes"]["entity"] == "named_tuple")
+      {
+        name = ast_node["attributes"]["parent_identifier"].get<std::string>() ; 
+      }
+      else  //unnamed tuple
+      {
+        //name = "tuple_" + std::string("tuple#") + std::to_string(ClarityGrammar::get_expression_cid(ast_node));
+        name = "tuple_instance#" + std::to_string(ClarityGrammar::get_expression_cid(ast_node)); 
+      }
+
+    }
+    else{
+      log_error("Invalid Tuple node found... attributes without entity. Aborting...");
+      abort();
+    }
+    
+  }
+  
+  //name = ClarityGrammar::get_expression_identifier(ast_node);
+    // ast_node[1]["identifier"]
+    //   .get<
+    //     std::string>(); //+ "#"+ std::to_string(ast_node[1]["cid"].get<int>());
+  id = "clar:@C@" + c_name + "@" + name + "#" + std::to_string(ClarityGrammar::get_expression_cid(ast_node));
   return false;
 }
 
@@ -5660,6 +5730,33 @@ bool clarity_convertert::get_elementary_type_name_int(
   return false;
 }
 
+// Get the id of the variable instance of the list
+// it is found in the parent ast node as "identifier"
+// or can be found inside attributes as "parent_identifier"
+// Input : ast_node of "value" key of parent ast_node
+// Output : name of the instance variable.
+// returns : id of the instance variable
+std::string clarity_convertert::get_list_instance_id(const nlohmann::json &ast_node, std::string name)
+{
+  std::string id;
+  if (ast_node.contains("attributes"))
+  {
+    if (ast_node["attributes"].contains("entity"))
+    {
+      if (ast_node["attributes"]["entity"] == "list")
+      {
+        name = ast_node["attributes"]["parent_identifier"].get<std::string>();
+        id = "clar:@C@" + current_contractName + "@" + name + "#" + std::to_string(ast_node["attributes"]["parent_cid"].get<int16_t>());
+        return id;
+      }
+    }
+  }
+
+  log_error("Invalid List node found.... Aborting...");
+  abort();
+
+}
+
 // get the id of the struct that represents the list
 // takes parent objtype as input
 // Parent_objtype contains ["list", "list", size_of_list, {"objtype": [entry_type, entry_type, size per entry]}]
@@ -5668,8 +5765,10 @@ clarity_convertert::get_list_struct_id(const nlohmann::json &objtype)
 {
   // get the id of the struct that represents the list
   // e.g. list_uint128_t
+  nlohmann::json child_objtype = ClarityGrammar::get_nested_objtype(objtype);
   return "tag-struct " + objtype[0].get<std::string>() + "_" +
-         objtype[3]["objtype"][0].get<std::string>();
+        child_objtype[0].get<std::string>();
+
 }
 
 bool clarity_convertert::get_list_type(
@@ -5825,6 +5924,8 @@ bool clarity_convertert::get_elementary_type_name(
     {
       const symbolt &sym = *context.find_symbol(symbol_id);
       new_type = sym.type;
+      new_type.set("#cpp_type", "void");
+      new_type.set("#clar_type", "principal");
     }
     break;
   }
@@ -5919,18 +6020,14 @@ void clarity_convertert::get_state_var_decl_name(
     log_error("Internal error when obtaining the contract name. Aborting...");
     abort();
   }
-  name =
-    ast_node["identifier"]
-      .get<
-        std::
-          string>(); // assume Clarity AST json object has "identifier" field, otherwise throws an exception in nlohmann::json
-
+  name = ClarityGrammar::get_expression_identifier(ast_node);
   // e.g. clar:@C@Base@x#11
   // The prefix is used to avoid duplicate names
   if (!contract_name.empty())
   {
     if ((ast_node.contains("objtype") &&
-         (ClarityGrammar::is_tuple_declaration(ast_node))))
+         (ClarityGrammar::is_tuple_declaration(ast_node))) || 
+         (ClarityGrammar::get_expression_type(ast_node) == "tuple_key"))
     {
       get_tuple_name(ast_node, name, id);
     }
@@ -6100,14 +6197,19 @@ unsigned int clarity_convertert::get_line_number(
     ]
     */
   unsigned int loc = -1;
-  if (ast_node.is_array())
+  if (ast_node.contains("span"))
   {
-    ClarityGrammar::get_expression_node(ast_node)["span"]["start_line"].get<int>();
+    nlohmann::json span = ClarityGrammar::get_location_info(ast_node);
+    loc = span["start_line"].get<int>();
   }
-  else if (ast_node.is_object())
-  {
-    ast_node["span"]["start_line"].get<int>();
-  }
+  // if (ast_node.is_array())
+  // {
+  //   ClarityGrammar::get_expression_node(ast_node)["span"]["start_line"].get<int>();
+  // }
+  // else if (ast_node.is_object())
+  // {
+  //   ast_node["span"]["start_line"].get<int>();
+  // }
   return loc;
 }
 
@@ -6459,7 +6561,8 @@ void clarity_convertert::get_default_symbol(
 
 symbolt *clarity_convertert::move_symbol_to_context(symbolt &symbol)
 {
-  return context.move_symbol_to_context(symbol);
+  latest_symbol = context.move_symbol_to_context(symbol);
+  return latest_symbol;
 }
 
 void clarity_convertert::convert_expression_to_code(exprt &expr)

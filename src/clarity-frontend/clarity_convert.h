@@ -78,8 +78,8 @@ protected:
 
   std::string get_list_struct_id(const nlohmann::json &objtype);
   bool get_list_type(const nlohmann::json &parent_objtype, typet &out);
-  bool get_list_of_entry_type(const nlohmann::json &ast_node, exprt &new_expr);
-
+  bool get_list_of_entry_type(const nlohmann::json &ast_node, const nlohmann::json &parent_objtype, exprt &new_expr);
+  std::string get_list_instance_id(const nlohmann::json &ast_node, std::string name);
   // handle the non-contract definition, including struct/enum/error/event/abstract/...
   bool process_c_defined_structs(
     std::string &id,
@@ -159,8 +159,9 @@ protected:
     const nlohmann::json &ast_node,
     std::string &contract_name);
   bool get_empty_array_ref(const nlohmann::json &ast_node, exprt &new_expr);
-  bool get_tuple_definition(const nlohmann::json &ast_node);
-  bool get_tuple_instance(const nlohmann::json &ast_node, exprt &new_expr);
+  bool is_nested_tuple(const nlohmann::json &ast_node);
+  bool get_tuple_definition(const nlohmann::json &ast_node, const nlohmann::json &parent_objtype);
+  bool get_tuple_instance(const nlohmann::json &ast_node,const nlohmann::json &parent_objtype, exprt &new_expr);
   void get_tuple_name(
     const nlohmann::json &ast_node,
     std::string &name,
@@ -177,7 +178,7 @@ protected:
   void get_tuple_assignment(code_blockt &_block, const exprt &lop, exprt rop);
   void get_tuple_function_call(code_blockt &_block, const exprt &op);
 
-  bool get_optional_instance(const nlohmann::json &ast_node, exprt &new_expr);
+  bool get_optional_instance(const nlohmann::json &ast_node, const nlohmann::json &parent_objtype, exprt &new_expr);
 
   bool get_principal_instance(const nlohmann::json &ast_node, exprt &new_expr);
   // line number and locations
@@ -325,6 +326,9 @@ protected:
   std::string tgt_func;
   // --contract
   std::string tgt_cnt;
+
+  // --reference of the latest symbol added to the symbol table
+  symbolt *latest_symbol;
 
 private:
   bool get_elementary_type_name_uint(
