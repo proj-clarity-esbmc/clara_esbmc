@@ -53,6 +53,7 @@ bool get_operation_type(nlohmann::json &expression_node);
 bool operation_is_conditional(const nlohmann::json &ast_node);
 bool operation_is_unary(const nlohmann::json &ast_node);
 bool operation_is_binary(const nlohmann::json &ast_node);
+bool operation_is_multiop(const nlohmann::json &ast_node);
 bool operation_is_optional_decl(const nlohmann::json &ast_node);
 bool operation_is_let_begin(const nlohmann::json &ast_node);
 nlohmann::json get_optional_type(const nlohmann::json &objtype);
@@ -203,6 +204,7 @@ enum ExpressionT
   // BinaryOperator
   BinaryOperatorClass =
     0, // This type covers all binary operators in Clarity, such as =, +, - .etc
+  MultiOperatorClass, 
   BO_Assign, // =
   BO_Add,    // +
   BO_Sub,    // -

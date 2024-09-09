@@ -2900,6 +2900,18 @@ bool clarity_convertert::get_expr(
 
   switch (type)
   {
+  case ClarityGrammar::ExpressionT::MultiOperatorClass:
+  {
+    nlohmann::json multiop_type_expr;
+    if (get_multiple_operator_expr(expr, new_expr))
+      return true;
+
+    if (get_literal_type_from_typet(new_expr.type(), multiop_type_expr))
+      return true;
+
+    inferred_type = multiop_type_expr;
+    break;
+  }
   case ClarityGrammar::ExpressionT::BinaryOperatorClass:
   {
     nlohmann::json binary_type_expr;
@@ -3596,36 +3608,80 @@ bool clarity_convertert::get_current_contract_name(
   return true;
 }
 
+
 bool clarity_convertert::get_binary_operator_expr(
   const nlohmann::json &expr,
   exprt &new_expr)
 {
-  // 1. Convert LHS and RHS
-  // For "Assignment" expression, it's called "leftHandSide" or "rightHandSide".
-  // For "BinaryOperation" expression, it's called "leftExpression" or "leftExpression"
+  nlohmann::json exp_args = ClarityGrammar::get_expression_args(expr);
+  nlohmann::json type_inferred;
+  
+  return get_multiple_operator_expr(expr, new_expr, type_inferred, exp_args.size() - 1);
+}
+
+bool clarity_convertert::get_multiple_operator_expr(
+  const nlohmann::json &expr,
+  exprt &new_expr)
+{
+  nlohmann::json exp_args = ClarityGrammar::get_expression_args(expr);
+  nlohmann::json type_inferred;
+  
+  return get_multiple_operator_expr(expr, new_expr, type_inferred, exp_args.size() - 1);
+
+}
+
+bool clarity_convertert::get_multiple_operator_expr(
+  const nlohmann::json &expr,
+  exprt &new_expr,
+  nlohmann::json &inferred_type,
+  int args_starting_index =  0)
+{
   exprt lhs, rhs;
-  // if (expr.contains("leftHandSide"))
-  // {
-  //   nlohmann::json literalType = expr["leftHandSide"]["typeDescriptions"];
-
-  //   if (get_expr(expr["leftHandSide"], lhs))
-  //     return true;
-
-  //   if (get_expr(expr["rightHandSide"], literalType, rhs))
-  //     return true;
-  // }
-  // else if (expr.contains("leftExpression"))
-  // {
-  //   nlohmann::json literalType_l = expr["leftExpression"]["typeDescriptions"];
-  //   nlohmann::json literalType_r = expr["rightExpression"]["typeDescriptions"];
-  nlohmann::json type_l;
   nlohmann::json type_r;
+  nlohmann::json type_l;
   nlohmann::json exp_args = ClarityGrammar::get_expression_args(expr);
 
-  if (get_expr(exp_args[0], nullptr, lhs, type_l))
-    return true;
+    // Convert opcode
+  ClarityGrammar::ExpressionT opcode =
+    ClarityGrammar::get_expr_operator_t(expr);
+  log_debug(
+    "clarity",
+    "	@@@ got multiop.getOpcode: ClarityGrammar::{}",
+    ClarityGrammar::expression_to_str(opcode));
 
-  if (get_expr(exp_args[1], nullptr, rhs, type_r))
+  if (1 == exp_args.size())
+  {
+    // For some reason Clarity allows single arg ops
+    // in which case just return the arg instead of operator
+    // but for is-eq make an exception it always returns true
+    // even if you give it (is-eq false)
+    if (opcode == ClarityGrammar::ExpressionT::BO_EQ)
+    {
+      true_exprt always_true;
+      get_literal_type_from_typet(bool_type(), type_l);
+      lhs = always_true;
+    }
+    else {
+      if (get_expr(exp_args[0], nullptr, lhs, type_l))
+        return true;    
+    }
+    
+    new_expr = lhs;
+    inferred_type = type_l;
+    return false;
+  }
+  else if (0 == args_starting_index - 1)
+  {
+    if (get_expr(exp_args[0], nullptr, lhs, type_l))
+      return true;
+  }
+  else 
+  {
+    if (get_multiple_operator_expr(expr, lhs, type_l, args_starting_index - 1))
+      return true;
+  }
+
+  if (get_expr(exp_args[args_starting_index], nullptr, rhs, type_r))
     return true;
 
   // ml-[TODO] need to check compatibility of the two expressions
@@ -3634,7 +3690,15 @@ bool clarity_convertert::get_binary_operator_expr(
   //   assert(!"should not be here - unrecognized LHS and RHS keywords in expression JSON");
 
   // preliminary step for recursive BinaryOperation
-  current_BinOp_type.push(&(type_l));
+  if (type_r.size() == 0)
+  {
+    current_BinOp_type.push(&(type_l));
+  }
+  else
+  {
+    current_BinOp_type.push(&(type_r));
+  }
+  
 
   // 2. Get type
   typet t;
@@ -3650,13 +3714,6 @@ bool clarity_convertert::get_binary_operator_expr(
       return true;
   }
 
-  // 3. Convert opcode
-  ClarityGrammar::ExpressionT opcode =
-    ClarityGrammar::get_expr_operator_t(expr);
-  log_debug(
-    "clarity",
-    "	@@@ got binop.getOpcode: ClarityGrammar::{}",
-    ClarityGrammar::expression_to_str(opcode));
 
   switch (opcode)
   {
@@ -3886,7 +3943,24 @@ bool clarity_convertert::get_binary_operator_expr(
   }
   case ClarityGrammar::ExpressionT::BO_EQ:
   {
-    new_expr = exprt("=", t);
+    new_expr = exprt("=", bool_type());
+    // ml- special handling of equal
+    // Since eq can be of type is-eq(0 1 2)
+    // therefore the rhs must be compared with the first arg
+    // and the new expr should be an and operation
+    // i.e (0 == 1) && (0 == 2)
+    if (0 != args_starting_index - 1)
+    {
+      exprt arg0_lhs;
+      nlohmann::json arg0_type_l;
+      if (get_expr(exp_args[0], nullptr, arg0_lhs, arg0_type_l))
+        return true;
+      
+      exprt anded_rhs = exprt("=", t);
+      anded_rhs.copy_to_operands(arg0_lhs, rhs);
+      rhs = anded_rhs;
+      new_expr = exprt("and", bool_type());
+    }
     break;
   }
   case ClarityGrammar::ExpressionT::BO_LAnd:
