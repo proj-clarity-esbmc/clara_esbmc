@@ -362,6 +362,23 @@ bool operation_is_optional_decl(const nlohmann::json &ast_node)
     return false;
 }
 
+bool operation_is_multiop(const nlohmann::json &ast_node)
+{
+  const std::vector<std::string> multiop_operators{
+    "+",  "-",  "*",   "/",   "and",  "or", "bit-and",  "bit-or",
+    "bit-xor", "is-eq"};
+
+  if (
+    std::find(
+      multiop_operators.begin(),
+      multiop_operators.end(),
+      ast_node["identifier"]) != multiop_operators.end())
+    return true;
+  else
+    return false;
+}
+
+
 bool operation_is_binary(const nlohmann::json &ast_node)
 {
   const std::vector<std::string> binary_operators{
@@ -374,6 +391,21 @@ bool operation_is_binary(const nlohmann::json &ast_node)
       binary_operators.begin(),
       binary_operators.end(),
       ast_node["identifier"]) != binary_operators.end())
+    return true;
+  else
+    return false;
+}
+
+bool operation_is_let_begin(const nlohmann::json &ast_node)
+{
+  const std::vector<std::string> let_begin_operators{
+    "let",  "begin"};
+
+  if (
+    std::find(
+      let_begin_operators.begin(),
+      let_begin_operators.end(),
+      ast_node["identifier"]) != let_begin_operators.end())
     return true;
   else
     return false;
@@ -452,6 +484,7 @@ std::string get_optional_symbolId(const nlohmann::json &optional_type)
   }
   return symbol_id;
 }
+
 
 // takes objtype as input
 // returns objtype for optional inside an objtype
@@ -1193,9 +1226,23 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
   // }
   if (nodeType == "native_function")
   {
-    if (operation_is_binary(expr))
+    if (operation_is_multiop(expr))
+    {
+      return MultiOperatorClass;
+    }
+    else if (operation_is_binary(expr))
     {
       return BinaryOperatorClass;
+    }
+    else if (operation_is_let_begin(expr))
+    {
+      return LetBeginDeclaration;
+    }
+    else 
+    {
+      // ml- if the operation is not binary 
+      // then its a clarity built in function
+      return CallExprClass;
     }
   }
   else if (nodeType == "conditional_expression")
@@ -1213,6 +1260,10 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
   {
     return Literal;
   }
+  else if (nodeType == "let_variable_declaration")
+  {
+    return LetVariableDecl;
+  }  
   else if (nodeType == "optional_expression")
   {
     return Optional;
@@ -1237,16 +1288,16 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
   // {
   //   return Mapping;
   // }
-  // else if (nodeType == "FunctionCall")
-  // {
-  //   if (expr["expression"]["nodeType"] == "NewExpression")
-  //     return NewExpression;
-  //   if (
-  //     expr["expression"]["nodeType"] == "ElementaryTypeNameExpression" &&
-  //     expr["kind"] == "typeConversion")
-  //     return ElementaryTypeNameExpression;
-  //   return CallExprClass;
-  // }
+  else if (nodeType == "user_function")
+  {
+    // if (expr["expression"]["nodeType"] == "NewExpression")
+    //   return NewExpression;
+    // if (
+    //   expr["expression"]["nodeType"] == "ElementaryTypeNameExpression" &&
+    //   expr["kind"] == "typeConversion")
+    //   return ElementaryTypeNameExpression;
+    return CallExprClass;
+  }
   // else if (nodeType == "MemberAccess")
   // {
   //   assert(expr.contains("expression"));
@@ -1349,15 +1400,15 @@ ExpressionT get_expr_operator_t(const nlohmann::json &expr)
   {
     return BO_Shr;
   }
-  else if (expr["identifier"] == "&")
+  else if (expr["identifier"] == "bit-and")
   {
     return BO_And;
   }
-  else if (expr["identifier"] == "^")
+  else if (expr["identifier"] == "bit-xor")
   {
     return BO_Xor;
   }
-  else if (expr["identifier"] == "|")
+  else if (expr["identifier"] == "bit-or")
   {
     return BO_Or;
   }
@@ -1381,15 +1432,15 @@ ExpressionT get_expr_operator_t(const nlohmann::json &expr)
   {
     return BO_NE;
   }
-  else if (expr["identifier"] == "==")
+  else if (expr["identifier"] == "is-eq")
   {
     return BO_EQ;
   }
-  else if (expr["identifier"] == "&&")
+  else if (expr["identifier"] == "and")
   {
     return BO_LAnd;
   }
-  else if (expr["identifier"] == "||")
+  else if (expr["identifier"] == "or")
   {
     return BO_LOr;
   }
@@ -1453,6 +1504,7 @@ const char *expression_to_str(ExpressionT type)
   switch (type)
   {
     ENUM_TO_STR(BinaryOperatorClass)
+    ENUM_TO_STR(MultiOperatorClass)
     ENUM_TO_STR(BO_Assign)
     ENUM_TO_STR(BO_Add)
     ENUM_TO_STR(BO_Sub)
@@ -1503,6 +1555,8 @@ const char *expression_to_str(ExpressionT type)
     ENUM_TO_STR(Tuple)
     ENUM_TO_STR(Mapping)
     ENUM_TO_STR(CallExprClass)
+    ENUM_TO_STR(LetBeginDeclaration)
+    ENUM_TO_STR(LetVariableDecl)
     ENUM_TO_STR(ImplicitCastExprClass)
     ENUM_TO_STR(IndexAccess)
     ENUM_TO_STR(NewExpression)

@@ -38,7 +38,6 @@ nlohmann::json get_location_info(const nlohmann::json &expression_node);
 bool is_expression_standard_principal(const nlohmann::json &expression_node);
 std::string get_expression_optional_expr(const nlohmann::json &expression_node);
 
-
 // end of helper functions
 bool is_literal_type(std::string type);
 bool is_state_variable(const std::string &ast_node_decorator);
@@ -55,7 +54,9 @@ bool get_operation_type(nlohmann::json &expression_node);
 bool operation_is_conditional(const nlohmann::json &ast_node);
 bool operation_is_unary(const nlohmann::json &ast_node);
 bool operation_is_binary(const nlohmann::json &ast_node);
+bool operation_is_multiop(const nlohmann::json &ast_node);
 bool operation_is_optional_decl(const nlohmann::json &ast_node);
+bool operation_is_let_begin(const nlohmann::json &ast_node);
 nlohmann::json get_optional_type(const nlohmann::json &objtype);
 std::string get_optional_symbolId(const nlohmann::json &optional_type);
 
@@ -207,6 +208,7 @@ enum ExpressionT
   // BinaryOperator
   BinaryOperatorClass =
     0, // This type covers all binary operators in Clarity, such as =, +, - .etc
+  MultiOperatorClass, 
   BO_Assign, // =
   BO_Add,    // +
   BO_Sub,    // -
@@ -276,6 +278,12 @@ enum ExpressionT
 
   // FunctionCall
   CallExprClass,
+
+  // LetBeginStatements
+  LetBeginDeclaration,
+
+  // LetVariable
+  LetVariableDecl,
 
   // auxiliary type for implicit casting in Clarity, e.g. function return value
   // Clarity does NOT provide such information.

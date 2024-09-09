@@ -72,6 +72,7 @@ protected:
   // get decl in rule variable-declaration-statement, e.g. function local declaration
   bool get_var_decl_stmt(const nlohmann::json &ast_node, exprt &new_expr);
   bool get_var_decl(const nlohmann::json &ast_node, exprt &new_expr);
+  bool get_let_var_decl(const nlohmann::json &ast_node, exprt &new_expr);
   bool get_function_definition(const nlohmann::json &ast_node);
   void NewFunction(code_typet &type);
   bool get_function_params(const nlohmann::json &pd, exprt &param);
@@ -127,6 +128,8 @@ protected:
     exprt &new_expr,
     nlohmann::json &inferred_type);
   bool get_binary_operator_expr(const nlohmann::json &expr, exprt &new_expr);
+  bool get_multiple_operator_expr(const nlohmann::json &expr, exprt &new_expr, nlohmann::json &inferred_type, int args_starting_index);
+  bool get_multiple_operator_expr(const nlohmann::json &expr, exprt &new_expr);
   bool get_compound_assign_expr(const nlohmann::json &expr, exprt &new_expr);
   bool get_unary_operator_expr(
     const nlohmann::json &expr,
@@ -238,7 +241,7 @@ protected:
 
   std::string get_ctor_call_id(const std::string &contract_name);
   bool get_clar_builtin_ref(const nlohmann::json expr, exprt &new_expr);
-
+  bool get_clar_builtin_ref(const nlohmann::json expr, exprt &new_expr, const nlohmann::json &expr_type);
   // literal conversion functions
   bool convert_integer_literal(
     const nlohmann::json &integer_literal,
