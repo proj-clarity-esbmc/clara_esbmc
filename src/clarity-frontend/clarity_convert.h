@@ -60,6 +60,8 @@ protected:
   // conversion functions for composite types e-g principa, response , optional etc
   bool define_principal_struct();
   bool define_optional_type(std::string optional_type);
+  bool annotate_ast_node(nlohmann::json &expr);
+  std::string get_response_symbolId(const nlohmann::json &expr , std::string &name);
   // end-m-ali
 
   bool convert_ast_nodes(const nlohmann::json &contract_def);
@@ -75,7 +77,13 @@ protected:
   void NewFunction(code_typet &type);
   bool get_function_params(const nlohmann::json &pd, exprt &param);
   bool get_default_function(const std::string name, const std::string id);
-
+  
+  std::string get_struct_symbol_id(const nlohmann::json &expr, std::string &name);
+  symbolt* create_symbol(const nlohmann::json &expr, std::string name, std::string id, typet &t);
+  std::string get_struct_symbol_type(const nlohmann::json &expr);
+  symbolt* create_struct_symbol(const nlohmann::json &expr, typet &t);
+  bool get_response_type_definition(const nlohmann::json &expr, const nlohmann::json &parent_objtype, exprt &new_expr);
+  bool get_response_type_instance(const nlohmann::json &expr, const nlohmann::json &parent_objtype, exprt &new_expr);
   std::string get_list_struct_id(const nlohmann::json &objtype);
   bool get_list_type(const nlohmann::json &parent_objtype, typet &out);
   bool get_list_of_entry_type(const nlohmann::json &ast_node, const nlohmann::json &parent_objtype, exprt &new_expr);
@@ -159,8 +167,9 @@ protected:
     const nlohmann::json &ast_node,
     std::string &contract_name);
   bool get_empty_array_ref(const nlohmann::json &ast_node, exprt &new_expr);
+  bool is_nested_response(const nlohmann::json &ast_node);
   bool is_nested_tuple(const nlohmann::json &ast_node);
-  bool get_tuple_definition(const nlohmann::json &ast_node, const nlohmann::json &parent_objtype);
+  bool get_tuple_definition(const nlohmann::json &ast_node, const nlohmann::json &parent_objtype, exprt &new_expr);
   bool get_tuple_instance(const nlohmann::json &ast_node,const nlohmann::json &parent_objtype, exprt &new_expr);
   void get_tuple_name(
     const nlohmann::json &ast_node,

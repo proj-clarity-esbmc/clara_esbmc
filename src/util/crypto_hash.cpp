@@ -44,8 +44,5 @@ void crypto_hash::ingest(void const *data, unsigned int size)
 
 void crypto_hash::fin()
 {
-  unsigned int digest[5];
-  assert(sizeof(hash) == sizeof(digest));
-  memcpy(digest, hash, sizeof(digest));
-  p_crypto->s.get_digest(digest);
+  p_crypto->s.get_digest(hash);
 }
