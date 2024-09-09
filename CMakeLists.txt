@@ -3,7 +3,7 @@
 #################################
 cmake_minimum_required (VERSION 3.18)
 
-# HACK: This msvc policy needs to be setted before project()
+# HACK: This msvc policy needs to be set before project()
 # This can be removed when we move to CMake >= 3.15
 cmake_policy(SET CMP0091 NEW)
 
@@ -20,6 +20,8 @@ set (ESBMC_AVAILABLE_SOLVERS "smtlib")
 #################################
 # Configuration                 #
 #################################
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Adds custom modules from ESBMC and default Options
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/scripts/cmake/")
@@ -57,7 +59,6 @@ include(Utils)
 include(OSConfiguration)
 include(Options)
 include(SendFileHack)
-include(AppleConfiguration)
 include(InstallFiles)
 include(Sanitizers)
 include(ClangTidy)

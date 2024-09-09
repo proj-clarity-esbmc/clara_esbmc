@@ -107,17 +107,39 @@ static bool is_pure_virtual(const clang::CXXMethodDecl &md)
 #endif
 }
 
+/**
+ * @brief Returns the ultimate overridden method for a given CXXMethodDecl.
+ *
+ * This function traverses the overridden methods of the provided CXXMethodDecl
+ * and returns the **unique** ultimate overridden method.
+ *
+ * @param method The CXXMethodDecl to find the ultimate overridden method for.
+ * @return The unique ultimate overridden CXXMethodDecl.
+ */
+static const clang::CXXMethodDecl *
+get_ultimate_overridden_method(const clang::CXXMethodDecl *method)
+{
+  const clang::CXXMethodDecl *current_method = method;
+  while (current_method->size_overridden_methods() == 1)
+  {
+    current_method = *current_method->overridden_methods().begin();
+  }
+  return current_method;
+}
+
 bool clang_cpp_convertert::annotate_virtual_overriding_methods(
   const clang::CXXMethodDecl &md,
   struct_typet::componentt &comp)
 {
-  std::string method_id, method_name;
-  get_decl_name(md, method_name, method_id);
+  const clang::CXXMethodDecl *ultimate_overridden_method =
+    get_ultimate_overridden_method(&md);
+  std::string overridden_method_id, overridden_method_name;
+  get_decl_name(
+    *ultimate_overridden_method, overridden_method_name, overridden_method_id);
+  std::string virtual_name = overridden_method_id;
 
-  comp.type().set("#is_virtual", true);
-  comp.type().set("#virtual_name", method_name);
   comp.set("is_virtual", true);
-  comp.set("virtual_name", method_name);
+  comp.set("virtual_name", virtual_name);
 
   if (is_pure_virtual(md))
     comp.set("is_pure_virtual", true);
@@ -357,8 +379,6 @@ void clang_cpp_convertert::add_thunk_method_arguments(symbolt &thunk_func_symb)
     code_typet::argumentt &arg = args[i];
     irep_idt base_name = arg.get_base_name();
 
-    assert(base_name != "");
-
     symbolt arg_symb;
     arg_symb.id = thunk_func_symb.id.as_string() + "::" + base_name.as_string();
     arg_symb.name = base_name;
@@ -530,17 +550,19 @@ void clang_cpp_convertert::build_vtable_map(
       vtable_value_map[class_id]; // switch_map = switch_table
     exprt e = symbol_exprt(method.get_name(), code_type);
 
+    dstring virtual_name = method.get("virtual_name");
+    assert(!virtual_name.empty());
     if (method.get_bool("is_pure_virtual"))
     {
       pointer_typet pointer_type(code_type);
       e = gen_zero(pointer_type);
       assert(e.is_not_nil());
-      value_map[method.get("virtual_name")] = e;
+      value_map[virtual_name] = e;
     }
     else
     {
       address_of_exprt address(e);
-      value_map[method.get("virtual_name")] = address;
+      value_map[virtual_name] = address;
     }
   }
 }

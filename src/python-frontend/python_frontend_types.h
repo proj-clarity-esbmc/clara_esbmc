@@ -17,6 +17,7 @@ enum class StatementType
   IMPORT,
   BREAK,
   CONTINUE,
+  RAISE,
   UNKNOWN,
 };
 
@@ -30,14 +31,8 @@ enum class ExpressionType
   LITERAL,
   SUBSCRIPT,
   VARIABLE_REF,
+  LIST,
   UNKNOWN,
-};
-
-struct function_id
-{
-  std::string function_name;
-  std::string symbol_id;
-  std::string class_name;
 };
 
 bool is_builtin_type(const std::string &name);

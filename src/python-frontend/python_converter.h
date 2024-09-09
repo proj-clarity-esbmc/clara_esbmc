@@ -10,6 +10,7 @@
 class codet;
 class struct_typet;
 class function_id;
+class symbol_id;
 
 class python_converter
 {
@@ -25,6 +26,7 @@ private:
   void get_function_definition(const nlohmann::json &function_node);
   void
   get_class_definition(const nlohmann::json &class_node, codet &target_block);
+  std::string get_operand_type(const nlohmann::json &element);
 
   locationt get_location_from_decl(const nlohmann::json &ast_node);
   exprt get_expr(const nlohmann::json &element);
@@ -32,20 +34,22 @@ private:
   exprt get_binary_operator_expr(const nlohmann::json &element);
   exprt get_logical_operator_expr(const nlohmann::json &element);
   exprt get_conditional_stm(const nlohmann::json &ast_node);
-  function_id build_function_id(const nlohmann::json &element);
   exprt get_function_call(const nlohmann::json &ast_block);
   exprt get_literal(const nlohmann::json &element);
   exprt get_block(const nlohmann::json &ast_block);
 
-  const nlohmann::json
-  find_var_decl(const std::string &var_name, const nlohmann::json &json) const;
+  bool has_multiple_types(const nlohmann::json &container);
   void adjust_statement_types(exprt &lhs, exprt &rhs) const;
-  std::string create_symbol_id() const;
-  std::string create_symbol_id(const std::string &filename) const;
+
+  symbol_id build_function_id(const nlohmann::json &element);
+  symbol_id create_symbol_id() const;
+  symbol_id create_symbol_id(const std::string &filename) const;
+
   bool is_constructor_call(const nlohmann::json &json);
   typet get_typet(const std::string &ast_type, size_t type_size = 0);
   typet get_typet(const nlohmann::json &elem);
   std::string get_var_type(const std::string &var_name) const;
+  typet get_list_type(const nlohmann::json &list);
   void get_attributes_from_self(
     const nlohmann::json &method_body,
     struct_typet &clazz);
@@ -78,6 +82,7 @@ private:
   exprt *ref_instance;
   bool is_converting_lhs = false;
   bool is_converting_rhs = false;
+  bool is_loading_models = false;
   bool base_ctor_called = false;
 
   // Map object to list of instance attributes

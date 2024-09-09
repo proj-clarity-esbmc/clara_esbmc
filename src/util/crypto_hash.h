@@ -18,9 +18,7 @@ class crypto_hash
 {
 public:
   std::shared_ptr<crypto_hash_private> p_crypto;
-
   HashType hash[HASH_SIZE];
-
 
   bool operator<(const crypto_hash &h2) const;
 
@@ -28,7 +26,6 @@ public:
   {
     size_t result = hash[0];
     for (int i = 1; i < HASH_SIZE; i++)
-
       // Do we care about overlaps?
       result ^= hash[i];
     return result;

@@ -252,7 +252,8 @@ void execution_statet::symex_step(reachability_treet &art)
       owning_rt->main_thread_ended = true;
     }
     else if (
-      instruction.function == "c:@F@main" &&
+      (instruction.function == "c:@F@main" ||
+       instruction.function == "c:@F@main#") &&
       !options.get_bool_option("deadlock-check") &&
       !options.get_bool_option("memory-leak-check"))
     {
@@ -725,7 +726,8 @@ unsigned int execution_statet::add_thread(const goto_programt *prog)
 
   unsigned int thread_nr = threads_state.size();
   new_state.source.thread_nr = thread_nr;
-  new_state.global_guard = cur_state->guard;
+  new_state.guard = cur_state->guard;
+  new_state.global_guard.make_true();
   new_state.global_guard.add(get_guard_identifier());
   threads_state.push_back(new_state);
   preserved_paths.emplace_back();
@@ -842,9 +844,42 @@ void execution_statet::get_expr_globals(
     {
       return;
     }
+
+    bool point_to_global = false;
     if (
-      (symbol->static_lifetime || symbol->type.is_dynamic_set()) ||
-      symbol->type.is_pointer())
+      symbol->type.is_pointer() && symbol->name != "invalid_object" &&
+      !symbol->static_lifetime)
+    {
+      expr2tc tmp = expr;
+      /* Rename it so that it can be dereferenced in current state */
+      cur_state->rename(tmp);
+      /* Collect all the objects pointed to by the pointer */
+      expr2tc deref = dereference2tc(to_pointer_type(tmp->type).subtype, tmp);
+      value_setst::valuest dest;
+      cur_state->value_set.get_reference_set(deref, dest);
+
+      for (const auto &obj : dest)
+      {
+        if (
+          is_object_descriptor2t(obj) &&
+          is_symbol2t(to_object_descriptor2t(obj).object))
+        {
+          const std::string &n =
+            to_symbol2t(to_object_descriptor2t(obj).object).thename.as_string();
+          const symbolt *s = ns.lookup(n);
+          if (!s)
+            continue;
+          point_to_global = s->static_lifetime || s->type.is_dynamic_set();
+          /* Stop when the global symbol is found */
+          if (point_to_global)
+            break;
+        }
+      }
+    }
+
+    if (
+      symbol->static_lifetime || symbol->type.is_dynamic_set() ||
+      point_to_global)
     {
       std::list<unsigned int> threadId_list;
       auto it_find = art1->vars_map.find(expr);

@@ -81,6 +81,7 @@ static const char *expr_names[] = {
   "NULL-object",
   "dereference",
   "valid_object",
+  "races_check",
   "deallocated_obj",
   "dynamic_size",
   "sideeffect",
@@ -372,14 +373,14 @@ static void assert_type_compat_for_with(const type2tc &a, const type2tc &b)
     /* don't compare argument names, they could be empty on one side */
     assert(at.ellipsis == bt.ellipsis);
   }
+  else if (is_empty_type(a) || is_empty_type(b))
+    return;
   else if (is_pointer_type(a))
   {
     assert(is_pointer_type(b));
     assert_type_compat_for_with(
       to_pointer_type(a).subtype, to_pointer_type(b).subtype);
   }
-  else if (is_empty_type(a) || is_empty_type(b))
-    return;
   else
     assert(a == b);
 }
@@ -388,7 +389,8 @@ void with2t::assert_consistency() const
 {
   if (is_array_type(source_value))
   {
-    assert(is_bv_type(update_field->type));
+    assert(
+      is_bv_type(update_field->type) || is_pointer_type(update_field->type));
     const array_type2t &arr_type = to_array_type(source_value->type);
     assert_type_compat_for_with(arr_type.subtype, update_value->type);
   }

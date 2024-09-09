@@ -15,12 +15,14 @@ add_library(pythonfrontend STATIC
             python_converter.cpp
             pythonastgen.c
             python_frontend_types.cpp
+            symbol_id.cpp
             ${CMAKE_SOURCE_DIR}/src/ansi-c/parse_float.cpp
             ${CMAKE_SOURCE_DIR}/src/ansi-c/convert_float_literal.cpp)
 
 target_include_directories(pythonfrontend
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
     PRIVATE ${CMAKE_BINARY_DIR}/src/python-frontend
+    PUBLIC ${Boost_INCLUDE_DIRS}
 )
 
-target_link_libraries(pythonfrontend fmt::fmt nlohmann_json::nlohmann_json)
+target_link_libraries(pythonfrontend fmt::fmt nlohmann_json::nlohmann_json bigint)

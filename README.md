@@ -24,6 +24,9 @@ Our main website is [esbmc.org](http://esbmc.org).
 
 ### How to build/install ESBMC
 
+
+#### Ubuntu 24.04
+
 To compile ESBMC on Ubuntu 24.04 with LLVM 14 and the SMT solver Z3:
 
 ````
@@ -34,6 +37,19 @@ mkdir build && cd build
 cmake ../esbmc -DENABLE_Z3=1
 make -j4
 ````
+
+#### Fedora 40
+
+To compile ESBMC on Fedora 40 with the latest version of LLVM and the SMT solver Z3:
+
+```sh
+# Warning, the --allowerasing parameter will also remove incompatible packages to the packages specified below
+sudo dnf install --best --allowerasing "@Development Tools" clang llvm llvm-devel clang-tools-extra python3 git ccache unzip wget curl bison flex gcc-c++ glibc-devel glibc-devel.i686 boost-devel boost-devel.i686 z3-devel clang-devel clang-devel.i686 cmake zlib-devel libffi-devel libstdc++-devel libstdc++-devel.i686
+
+cmake ../ -DENABLE_Z3=1 -DZ3_DIR=/usr/include/z3
+
+make -j4
+```
 
 To build ESBMC with other operating systems and SMT solvers, please see the [BUILDING](https://github.com/esbmc/esbmc/blob/master/BUILDING.md) file. 
 
@@ -108,9 +124,9 @@ ESBMC detects errors in software by simulating a finite prefix of the program ex
  * Divide by zero
  * Memory leaks
 
-Concurrent software (using the pthread api) is verified by explicitly exploring interleavings, producing one symbolic execution per interleaving. By default, pointer-safety, array-out-of-bounds, division-by-zero, and user-specified assertions will be checked for; one can also specify options to check concurrent programs for:
+Concurrent software (using the pthread API) is verified by explicitly exploring interleavings, producing one symbolic execution per interleaving. By default, pointer-safety, array-out-of-bounds, division-by-zero, and user-specified assertions will be checked for; one can also specify options to check concurrent programs for:
  * Deadlock (only on pthread mutexes and convars)
- * Data races (i.e. competing writes)
+ * Data races (i.e., competing writes)
  * Atomicity violations at visible assignments
  * Lock acquisition ordering
 
@@ -125,9 +141,7 @@ Many SMT solvers are currently supported:
  * CVC5
  * Yices 2.2+
 
-In addition, ESBMC can be configured to use the SMTLIB interactive text format with a pipe to communicate with an arbitrary solver process, although not-insignificant overheads are involved.
-
-A limited subset of C++98/03 is supported, too -- a library modeling the STL is also available.
+In addition, ESBMC can be configured to use the SMTLIB interactive text format with a pipe to communicate with an arbitrary solver process, although there are not insignificant overheads involved.
 
 ### Tutorials
 
@@ -135,7 +149,7 @@ We provide a short video that explains ESBMC:
 
 https://www.youtube.com/watch?v=uJ5Jn0sxm08&t=2182s
 
-This video was delivered as part of a technical talk on exploiting the SAT revolution for automated software verification in a workshop between Arm Research and the University of Manchester.
+In a workshop between Arm Research and the University of Manchester, this video was delivered as part of a technical talk on exploiting the SAT revolution for automated software verification.
 
 We offer a post-graduate course in software security that explains the internals of ESBMC. 
 
@@ -186,9 +200,9 @@ document explains the necessary installation steps.
 
 # Open source
 
-ESBMC is open-source software mainly distributed under the Apache License 2.0. It contains a significant amount of other people's software. However, please see the COPYING file to explain who owns what and under what terms it is distributed.
+ESBMC is open-source software mainly distributed under the Apache License 2.0. It contains a significant amount of other people's software. However, please take a look at the COPYING file to explain who owns what and under what terms it is distributed.
 
-We'd be extremely happy to receive contributions to improve ESBMC (under the terms of the Apache License 2.0). Please file a pull request against the public GitHub repo if you'd like to submit anything. General discussion and release announcements will be made via GitHub. Please post an issue on GitHub and contact us about research or collaboration.
+We'd be extremely happy to receive contributions to improve ESBMC (under the terms of the Apache License 2.0). If you'd like to submit anything, please file a pull request against the public GitHub repo. General discussion and release announcements will be made via GitHub. Please post an issue on GitHub and contact us about research or collaboration.
 
 Please review the [developer documentation](https://github.com/esbmc/esbmc/blob/master/CONTRIBUTIONS.md) if you want to contribute to ESBMC.
 
