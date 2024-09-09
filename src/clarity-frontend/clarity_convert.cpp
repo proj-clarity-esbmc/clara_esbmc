@@ -2900,7 +2900,7 @@ bool clarity_convertert::get_expr(
 
   switch (type)
   {
-  case ClarityGrammar::ExpressionT::BinaryOperatorClass:
+  case ClarityGrammar::ExpressionT::MultiOperatorClass:
   {
     nlohmann::json multiop_type_expr;
     if (get_multiple_operator_expr(expr, new_expr))
@@ -2912,7 +2912,7 @@ bool clarity_convertert::get_expr(
     inferred_type = multiop_type_expr;
     break;
   }
-  case ClarityGrammar::ExpressionT::MultiOperatorClass:
+  case ClarityGrammar::ExpressionT::BinaryOperatorClass:
   {
     nlohmann::json binary_type_expr;
     if (get_binary_operator_expr(expr, new_expr))
