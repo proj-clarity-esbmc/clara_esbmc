@@ -3275,6 +3275,22 @@ bool clarity_convertert::get_expr(
     //new_expr = code_skipt();
     break;
   }
+  case ClarityGrammar::ExpressionT::ErrorHandlingClass:
+  {
+    std::string function_name = ClarityGrammar::get_expression_identifier(expr);
+    if (function_name == "asserts!") 
+    {
+        if (get_assert_operator_expr(expr, new_expr))
+          return true;
+
+        // nlohmann::json conditional_type_expr;
+        // if (get_literal_type_from_typet(new_expr.type(), conditional_type_expr))
+        //   return true;
+        // inferred_type.merge_patch(conditional_type_expr);
+    }
+    //new_expr = code_skipt();
+    break;
+  }
   case ClarityGrammar::ExpressionT::LetBeginDeclaration:
   {
   
@@ -4393,6 +4409,71 @@ bool clarity_convertert::get_conditional_operator_expr(
   // ml-[TODO] implement assert later
   exprt if_expr("if", t);
   if_expr.copy_to_operands(cond, then, else_expr);
+
+  new_expr = if_expr;
+
+  return false;
+}
+
+bool clarity_convertert::get_assert_operator_expr(
+  const nlohmann::json &expr,
+  exprt &new_expr)
+{
+  nlohmann::json args;
+  nlohmann::json condition_expr;
+  nlohmann::json throw_expr;
+  
+  // ml- for conditional operation the args[0] contains the
+  //     conditions expression
+  args = ClarityGrammar::get_expression_args(expr);
+  
+  // check that there should be exact 2 element in args
+  if (args.is_array() && args.size() == 2)
+  {
+    condition_expr = args[0];
+  }
+  else
+  {
+    log_debug(
+      "clarity",
+      "	@@@ get_assert_operator_expr args are not array or does not have two arguments {}",
+      args.dump());
+    return true;
+  }
+
+  // ml- for assert operation the args[1] contains the
+  //     expression to throw. The else expr will be set 
+  //     as nop
+  throw_expr = args[1];
+  
+  exprt cond;
+  if (get_expr(condition_expr, cond))
+    return true;
+
+  exprt then;
+  nlohmann::json then_type;
+  if (get_expr(throw_expr, nullptr, then, then_type))
+    return true;
+
+  exprt else_expr;
+  // empty expression
+  else_expr = nil_exprt();
+  
+  // ml-[TODO] check that the two if and else types are same
+  typet t;
+  if (get_type_description(then_type, t))
+    return true;
+
+  // For the assert, we negate the condition as test and 
+  not_exprt not_condition(cond);
+
+  // for the throw it should be a return expression
+  code_returnt ret_expr;  
+  clarity_gen_typecast(ns, then, t);
+  ret_expr.return_value() = then;
+
+  exprt if_expr("if", t);
+  if_expr.copy_to_operands(not_condition, ret_expr, else_expr);
 
   new_expr = if_expr;
 

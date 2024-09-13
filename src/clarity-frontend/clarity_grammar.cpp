@@ -411,6 +411,21 @@ bool operation_is_let_begin(const nlohmann::json &ast_node)
     return false;
 }
 
+bool operation_is_error_handling(const nlohmann::json &ast_node)
+{
+  const std::vector<std::string> error_handling_operators{
+    "asserts!",  "try!"};
+
+  if (
+    std::find(
+      error_handling_operators.begin(),
+      error_handling_operators.end(),
+      ast_node["identifier"]) != error_handling_operators.end())
+    return true;
+  else
+    return false;
+}
+
 bool operation_is_unary(const nlohmann::json &ast_node)
 {
   const std::vector<std::string> unary_operators{"--", "++", "-", "~", "!"};
@@ -1238,6 +1253,10 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
     {
       return LetBeginDeclaration;
     }
+    else if (operation_is_error_handling(expr))
+    {
+      return ErrorHandlingClass;
+    }
     else 
     {
       // ml- if the operation is not binary 
@@ -1556,6 +1575,7 @@ const char *expression_to_str(ExpressionT type)
     ENUM_TO_STR(Mapping)
     ENUM_TO_STR(CallExprClass)
     ENUM_TO_STR(LetBeginDeclaration)
+    ENUM_TO_STR(ErrorHandlingClass)
     ENUM_TO_STR(LetVariableDecl)
     ENUM_TO_STR(ImplicitCastExprClass)
     ENUM_TO_STR(IndexAccess)

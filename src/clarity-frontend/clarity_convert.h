@@ -137,6 +137,10 @@ protected:
     exprt &new_expr);
   bool
   get_conditional_operator_expr(const nlohmann::json &expr, exprt &new_expr);
+  bool get_assert_operator_expr(
+  const nlohmann::json &expr,
+  exprt &new_expr);
+
   bool get_cast_expr(
     const nlohmann::json &cast_expr,
     exprt &new_expr,
