@@ -85,9 +85,6 @@ enum TypeNameT
   // tuple
   TupleTypeName,
 
-  // mapping
-  MappingTypeName,
-
   // built-in member
   BuiltinTypeName,
 
@@ -96,6 +93,9 @@ enum TypeNameT
 
   // clarity response Type
   ResponseTypeName,
+
+  // define-map
+  MapTypeName,
 
   TypeNameTError
 };

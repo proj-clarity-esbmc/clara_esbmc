@@ -19,6 +19,7 @@ const std::string clar_header = R"(
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+// #include <stdbool.h>
 
 )";
 
@@ -31,10 +32,14 @@ const std::string clar_header = R"(
 	contract is standard + 1-40 ascii characters
 	see https://docs.stacks.co/clarity/functions#principal-destruct
 */
+
+
 const std::string clar_typedef = R"(
 typedef signed _BitInt(128) int128_t;
 typedef unsigned _BitInt(128) uint128_t;
 typedef _Bool bool;
+#define true 1
+#define false 0
 
 
 #define CLARITY_ADDRESS_TYPE_STANDARD 1
@@ -56,6 +61,19 @@ struct principal
   
 };
 
+
+)";
+
+const std::string clar_preprocessed = R"(
+
+///<<< this is where you should put code >>>
+
+///<<< this marks the end of preprocessed types >>>
+typedef struct map_square_map map_square_map;
+
+     struct map_square_map{
+               signed char * square;
+};
 
 )";
 
@@ -117,8 +135,6 @@ DEFINE_SOME(int128_t);
 DEFINE_SOME(uint128_t);
 DEFINE_SOME(bool);
 DEFINE_SOME(principal);
-
-
 
 
 )";
@@ -261,84 +277,187 @@ const std::string clar_funcs =
 
 /* https://github.com/rxi/map */
 const std::string clar_mapping = R"(
-#ifndef MAP_H
-#define MAP_H
-
 struct map_node_t;
 typedef struct map_node_t map_node_t;
 
-typedef struct
+int zero_int;
+unsigned int zero_uint;
+bool zero_bool;
+char *zero_string;
+
+typedef struct map_base_t
 {
 	map_node_t **buckets;
 	unsigned nbuckets, nnodes;
 } map_base_t;
 
-typedef struct
+typedef struct map_iter_t
 {
 	unsigned bucketidx;
 	map_node_t *node;
 } map_iter_t;
 
-#define map_t(T)         \
-	struct               \
-	{                    \
-		map_base_t base; \
-		T *ref;          \
-		T tmp;           \
-	}
-
-#define map_init(m) \
-	memset(m, 0, sizeof(*(m)))
-
-#define map_deinit(m) \
-	map_deinit_(&(m)->base)
-
-#define map_get(m, key) \
-	((m)->ref = map_get_(&(m)->base, key))
-
-#define map_set(m, key, value) \
-	((m)->tmp = (value),       \
-	 map_set_(&(m)->base, key, &(m)->tmp, sizeof((m)->tmp)))
-
-#define map_remove(m, key) \
-	map_remove_(&(m)->base, key)
-
-#define map_iter(m) \
-	map_iter_()
-
-#define map_next(m, iter) \
-	map_next_(&(m)->base, iter)
-
-void map_deinit_(map_base_t *m);
-void *map_get_(map_base_t *m, const char *key);
-int map_set_(map_base_t *m, const char *key, void *value, int vsize);
-void map_remove_(map_base_t *m, const char *key);
-map_iter_t map_iter_(void);
-const char *map_next_(map_base_t *m, map_iter_t *iter);
-
-typedef map_t(void *) map_void_t;
-typedef map_t(char *) map_str_t;
-typedef map_t(int) map_int_t;
-typedef map_t(char) map_char_t;
-
-struct map_node_t
+typedef struct map_node_t
 {
 	unsigned hash;
 	void *value;
 	map_node_t *next;
-};
+} map_node_t;
 
-static unsigned map_hash(const char *str)
+void *map_get_(map_base_t *m, const char *key);
+int map_set_(map_base_t *m, const char *key, void *value, int vsize);
+void map_remove_(map_base_t *m, const char *key);
+
+
+#define map_t(T) \
+	typedef struct T##_t{ 	\
+		map_base_t base; \
+		T *ref; 	\
+		T tmp; 	\
+	} T##_t; 
+
+
+typedef struct map_int_t
+{
+	map_base_t base;
+	int *ref;
+	int tmp;
+} map_int_t;
+
+typedef struct map_uint_t
+{
+	map_base_t base;
+	unsigned int *ref;
+	unsigned int tmp;
+} map_uint_t;
+
+typedef struct map_string_t
+{
+	map_base_t base;
+	char **ref;
+	char *tmp;
+} map_string_t;
+
+typedef struct map_bool_t
+{
+	map_base_t base;
+	bool *ref;
+	bool tmp;
+} map_bool_t;
+
+// older, more generic implementation
+#define map_init(m) \
+	memset(m, 0, sizeof(*(m)))
+#define map_deinit(m) \
+	map_deinit_(&(m)->base)
+#define map_get(m, key) \
+	((m)->ref = map_get_(&(m)->base, key))
+#define map_set(m, key, value) \
+	((m)->tmp = (value),       \
+	 map_set_(&(m)->base, key, &(m)->tmp, sizeof((m)->tmp)))
+#define map_remove(m, key) \
+	map_remove_(&(m)->base, key)
+#define map_iter(m) \
+	map_iter_()
+#define map_next(m, iter) \
+	map_next_(&(m)->base, iter)
+
+// end older more generic implementation
+
+// custom types maps
+map_t(map_square_map)
+
+
+// end custom types maps
+void map_init_map_square_map(map_square_map *m)
+{
+	memset(m, 0, sizeof(*(m)));
+}
+
+
+/// Init
+void map_init_int(map_int_t *m)
+{
+	memset(m, 0, sizeof(*(m)));
+}
+
+void map_init_uint(map_uint_t *m)
+{
+	memset(m, 0, sizeof(*(m)));
+}
+
+void map_init_string(map_string_t *m)
+{
+	memset(m, 0, sizeof(*(m)));
+}
+
+void map_init_bool(map_bool_t *m)
+{
+	memset(m, 0, sizeof(*(m)));
+}
+
+/// Set
+void map_set_int(map_int_t *m, const char *key, const int value)
+{
+	(m)->tmp = value;
+	map_set_(&(m)->base, key, &(m)->tmp, sizeof((m)->tmp));
+}
+void map_set_uint(map_uint_t *m, const char *key, const unsigned int value)
+{
+	(m)->tmp = value;
+	map_set_(&(m)->base, key, &(m)->tmp, sizeof((m)->tmp));
+}
+void map_set_string(map_string_t *m, const char *key, char *value)
+{
+	(m)->tmp = value;
+	map_set_(&(m)->base, key, &(m)->tmp, sizeof((m)->tmp));
+}
+void map_set_bool(map_bool_t *m, const char *key, const bool value)
+{
+	(m)->tmp = value;
+	map_set_(&(m)->base, key, &(m)->tmp, sizeof((m)->tmp));
+}
+
+/// Get
+int *map_get_int(map_int_t *m, const char *key)
+{
+	(m)->ref = map_get_(&(m)->base, key);
+	zero_int = 0;
+	return (m)->ref != NULL ? (m)->ref : &zero_int;
+}
+unsigned int *map_get_uint(map_uint_t *m, const char *key)
+{
+	(m)->ref = map_get_(&(m)->base, key);
+	zero_uint = 0;
+	return (m)->ref != NULL ? (m)->ref : &zero_uint;
+}
+char **map_get_string(map_string_t *m, const char *key)
+{
+	(m)->ref = map_get_(&(m)->base, key);
+	zero_string = "0";
+	return (m)->ref != NULL ? (m)->ref : &zero_string;
+}
+bool *map_get_bool(map_bool_t *m, const char *key)
+{
+	(m)->ref = map_get_(&(m)->base, key);
+	zero_bool = false;
+	return (m)->ref != NULL ? (m)->ref : &zero_bool;
+}
+
+/// General
+unsigned map_hash(const char *str)
 {
 	unsigned hash = 5381;
-	while (*str)
-	{
-		hash = ((hash << 5) + hash) ^ *str++;
-	}
+	// avoid derefencing null ptr
+	if (str != NULL)
+		while (*str)
+		{
+			hash = ((hash << 5) + hash) ^ *str++;
+		}
 	return hash;
 }
 
-static map_node_t *map_newnode(const char *key, void *value, int vsize)
+map_node_t *map_newnode(const char *key, void *value, int vsize)
 {
 	map_node_t *node;
 	int ksize = strlen(key) + 1;
@@ -353,19 +472,19 @@ static map_node_t *map_newnode(const char *key, void *value, int vsize)
 	return node;
 }
 
-static int map_bucketidx(map_base_t *m, unsigned hash)
+int map_bucketidx(map_base_t *m, unsigned hash)
 {
 	return hash & (m->nbuckets - 1);
 }
 
-static void map_addnode(map_base_t *m, map_node_t *node)
+void map_addnode(map_base_t *m, map_node_t *node)
 {
 	int n = map_bucketidx(m, node->hash);
 	node->next = m->buckets[n];
 	m->buckets[n] = node;
 }
 
-static int map_resize(map_base_t *m, int nbuckets)
+int map_resize(map_base_t *m, int nbuckets)
 {
 	map_node_t *nodes, *node, *next;
 	map_node_t **buckets;
@@ -384,7 +503,8 @@ static int map_resize(map_base_t *m, int nbuckets)
 		}
 	}
 	/* Reset buckets */
-	buckets = realloc(m->buckets, sizeof(*m->buckets) * nbuckets);
+	/* --force-malloc-success */
+	buckets = malloc(sizeof(*m->buckets) * nbuckets);
 	if (buckets != NULL)
 	{
 		m->buckets = buckets;
@@ -403,10 +523,11 @@ static int map_resize(map_base_t *m, int nbuckets)
 		}
 	}
 	/* Return error code if realloc() failed */
-	return (buckets == NULL) ? -1 : 0;
+	/* --force-malloc-success */
+	return 0;
 }
 
-static map_node_t **map_getref(map_base_t *m, const char *key)
+map_node_t **map_getref(map_base_t *m, const char *key)
 {
 	unsigned hash = map_hash(key);
 	map_node_t **next;
@@ -423,24 +544,6 @@ static map_node_t **map_getref(map_base_t *m, const char *key)
 		}
 	}
 	return NULL;
-}
-
-void map_deinit_(map_base_t *m)
-{
-	map_node_t *next, *node;
-	int i;
-	i = m->nbuckets;
-	while (i--)
-	{
-		node = m->buckets[i];
-		while (node)
-		{
-			next = node->next;
-			free(node);
-			node = next;
-		}
-	}
-	free(m->buckets);
 }
 
 void *map_get_(map_base_t *m, const char *key)
@@ -461,21 +564,17 @@ int map_set_(map_base_t *m, const char *key, void *value, int vsize)
 	}
 	node = map_newnode(key, value, vsize);
 	if (node == NULL)
-		goto fail;
+		return -1;
 	if (m->nnodes >= m->nbuckets)
 	{
 		n = (m->nbuckets > 0) ? (m->nbuckets << 1) : 1;
 		err = map_resize(m, n);
 		if (err)
-			goto fail;
+			return -1;
 	}
 	map_addnode(m, node);
 	m->nnodes++;
 	return 0;
-fail:
-	if (node)
-		free(node);
-	return -1;
 }
 
 void map_remove_(map_base_t *m, const char *key)
@@ -490,42 +589,10 @@ void map_remove_(map_base_t *m, const char *key)
 		m->nnodes--;
 	}
 }
-
-map_iter_t map_iter_(void)
-{
-	map_iter_t iter;
-	iter.bucketidx = -1;
-	iter.node = NULL;
-	return iter;
-}
-
-const char *map_next_(map_base_t *m, map_iter_t *iter)
-{
-	if (iter->node)
-	{
-		iter->node = iter->node->next;
-		if (iter->node == NULL)
-			goto nextBucket;
-	}
-	else
-	{
-	nextBucket:
-		do
-		{
-			if (++iter->bucketidx >= m->nbuckets)
-			{
-				return NULL;
-			}
-			iter->node = m->buckets[iter->bucketidx];
-		} while (iter->node == NULL);
-	}
-	return (char *)(iter->node + 1);
-}
-#endif
 )";
 
 // combination
-const std::string clar_library = clar_header + clar_typedef + clar_optionals +
+const std::string clar_library = clar_header + clar_typedef + clar_optionals + clar_preprocessed +
                                  clar_lists + clar_vars + clar_funcs +
                                  clar_mapping;
 

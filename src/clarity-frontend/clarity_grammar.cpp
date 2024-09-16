@@ -735,7 +735,10 @@ ContractBodyElementT get_contract_body_element_t(const nlohmann::json &element)
   std::string element_type = get_expression_type(element);
   if (
     (element_type == "variable_declaration") ||
-    (element_type == "constant_declaration"))
+    (element_type == "constant_declaration") ||
+    (element_type == "map_declaration")
+    )
+
   {
     return VarDecl;
   }
@@ -791,20 +794,21 @@ TypeNameT get_type_name_t(const nlohmann::json &type_name)
     {
       return TupleTypeName;
     }
-    if (typeIdentifier.compare(0, 10, "t_mapping(") == 0)
-    {
-      return MappingTypeName;
-    }
+  
     else if (typeString == "buffer")
     {
       //buff in clarity can be considered as array of bytes
 
       return BuffTypeName;
     }
-    if (typeString == "response")
+    else if (typeString == "response")
     {
 
       return ResponseTypeName;
+    }
+    else if (typeString == "map")
+    {
+      return MapTypeName;
     }
     else if (typeString == "list")
     {
@@ -880,7 +884,7 @@ const char *type_name_to_str(TypeNameT type)
     ENUM_TO_STR(ContractTypeName)
     ENUM_TO_STR(OptionalTypeName)
     ENUM_TO_STR(TupleTypeName)
-    ENUM_TO_STR(MappingTypeName)
+    ENUM_TO_STR(MapTypeName)
     ENUM_TO_STR(BuiltinTypeName)
     ENUM_TO_STR(ReturnTypeName)
     ENUM_TO_STR(TypeNameTError)
@@ -1279,6 +1283,10 @@ ExpressionT get_expression_t(const nlohmann::json &expr)
   else if (nodeType == "list")
   {
     return List;
+  }
+  else if (nodeType == "map_declaration")
+  {
+    return Mapping;
   }
   
 
