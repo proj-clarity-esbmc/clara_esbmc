@@ -145,6 +145,11 @@ protected:
     const nlohmann::json &expr,
     bool check_is_ok,
     exprt &new_expr);
+  bool get_unwrap_operator_expr(
+    const nlohmann::json &expr,
+    bool should_panic,
+    exprt &new_expr);
+  
   bool get_response_operator_expr(
     const nlohmann::json &expr,
     exprt &new_expr);

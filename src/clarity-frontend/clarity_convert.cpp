@@ -3308,6 +3308,16 @@ bool clarity_convertert::get_expr(
         //   return true;
         // inferred_type.merge_patch(conditional_type_expr);
     }
+    else if ((function_name == "unwrap!") || (function_name == "unwrap-panic"))
+    {
+        if (get_unwrap_operator_expr(expr, (function_name == "unwrap-panic"), new_expr))
+          return true;
+
+        // nlohmann::json conditional_type_expr;
+        // if (get_literal_type_from_typet(new_expr.type(), conditional_type_expr))
+        //   return true;
+        // inferred_type.merge_patch(conditional_type_expr);
+    }
     //new_expr = code_skipt();
     break;
   }
@@ -4634,6 +4644,165 @@ bool clarity_convertert::get_is_ok_err_operator_expr(
   
   
     
+  return false;
+}
+
+
+bool clarity_convertert::get_unwrap_operator_expr(
+    const nlohmann::json &expr,
+    bool should_panic,
+    exprt &new_expr)
+{
+  nlohmann::json args;
+  nlohmann::json response_expr;
+  nlohmann::json throw_expr;
+
+  // ml- for conditional operation the args[0] contains the
+  //     conditions expression
+  args = ClarityGrammar::get_expression_args(expr);
+  
+  // check that there should be exact 2 element in args for non panic
+  if (args.is_array() && args.size() >= 1)
+  {
+    response_expr = args[0];
+  }
+  else
+  {
+    log_debug(
+      "clarity",
+      "	@@@ get_unwrap_operator_expr args are not array or does not have arguments {}",
+      args.dump());
+    return true;
+  }
+  
+  // ml - [TODO] Fix this
+  // if (!(!should_panic && args.size() == 2))
+  // {
+  //   log_debug(
+  //     "clarity",
+  //     "	@@@ get_unwrap_operator_expr panic args does not have two arguments {}",
+  //     args.dump());
+  //   return true;
+  // }
+  
+  // ml- [TODO] for now lets work with responses. 
+  //     Will deal with optionals later
+  exprt response_to_check;
+  if (get_expr(response_expr, response_to_check))
+  {
+    log_debug(
+      "clarity",
+      "	@@@ get_unwrap_operator_expr failed to get response expression {}",
+      response_expr.dump());
+    
+    return true;
+  }
+    
+
+  // ml- expression must be a response
+  assert((response_to_check.type().id() == typet::id_struct) && 
+         (response_to_check.type().get("#clar_type") == "response"));
+  
+  member_exprt response_struct_is_ok;
+  member_exprt response_struct_ok_val;
+  typet response_struct_ok_type;
+  for (const auto &comp : to_struct_type(response_to_check.type()).components()) {
+      // Get and print the name of the component
+      std::string component_name = id2string(comp.get_name());
+      //std::cout << "Component name: " << component_name << std::endl;
+      if (component_name == "is_ok")
+      {
+        response_struct_is_ok = member_exprt(response_to_check,  "is_ok", comp.type());
+      }
+      if (component_name == "ok_val")
+      {
+        response_struct_ok_type = comp.type();
+        response_struct_ok_val = member_exprt(response_to_check, "ok_val", response_struct_ok_type);
+      }
+  }
+        
+  
+  symbol_exprt result_expr("is_ok_err", bool_typet());
+  code_assignt assign_result(result_expr, response_struct_is_ok);    
+
+  // Figure out the else part
+  exprt else_expr;
+  if (!should_panic)
+  {
+    // ml- for unwrap! operation the args[1] contains the
+    //     expression to throw. 
+    throw_expr = args[1];
+    
+    // If there is no ok response type then just throw the exception type     
+    exprt throw_val;
+    nlohmann::json throw_objtype;
+    if (get_expr(throw_expr, nullptr, throw_val, throw_objtype))
+      return true;
+
+    // for the throw it should be a return expression
+    code_returnt ret_expr;  
+    // Need to get the return type of the function
+    const nlohmann::json &rtn_type = ClarityGrammar::get_expression_return_type(ClarityGrammar::get_expression_node(*current_functionDecl));
+
+    typet return_type;
+    if (get_type_description(rtn_type, return_type))
+      return true;
+    clarity_typecast_response(throw_val, return_type);
+    clarity_gen_typecast(ns, throw_val, return_type);
+    ret_expr.return_value() = throw_val;
+
+    else_expr = ret_expr;
+  }
+  
+
+  // ml- There could be a case where the response type does not have an ok
+  //     val. In that case force the else expression to be called
+  typet t;
+  if (response_struct_ok_type.is_empty())
+  {
+    // exprt nil_expr = nil_exprt();
+    // t = nil_expr.type();
+    // exprt if_expr("if", t);
+    // // equivalent to if (false) garbage else (either throw_val or assert)
+    // if_expr.copy_to_operands(false_exprt(), nil_expr, else_expr);
+    // new_expr = if_expr;
+    if (should_panic)
+    {
+      new_expr = code_assertt(false_exprt());
+    }
+    else
+    {
+      new_expr = else_expr;
+    }
+    
+  }
+  else
+  {
+    if (should_panic)
+    {
+      // Force an assert in the else
+      typet t = response_struct_ok_type;
+      symbol_exprt ok_val_expr("ok_val_result", t);
+      code_assignt ok_val_assign_result(ok_val_expr, response_struct_ok_val);    
+
+      
+      code_blockt _block;
+      _block.operands().push_back(code_assertt(assign_result));
+      _block.operands().push_back(ok_val_assign_result);
+      side_effect_exprt stmt_expr("statement_expression", t);
+      stmt_expr.copy_to_operands(_block);
+      new_expr = stmt_expr;      
+    }
+    else
+    {
+      t = response_struct_ok_type;
+      exprt if_expr("if", t);
+      if_expr.copy_to_operands(assign_result, response_struct_ok_val, else_expr);
+      new_expr = if_expr;
+    }
+    
+  }
+  
   return false;
 }
 
