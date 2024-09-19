@@ -3375,6 +3375,7 @@ bool clarity_convertert::get_expr(
         if (get_expr(arg, nullptr, single_arg, single_arg_expr_type))
           return true;
 
+        
         call.arguments().push_back(single_arg);
         
         ++num_args;
@@ -4547,7 +4548,15 @@ bool clarity_convertert::get_assert_operator_expr(
 
   // for the throw it should be a return expression
   code_returnt ret_expr;  
-  clarity_gen_typecast(ns, then, t);
+  // Need to get the return type of the function
+  
+  const nlohmann::json &rtn_type = ClarityGrammar::get_expression_return_type(ClarityGrammar::get_expression_node(*current_functionDecl));
+
+  typet return_type;
+  if (get_type_description(rtn_type, return_type))
+    return true;
+  clarity_typecast_response(then, return_type);
+  clarity_gen_typecast(ns, then, return_type);
   ret_expr.return_value() = then;
 
   exprt if_expr("if", t);
