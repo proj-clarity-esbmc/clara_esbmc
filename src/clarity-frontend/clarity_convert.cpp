@@ -3298,6 +3298,16 @@ bool clarity_convertert::get_expr(
         //   return true;
         // inferred_type.merge_patch(conditional_type_expr);
     }
+    else if ((function_name == "is-ok") || (function_name == "is-err"))
+    {
+        if (get_is_ok_err_operator_expr(expr, (function_name == "is-ok"), new_expr))
+          return true;
+
+        // nlohmann::json conditional_type_expr;
+        // if (get_literal_type_from_typet(new_expr.type(), conditional_type_expr))
+        //   return true;
+        // inferred_type.merge_patch(conditional_type_expr);
+    }
     //new_expr = code_skipt();
     break;
   }
@@ -3375,7 +3385,7 @@ bool clarity_convertert::get_expr(
         if (get_expr(arg, nullptr, single_arg, single_arg_expr_type))
           return true;
 
-        
+
         call.arguments().push_back(single_arg);
         
         ++num_args;
@@ -4567,6 +4577,66 @@ bool clarity_convertert::get_assert_operator_expr(
   return false;
 }
 
+bool clarity_convertert::get_is_ok_err_operator_expr(
+    const nlohmann::json &expr,
+    bool check_is_ok,
+    exprt &new_expr)
+{
+  nlohmann::json args;
+  nlohmann::json response_expr;
+  
+  // ml- for conditional operation the args[0] contains the
+  //     conditions expression
+  args = ClarityGrammar::get_expression_args(expr);
+  
+  // check that there should be exact 1 element in args
+  if (args.is_array() && args.size() == 1)
+  {
+    response_expr = args[0];
+  }
+  else
+  {
+    log_debug(
+      "clarity",
+      "	@@@ get_is_ok_err_operator_expr args are not array or does not have one argument {}",
+      args.dump());
+    return true;
+  }
+
+  exprt response_to_check;
+  if (get_expr(response_expr, response_to_check))
+    return true;
+
+  // ml- expression must be a response
+  assert((response_to_check.type().id() == typet::id_struct) && 
+         (response_to_check.type().get("#clar_type") == "response"));
+  
+  // get the is_ok expression from the structure
+  member_exprt response_struct_is_ok(response_to_check,  "is_ok", bool_typet());
+  log_debug(
+      "clarity",
+      "	@@@ get_is_ok_err_operator_expr converting to check response {} {}",
+      response_to_check.pretty(),
+      response_struct_is_ok.pretty());
+    
+  if (check_is_ok) 
+  {
+    symbol_exprt result_expr("is_ok_err", bool_typet());
+    code_assignt assign_result(result_expr, response_struct_is_ok);    
+    new_expr = assign_result;
+  }
+  else
+  {
+    symbol_exprt result_expr("is_ok_err", bool_typet());
+    code_assignt assign_result(result_expr, not_exprt(response_struct_is_ok));    
+    new_expr = assign_result;
+  }
+  
+  
+    
+  return false;
+}
+
 bool clarity_convertert::get_cast_expr(
   const nlohmann::json &cast_expr,
   exprt &new_expr,
@@ -4701,7 +4771,6 @@ bool clarity_convertert::get_func_decl_ref(
   // ml- Should have found the function
   log_error("Could not find function {} {}", name, id);
   return true;
-  return false;
 }
 
 bool clarity_convertert::get_enum_member_ref(

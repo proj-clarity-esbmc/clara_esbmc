@@ -141,6 +141,10 @@ protected:
   bool get_assert_operator_expr(
     const nlohmann::json &expr,
     exprt &new_expr);
+  bool get_is_ok_err_operator_expr(
+    const nlohmann::json &expr,
+    bool check_is_ok,
+    exprt &new_expr);
   bool get_response_operator_expr(
     const nlohmann::json &expr,
     exprt &new_expr);

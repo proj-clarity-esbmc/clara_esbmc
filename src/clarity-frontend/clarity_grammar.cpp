@@ -414,7 +414,7 @@ bool operation_is_let_begin(const nlohmann::json &ast_node)
 bool operation_is_error_handling(const nlohmann::json &ast_node)
 {
   const std::vector<std::string> error_handling_operators{
-    "asserts!",  "try!"};
+    "asserts!",  "try!", "is-err", "is-ok"};
 
   if (
     std::find(
