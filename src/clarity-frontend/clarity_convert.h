@@ -149,6 +149,7 @@ protected:
     const nlohmann::json &expr,
     bool should_panic,
     bool use_ok,
+    bool use_err_val,
     exprt &new_expr);
   
   bool get_response_operator_expr(

@@ -382,7 +382,7 @@ bool operation_is_multiop(const nlohmann::json &ast_node)
 bool operation_is_binary(const nlohmann::json &ast_node)
 {
   const std::vector<std::string> binary_operators{
-    "+",  "-",  "*",   "/",   "%",  "<<", ">>", "&",  "|",  ">",
+    "mod",  "<<", ">>", "&",  "|",  ">",
     "<",  ">=", "<=",  "!=",  "==", "&&", "||", "+=", "-=", "*=",
     "/=", "%=", "<<=", ">>=", "&=", "|=", "^=", "**"};
 
@@ -1407,7 +1407,7 @@ ExpressionT get_expr_operator_t(const nlohmann::json &expr)
   {
     return BO_Div;
   }
-  else if (expr["identifier"] == "%")
+  else if (expr["identifier"] == "mod")
   {
     return BO_Rem;
   }

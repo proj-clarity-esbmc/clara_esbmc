@@ -2367,11 +2367,11 @@ bool clarity_convertert::process_function_body_expr(
       if (get_expr(rtn_expr, return_objtype, val))
         return true;
 
-      std::string val_dump = val.pretty();
-      log_debug(
-        "clarity",
-        "	@@@ got Function Body value: ClarityGrammar::FuncBodyT::{}",
-        val_dump);
+      // std::string val_dump = val.pretty();
+      // log_debug(
+      //   "clarity",
+      //   "	@@@ got Function Body value: ClarityGrammar::FuncBodyT::{}",
+      //   val_dump);
       
       clarity_typecast_response(val, return_type);
       clarity_gen_typecast(ns, val, return_type);
@@ -3300,12 +3300,17 @@ bool clarity_convertert::get_expr(
     }
     else if ((function_name == "unwrap!") || (function_name == "unwrap-panic"))
     {
-        if (get_unwrap_operator_expr(expr, (function_name == "unwrap-panic"), true, new_expr))
+        if (get_unwrap_operator_expr(expr, (function_name == "unwrap-panic"), true, false, new_expr))
           return true;
     }
     else if ((function_name == "unwrap-err!") || (function_name == "unwrap-err-panic"))
     {
-        if (get_unwrap_operator_expr(expr, (function_name == "unwrap-err-panic"), false, new_expr))
+        if (get_unwrap_operator_expr(expr, (function_name == "unwrap-err-panic"), false, false, new_expr))
+          return true;
+    }
+    else if ((function_name == "try!"))
+    {
+        if (get_unwrap_operator_expr(expr, false, true, true, new_expr))
           return true;
     }
     //new_expr = code_skipt();
@@ -4492,8 +4497,9 @@ bool clarity_convertert::get_conditional_operator_expr(
 
   // ml-[TODO] check that the two if and else types are same
   typet t;
-  if (get_type_description(then_type, t))
-    return true;
+  t = then.type();
+  // if (get_type_description(then_type, t))
+  //   return true;
 
   // ml-[TODO] implement assert later
   exprt if_expr("if", t);
@@ -4642,6 +4648,7 @@ bool clarity_convertert::get_unwrap_operator_expr(
     const nlohmann::json &expr,
     bool should_panic,
     bool use_ok,
+    bool throw_err_val,
     exprt &new_expr)
 {
   nlohmann::json args;
@@ -4665,16 +4672,6 @@ bool clarity_convertert::get_unwrap_operator_expr(
       args.dump());
     return true;
   }
-  
-  // ml - [TODO] Fix this
-  // if (!(!should_panic && args.size() == 2))
-  // {
-  //   log_debug(
-  //     "clarity",
-  //     "	@@@ get_unwrap_operator_expr panic args does not have two arguments {}",
-  //     args.dump());
-  //   return true;
-  // }
   
   // ml- [TODO] for now lets work with responses. 
   //     Will deal with optionals later
@@ -4731,24 +4728,43 @@ bool clarity_convertert::get_unwrap_operator_expr(
   if (!should_panic)
   {
     
-    // ml- for unwrap! operation the args[1] contains the
-    //     expression to throw. 
-    if (args.size() < 2)
-    {
-      log_debug(
-        "clarity",
-        "	@@@ get_unwrap_operator_expr args for panic mode not have 2 arguments {}",
-        args.dump());
-      return true;
-    }
-    throw_expr = args[1];
-    
-    // If there is no ok response type then just throw the exception type     
     exprt throw_val;
-    nlohmann::json throw_objtype;
-    if (get_expr(throw_expr, nullptr, throw_val, throw_objtype))
-      return true;
+    
+    if (throw_err_val)
+    {
+      if (response_struct_err_type.is_empty())
+      {
+        log_debug(
+          "clarity",
+          "	@@@ get_unwrap_operator_expr throw_err_val response does not have a err val {}",
+          response_to_check.pretty());
+        return true;
+      }
+      symbol_exprt err_result_expr("err_val", response_struct_err_type);
+      code_assignt assign_result(err_result_expr, response_struct_err_val);    
 
+      throw_val = assign_result;
+    }
+    else
+    {
+      // ml- for unwrap! operation the args[1] contains the
+      //     expression to throw. 
+      if (args.size() < 2)
+      {
+        log_debug(
+          "clarity",
+          "	@@@ get_unwrap_operator_expr args for panic mode not have 2 arguments {}",
+          args.dump());
+        return true;
+      }
+      throw_expr = args[1];
+      
+      // If there is no ok response type then just throw the exception type     
+      nlohmann::json throw_objtype;
+      if (get_expr(throw_expr, nullptr, throw_val, throw_objtype))
+        return true;
+    }
+    
     // for the throw it should be a return expression
     code_returnt ret_expr;  
     // Need to get the return type of the function
