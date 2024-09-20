@@ -148,6 +148,7 @@ protected:
   bool get_unwrap_operator_expr(
     const nlohmann::json &expr,
     bool should_panic,
+    bool use_ok,
     exprt &new_expr);
   
   bool get_response_operator_expr(

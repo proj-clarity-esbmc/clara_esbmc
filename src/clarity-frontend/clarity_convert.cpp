@@ -3292,31 +3292,21 @@ bool clarity_convertert::get_expr(
     {
         if (get_assert_operator_expr(expr, new_expr))
           return true;
-
-        // nlohmann::json conditional_type_expr;
-        // if (get_literal_type_from_typet(new_expr.type(), conditional_type_expr))
-        //   return true;
-        // inferred_type.merge_patch(conditional_type_expr);
     }
     else if ((function_name == "is-ok") || (function_name == "is-err"))
     {
         if (get_is_ok_err_operator_expr(expr, (function_name == "is-ok"), new_expr))
           return true;
-
-        // nlohmann::json conditional_type_expr;
-        // if (get_literal_type_from_typet(new_expr.type(), conditional_type_expr))
-        //   return true;
-        // inferred_type.merge_patch(conditional_type_expr);
     }
     else if ((function_name == "unwrap!") || (function_name == "unwrap-panic"))
     {
-        if (get_unwrap_operator_expr(expr, (function_name == "unwrap-panic"), new_expr))
+        if (get_unwrap_operator_expr(expr, (function_name == "unwrap-panic"), true, new_expr))
           return true;
-
-        // nlohmann::json conditional_type_expr;
-        // if (get_literal_type_from_typet(new_expr.type(), conditional_type_expr))
-        //   return true;
-        // inferred_type.merge_patch(conditional_type_expr);
+    }
+    else if ((function_name == "unwrap-err!") || (function_name == "unwrap-err-panic"))
+    {
+        if (get_unwrap_operator_expr(expr, (function_name == "unwrap-err-panic"), false, new_expr))
+          return true;
     }
     //new_expr = code_skipt();
     break;
@@ -4651,6 +4641,7 @@ bool clarity_convertert::get_is_ok_err_operator_expr(
 bool clarity_convertert::get_unwrap_operator_expr(
     const nlohmann::json &expr,
     bool should_panic,
+    bool use_ok,
     exprt &new_expr)
 {
   nlohmann::json args;
@@ -4705,7 +4696,12 @@ bool clarity_convertert::get_unwrap_operator_expr(
   
   member_exprt response_struct_is_ok;
   member_exprt response_struct_ok_val;
+  member_exprt response_struct_err_val;
   typet response_struct_ok_type;
+  typet response_struct_err_type;
+
+  member_exprt *response_struct_to_process = use_ok ? &response_struct_ok_val : &response_struct_err_val; 
+  typet        *response_struct_type_to_process = use_ok ? &response_struct_ok_type : &response_struct_err_type; 
   for (const auto &comp : to_struct_type(response_to_check.type()).components()) {
       // Get and print the name of the component
       std::string component_name = id2string(comp.get_name());
@@ -4719,18 +4715,32 @@ bool clarity_convertert::get_unwrap_operator_expr(
         response_struct_ok_type = comp.type();
         response_struct_ok_val = member_exprt(response_to_check, "ok_val", response_struct_ok_type);
       }
+      if (component_name == "err_val")
+      {
+        response_struct_err_type = comp.type();
+        response_struct_err_val = member_exprt(response_to_check, "err_val", response_struct_ok_type);
+      }
   }
         
   
   symbol_exprt result_expr("is_ok_err", bool_typet());
   code_assignt assign_result(result_expr, response_struct_is_ok);    
 
-  // Figure out the else part
+  // Figure out the else or throw part
   exprt else_expr;
   if (!should_panic)
   {
+    
     // ml- for unwrap! operation the args[1] contains the
     //     expression to throw. 
+    if (args.size() < 2)
+    {
+      log_debug(
+        "clarity",
+        "	@@@ get_unwrap_operator_expr args for panic mode not have 2 arguments {}",
+        args.dump());
+      return true;
+    }
     throw_expr = args[1];
     
     // If there is no ok response type then just throw the exception type     
@@ -4758,14 +4768,8 @@ bool clarity_convertert::get_unwrap_operator_expr(
   // ml- There could be a case where the response type does not have an ok
   //     val. In that case force the else expression to be called
   typet t;
-  if (response_struct_ok_type.is_empty())
+  if ((*response_struct_type_to_process).is_empty())
   {
-    // exprt nil_expr = nil_exprt();
-    // t = nil_expr.type();
-    // exprt if_expr("if", t);
-    // // equivalent to if (false) garbage else (either throw_val or assert)
-    // if_expr.copy_to_operands(false_exprt(), nil_expr, else_expr);
-    // new_expr = if_expr;
     if (should_panic)
     {
       new_expr = code_assertt(false_exprt());
@@ -4774,16 +4778,15 @@ bool clarity_convertert::get_unwrap_operator_expr(
     {
       new_expr = else_expr;
     }
-    
   }
   else
   {
     if (should_panic)
     {
       // Force an assert in the else
-      typet t = response_struct_ok_type;
-      symbol_exprt ok_val_expr("ok_val_result", t);
-      code_assignt ok_val_assign_result(ok_val_expr, response_struct_ok_val);    
+      typet t = (*response_struct_type_to_process);
+      symbol_exprt ok_val_expr("ok_err_val_result", t);
+      code_assignt ok_val_assign_result(ok_val_expr, (*response_struct_to_process));    
 
       
       code_blockt _block;
@@ -4795,9 +4798,9 @@ bool clarity_convertert::get_unwrap_operator_expr(
     }
     else
     {
-      t = response_struct_ok_type;
+      t = (*response_struct_type_to_process);
       exprt if_expr("if", t);
-      if_expr.copy_to_operands(assign_result, response_struct_ok_val, else_expr);
+      if_expr.copy_to_operands(assign_result, (*response_struct_to_process), else_expr);
       new_expr = if_expr;
     }
     
