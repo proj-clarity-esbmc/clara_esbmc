@@ -33,6 +33,8 @@ protected:
   bool process_define_constant(nlohmann::json &ast_node);
   bool process_define_map(nlohmann::json &ast_node);
 
+  void set_top_objtype(nlohmann::json &objtype);
+
   std::string get_objtype_type_name(const nlohmann::json &objtype_node);
   std::string get_objtype_type_identifier(const nlohmann::json &objtype_node);
   std::string get_objtype_type_size(const nlohmann::json &objtype_node);
@@ -354,6 +356,9 @@ protected:
 
   // --reference of the latest symbol added to the symbol table
   symbolt *latest_symbol;
+
+  // -- objtype available in the top most s-expression
+  nlohmann::json top_objtype;
 
 private:
   bool get_elementary_type_name_uint(

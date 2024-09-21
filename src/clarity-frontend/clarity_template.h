@@ -19,6 +19,7 @@ const std::string clar_header = R"(
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdio.h>
 // #include <stdbool.h>
 
 )";
@@ -67,13 +68,14 @@ struct principal
 const std::string clar_preprocessed = R"(
 
 ///<<< this is where you should put code >>>
-
-///<<< this marks the end of preprocessed types >>>
-typedef struct map_square_map map_square_map;
+//typedef      struct ft_fungible_token ft_fungible_token;
+typedef      struct map_square_map square_map;
 
      struct map_square_map{
                signed char * square;
 };
+///<<< this marks the end of preprocessed types >>>
+
 
 )";
 
@@ -365,15 +367,34 @@ typedef struct map_bool_t
 // end older more generic implementation
 
 // custom types maps
-map_t(map_square_map)
+// every new map type will have the following :
+// 1 - definition e-g map_t(tuple struct name)
+// 2 - map_init definition
+// 3 - map_set definition
+// 4 - map_get definition
 
-
+///<<< add maps related preprocessed code here >>>
+// preprocessed code for map square_map 
+map_t(square_map)
+void map_init_square_map(square_map_t *m) 
+                     { 
+                         memset(m, 0, sizeof(*(m))); 
+                     }
+void map_set_square_map(square_map_t *m, const char *key, const square_map value) 
+                     { 
+                         (m)->tmp = value; 
+                         map_set_(&(m)->base, key, &(m)->tmp, sizeof((m)->tmp)); 
+                     }
+square_map *map_get_square_map(square_map_t *m, const char *key) 
+                     { 
+                         (m)->ref = map_get_(&(m)->base, key); 
+                         zero_int = 0; 
+                         return (m)->ref != NULL ? (m)->ref : &zero_int; 
+                     }
+///<<< this marks the end of preprocessed maps code >>>
 // end custom types maps
-void map_init_map_square_map(map_square_map *m)
-{
-	memset(m, 0, sizeof(*(m)));
-}
 
+unsigned int *map_get_uint(map_uint_t *m, const char *key);
 
 /// Init
 void map_init_int(map_int_t *m)
@@ -405,7 +426,10 @@ void map_set_int(map_int_t *m, const char *key, const int value)
 void map_set_uint(map_uint_t *m, const char *key, const unsigned int value)
 {
 	(m)->tmp = value;
+	int len = strlen(key);
 	map_set_(&(m)->base, key, &(m)->tmp, sizeof((m)->tmp));
+	
+	unsigned int *ret = map_get_uint(m, key);
 }
 void map_set_string(map_string_t *m, const char *key, char *value)
 {

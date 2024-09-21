@@ -217,6 +217,13 @@ bool clarity_convertert::annotate_ast_node(nlohmann::json &expr)
   nlohmann::json expression_node = ClarityGrammar::get_expression_node(expr);
   std::string identifier = ClarityGrammar::get_expression_identifier(expression_node);
 
+  if (expression_node.contains("objtype"))
+  {
+    nlohmann::json parent_objtype = ClarityGrammar::get_expression_objtype(expression_node);
+    set_top_objtype(parent_objtype);
+  }
+   
+
   // this is most probably a map ('define-map') does not have "value"
   // so we do not need annotation.
   // if we add it however, then it affects the check of "has_init"
@@ -563,6 +570,12 @@ void clarity_convertert::convert_dummy_uint_literal()
         *move_symbol_to_context(principal_instance);
     }
   }
+}
+
+void clarity_convertert::set_top_objtype(nlohmann::json &objtype)
+{
+  top_objtype = objtype;
+
 }
 
 void clarity_convertert::convert_dummy_string_literal()
@@ -1300,33 +1313,41 @@ bool clarity_convertert::convert()
         //process expression array
         for (auto &expr : vec_expressions)
         {
-          std::string decl_decorator = ClarityGrammar::get_declaration_decorator(expr);
-          nlohmann::json expression_node = ClarityGrammar::get_expression_node(expr);
-          std::string identifier = ClarityGrammar::get_expression_identifier(expression_node);
-          
-          
-          log_status("Parsing {} {} ", decl_decorator, identifier);
+          std::string decl_decorator;
+          nlohmann::json expression_node;
+          std::string identifier;
 
-          
-          if (annotate_ast_node(expr))
-            return true;
-          
-          
-
-//add_dummy_symbol();
-// ml- no need to do this with new AST
-#if 0
-          if (ClarityGrammar::parse_expression_element(expr))
+          if (std::string(expr.type_name()) == "object")
           {
-            log_error("Invalid expression element");
-            continue;
+              decl_decorator = "native function";
+              expression_node = {decl_decorator , expr};
+              identifier = ClarityGrammar::get_expression_identifier(expr);
+              log_status("Parsing {} {} ", decl_decorator, identifier);
+              if (convert_ast_nodes(expression_node))
+                return true;
           }
-#endif
+          else
+          {
+            decl_decorator = ClarityGrammar::get_declaration_decorator(expr);
+            expression_node = { ClarityGrammar::get_expression_node(expr) };
+            identifier = ClarityGrammar::get_expression_identifier(expression_node);
+            if (annotate_ast_node(expr))
+              return true;
+          
           // for each element in expressions array
           // check if valid expression array
-
+         log_status("Parsing {} {} ", decl_decorator, identifier);
           if (convert_ast_nodes(expr))
             return true;
+
+          }
+          
+          
+          
+         
+
+          
+         
         }
       }
       else if (itr.key() == "exported_functions")
@@ -1426,6 +1447,134 @@ bool clarity_convertert::get_decl(
   case ClarityGrammar::ContractBodyElementT::FunctionDef:
   {
     return get_function_definition(ast_node); // rule function-definition
+  }
+  case ClarityGrammar::ContractBodyElementT::TopLevelNativeFunction:
+  {
+    std::string function_identifier = ClarityGrammar::get_expression_identifier(ast_expression_node);
+    if (function_identifier == "map-insert")
+    {
+      nlohmann::json args = ClarityGrammar::get_expression_args(ast_expression_node);
+      nlohmann::json key_arg = args[1];
+      nlohmann::json val_arg = args[2];
+      std::string map_name = ClarityGrammar::get_expression_identifier(args[0]);
+      std::string key = ClarityGrammar::get_expression_identifier(key_arg);
+      std::string value = ClarityGrammar::get_expression_identifier(val_arg);
+
+      //get map name from symbol table.
+      std::string map_symbol_name;
+      std::string map_symbol_id;
+      get_state_var_decl_name(args[0],map_symbol_name,map_symbol_id);
+      if (context.find_symbol(map_symbol_id) == nullptr)
+      {
+        log_error("Map symbol not found in symbol table");
+        abort();
+      }
+      symbolt *map_symbol = context.find_symbol(map_symbol_id);
+
+      std::string key_type = ClarityGrammar::get_expression_type(key_arg);
+      std::string value_type = ClarityGrammar::get_expression_type(val_arg);
+
+      //create a symbol of given name and type
+      std::string symbol_name = "key_" + std::to_string(ClarityGrammar::get_expression_cid(key_arg));
+      std::string symbol_type = "int";
+      symbolt key_symbol;
+      key_symbol.name = symbol_name;
+      key_symbol.lvalue = true;
+      key_symbol.id = "clar:@C@comprehensive@" + symbol_name + "#123";
+    
+      
+      exprt key_expr;
+      if (key_type == "lit_ascii")
+      {
+        key_type = "string-ascii";
+        symbol_type = "string";
+        get_expr(key_arg, key_expr);
+        
+      }
+      else
+      {
+        log_error("{} yet to be handled for maps", key_type);
+        abort();
+      }
+      key_symbol.type = array_typet(char_type(), from_integer(symbol_name.length(), size_type()));
+      symbolt &final_key_symbol = *move_symbol_to_context(key_symbol);
+      final_key_symbol.value = key_expr;
+
+      //final_key_symbol.dump();
+
+      //adjust the type name for key and value
+      symbol_name = "val_" + std::to_string(ClarityGrammar::get_expression_cid(val_arg));
+      symbol_type = "int";
+      symbolt val_symbol;
+      val_symbol.name = symbol_name;
+      val_symbol.lvalue = true;
+      val_symbol.id = "clar:@C@comprehensive@" + symbol_name + "#123";
+
+      exprt val_expr;
+      if (value_type == "lit_uint")
+      {
+        value_type = "uint";
+        get_expr(val_arg, val_expr);
+      }
+      else
+      {
+        log_error("{} yet to be handled for maps", value_type);
+        abort();
+      }
+      val_symbol.type = unsignedbv_typet(128);
+      symbolt &final_val_symbol = *move_symbol_to_context(val_symbol);
+      final_val_symbol.value = val_expr;
+
+      
+      
+      
+
+      exprt mapping_ins = symbol_expr(*map_symbol);
+      //find insert function.
+      std::string func_name = "map_set_" + value_type;
+      std::string func_id = "c:@F@map_set_" + value_type;
+      side_effect_expr_function_callt call_expr;
+      locationt l;
+      get_location_from_decl(ast_node, l);
+
+      if (context.find_symbol(func_id) == nullptr)
+        return true;
+
+      const auto &s = *context.find_symbol(func_id);
+      get_library_function_call(func_name, func_id, s.type, l, call_expr);
+
+      // get address: &m
+      exprt address_of = address_of_exprt(mapping_ins);
+      // get key : as string (char *)
+      exprt address_of_key = address_of_exprt(symbol_expr(final_key_symbol));
+      //get  value as val_type
+
+      // add all three as arguments
+      call_expr.arguments().push_back(address_of);
+      call_expr.arguments().push_back(address_of_key);
+      call_expr.arguments().push_back(symbol_expr(final_val_symbol));
+
+      // get block
+      code_blockt _block;
+      convert_expression_to_code(mapping_ins);
+      convert_expression_to_code(key_expr);
+      convert_expression_to_code(val_expr);
+      convert_expression_to_code(call_expr);
+      _block.move_to_operands(mapping_ins ,key_expr, val_expr);
+      _block.move_to_operands(call_expr);
+
+      
+      map_init_block.operands().push_back(_block.operands()[3]);
+      
+      exprt assert_expr = code_assertt(false_exprt());
+      convert_expression_to_code(assert_expr);
+      map_init_block.operands().push_back(assert_expr);
+
+      new_expr = _block;
+      return false;
+
+    }
+    
   }
   default:
   {
@@ -2899,25 +3048,25 @@ bool clarity_convertert::get_mapping_value_type(
   /*
     _ValueType can be any type, including mappings, arrays and structs
   */
-  std::string sol_type = val_type.get("#sol_type").as_string();
-  if (sol_type == "MAPPING")
+
+  std::string clar_type = val_type.get("#clar_type").as_string();
+  if (clar_type == "MAPPING")
   {
     log_error("Unsupported nested mapping");
     return true;
   }
-  else if (sol_type.compare(0, 3, "INT") == 0 || sol_type == "ENUM")
+  else if (clar_type.compare(0, 3, "int") == 0)
     _val = "int";
   else if (
-    sol_type.compare(0, 4, "UINT") == 0 ||
-    sol_type.compare(0, 5, "BYTES") == 0 || sol_type == "ADDRESS")
+    clar_type.compare(0, 4, "uint") == 0 )
     _val = "uint";
-  else if (sol_type == "STRING")
+  else if ((clar_type == "string-ascii") || (clar_type == "string-utf8"))
     _val = "string";
-  else if (sol_type == "BOOL")
+  else if (clar_type == "bool")
     _val = "bool";
   else if (
-    sol_type == "ARRAY" || sol_type == "DYNARRAY" || sol_type == "STRUCT" ||
-    sol_type == "CONTRACT")
+    clar_type == "ARRAY" || clar_type == "DYNARRAY" || clar_type == "STRUCT" ||
+    clar_type == "CONTRACT")
   {
     log_error("Unsupported array-type mapping");
     return true;
@@ -3004,21 +3153,30 @@ bool clarity_convertert::get_mapping_definition(
   exprt &new_expr)
 {
   // get type
-  const auto val_node = ClarityGrammar::get_expression_value_node(ast_node);
+  //const auto val_node = ClarityGrammar::get_expression_value_node(ast_node);
   const auto nested_objtype = ClarityGrammar::get_nested_objtype(ClarityGrammar::get_expression_objtype(ast_node));
 
-  // typet val_type;
-  // if (get_type_description(nested_objtype, val_type))
-  //   return true;
+  typet val_type;
+  if (get_type_description(nested_objtype[1], val_type))
+    return true;
 
   std::string _val = ClarityGrammar::get_expression_identifier(ast_node);
-  // if (get_mapping_value_type(val_type, _val))
-  //   return true;
+  if (get_mapping_value_type(val_type, _val))
+    return true;
 
-  std::string struct_name = "struct map_" + _val + "_t";
+  std::string struct_name;
+  if (val_type.id() == typet::id_struct)
+  {
+    struct_name = "struct " + _val + "_t";  
+  }
+  else
+  {
+    struct_name = "struct map_" + _val + "_t";
+  }
+  
   std::string struct_id = prefix + struct_name; // e.g. tag-struct map_str_t
   typet t = symbol_typet(struct_id);
-
+  t.set("#clar_type", "mapping");
   // get name, id
   std::string name, id;
   bool is_state_var = true;
@@ -3042,14 +3200,15 @@ bool clarity_convertert::get_mapping_definition(
   symbolt symbol;
   get_default_symbol(symbol, debug_modulename, t, name, id, location_begin);
   symbol.is_extern = false;
-
+  symbol.static_lifetime = true;
+  symbol.lvalue = true;
   symbolt &added_symbol = *move_symbol_to_context(symbol);
   exprt mapping_ins = symbol_expr(added_symbol);
 
   // get init
   // e.g. map_init_int(&m);
-  std::string func_name = "map_init_map_" + _val;
-  std::string func_id = "c:@F@map_init_map_"+ _val;
+  std::string func_name = "map_init_" + _val;
+  std::string func_id = "c:@F@map_init_"+ _val;
 
   side_effect_expr_function_callt call_expr;
   locationt l;
@@ -5458,135 +5617,9 @@ bool clarity_convertert::process_c_defined_structs(
   return false;
 }
 
+
 bool clarity_convertert::get_map_type_definition(const nlohmann::json &expr, const nlohmann::json &parent_objtype, exprt &new_expr)
 {
-  // Get type symbol. Should be in the format tag-struct response_<identifier>
-  std::string name;
-  std::string id = get_struct_symbol_id(expr, name);
-  typet t  = struct_typet();
-
-  // for a map, nested obj type has two elements.
-  // [0] objtype for key type.
-  // [1] objtype of val type
-  nlohmann::json objtype = ClarityGrammar::get_nested_objtype(parent_objtype);
-  symbolt *struct_sym;
-  if (context.find_symbol(id) == nullptr)
-  {
-    // we need to create a symbol for map data type
-    struct_sym = create_struct_symbol(expr, t);
-     
-    //return true;
-  }
-  else
-  {
-    // retrieve the symbol
-    struct_sym = context.find_symbol(id);
-    log_error("A Map definition for {} already exists in the symbol table. Aborting...", name);
-    abort(); 
-  }
-   
-
-  // get the type of symbol
-  t = struct_sym->type;
-  t.tag("struct " + name);
-  assert(t.id() == typet::id_struct);
-
-  // create first component "is_ok" flag
-  typet t_comp1 = bool_typet();
-  t_comp1.set("#cpp_type", "bool");
-  name = "is_ok";
-  struct_typet::componentt comp_is_ok(name,name,t_comp1);
-  to_struct_type(t).components().push_back(comp_is_ok);
-
-
-  /* types of ok_val and err_val will be defined by OBJ type*/
-
-  // for a response, nested obj type has two elements.
-  // [0] objtype for ok field.
-  // [1] objtype of err field.
-  nlohmann::json comp2_objtype = objtype[0];
-  nlohmann::json comp3_objtype = objtype[1];
-  std::string comp_type = comp2_objtype[0].get<std::string>();
-
-  // COMPONENT 2 ok_val
-  typet component_type;
-  if(get_type_description(comp2_objtype, component_type))
-  {
-    log_error("Unknown component type {} in response struct. Aborting...", comp_type);
-  }
-
-  if(component_type.id() == typet::id_struct)
-  {
-    nlohmann::json exp_value_node = ClarityGrammar::get_expression_args(expr)[0];
-    exp_value_node["objtype"] = comp2_objtype;
-    exp_value_node["attributes"]["parent_identifier"] = ClarityGrammar::get_expression_identifier(expr);
-    if (component_type.get("#clar_type") == "tuple")
-    {
-      
-      exp_value_node["attributes"]["entity"] = "named_tuple";
-      get_tuple_definition(exp_value_node, comp2_objtype, new_expr);
-      component_type = new_expr.type();
-      component_type.set("#clar_type", "tuple");
-    }
-    else if (component_type.get("#clar_type") == "response")
-    {
-      
-      exp_value_node["attributes"]["entity"] = "response";
-      get_response_type_definition(exp_value_node, comp2_objtype, new_expr);
-      component_type = new_expr.type();
-      component_type.set("#clar_type", "response");
-    }
-  
-  }
-  
-   name = "ok_val";
-
-  
-  struct_typet::componentt comp_ok_val(name,name,component_type);
-  to_struct_type(t).components().push_back(comp_ok_val);
-
-  // COMPONENT 3 err_val
-  comp_type = comp3_objtype[0].get<std::string>();
-  if(get_type_description(comp3_objtype, component_type))
-  {
-    log_error("Unknown component type {} in response struct. Aborting...", comp_type);
-  }
-
-  if(component_type.id() == typet::id_struct)
-  {
-    if (component_type.get("#clar_type") == "tuple")
-    {
-      nlohmann::json exp_value_node = ClarityGrammar::get_expression_value_node(expr);
-      exp_value_node["objtype"] = comp2_objtype;
-      exp_value_node["attributes"]["entity"] = "named_tuple";
-      exp_value_node["attributes"]["parent_identifier"] = ClarityGrammar::get_expression_identifier(expr);
-
-      get_tuple_definition(exp_value_node, comp2_objtype, new_expr);
-      component_type = new_expr.type();
-      component_type.set("#clar_type", "tuple");
-    }
-    else if (component_type.get("#clar_type") == "response")
-    {
-      nlohmann::json exp_value_node = ClarityGrammar::get_expression_args(expr)[0];
-      exp_value_node["objtype"] = comp2_objtype;
-      exp_value_node["attributes"]["entity"] = "response";
-      exp_value_node["attributes"]["parent_identifier"] = ClarityGrammar::get_expression_identifier(expr);
-
-      get_response_type_definition(exp_value_node, comp2_objtype, new_expr);
-      component_type = new_expr.type();
-      component_type.set("#clar_type", "response");
-    }
-  }
-  
-   name = "err_val";
-  
-  struct_typet::componentt comp_err_val(name,name,component_type);
-  to_struct_type(t).components().push_back(comp_err_val);
-
-  
-  struct_sym->type = t;
-
-  new_expr = symbol_expr(*struct_sym);
 
 
   return false;
@@ -6459,6 +6492,7 @@ bool clarity_convertert::get_elementary_type_name_uint(
 {
   const unsigned int uint_size = ClarityGrammar::uint_type_name_to_size(type);
   out = unsignedbv_typet(uint_size);
+  out.set("#clar_type", "uint");
 
   return false;
 }
@@ -6476,6 +6510,7 @@ bool clarity_convertert::get_elementary_type_name_int(
 {
   const unsigned int int_size = ClarityGrammar::int_type_name_to_size(type);
   out = signedbv_typet(int_size);
+  out.set("#clar_type", "int");
 
   return false;
 }
@@ -6566,6 +6601,7 @@ bool clarity_convertert::get_elementary_type_name_buff(
   // ml- set the clar_lit_type so that parsing can figure
   // out the array type
   out.set("#clar_lit_type", "BUFF");
+  out.set("#clar_type", "buff");
   return false;
 }
 
@@ -6624,6 +6660,7 @@ bool clarity_convertert::get_elementary_type_name(
     new_type = bool_type();
     c_type = "bool";
     new_type.set("#cpp_type", c_type);
+    new_type.set("#clar_type", "bool");
     break;
   }
   case ClarityGrammar::ElementaryTypeNameT::STRING_ASCII:
@@ -6641,6 +6678,7 @@ bool clarity_convertert::get_elementary_type_name(
     // ml- set the clar_lit_type so that parsing can figure
     // out the array type
     new_type.set("#clar_lit_type", "STRING_ASCII");
+    new_type.set("#clar_type", "string_ascii");
     break;
   }
   case ClarityGrammar::ElementaryTypeNameT::STRING_UTF8:
@@ -6658,6 +6696,7 @@ bool clarity_convertert::get_elementary_type_name(
     // ml- set the clar_lit_type so that parsing can figure
     // out the array type
     new_type.set("#clar_lit_type", "STRING_UTF8");
+    new_type.set("#clar_type", "string_utf8");
     break;
   }
   case ClarityGrammar::ElementaryTypeNameT::PRINCIPAL:

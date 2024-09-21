@@ -384,7 +384,7 @@ bool operation_is_binary(const nlohmann::json &ast_node)
   const std::vector<std::string> binary_operators{
     "+",  "-",  "*",   "/",   "%",  "<<", ">>", "&",  "|",  ">",
     "<",  ">=", "<=",  "!=",  "==", "&&", "||", "+=", "-=", "*=",
-    "/=", "%=", "<<=", ">>=", "&=", "|=", "^=", "**"};
+    "/=", "%=", "<<=", ">>=", "&=", "|=", "^=", "**", "map-insert"};
 
   if (
     std::find(
@@ -745,6 +745,10 @@ ContractBodyElementT get_contract_body_element_t(const nlohmann::json &element)
   else if (element_type == "function_declaration")
   {
     return FunctionDef;
+  }
+  else if (element_type == "native_function")
+  {
+    return TopLevelNativeFunction;
   }
   else
   {
@@ -1376,7 +1380,7 @@ ExpressionT get_unary_expr_operator_t(const nlohmann::json &expr, bool uo_pre)
 
 ExpressionT get_expr_operator_t(const nlohmann::json &expr)
 {
-  if (expr["identifier"] == "=")
+  if ((expr["identifier"] == "=") || (expr["identifier"] == "map-insert"))
   {
     return BO_Assign;
   }
