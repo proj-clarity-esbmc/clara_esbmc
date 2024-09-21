@@ -2194,10 +2194,11 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
   symbolt symbol;
   get_default_symbol(symbol, debug_modulename, type, name, id, location_begin);
 
-  symbol.lvalue = true;
+  symbol.lvalue = false;
   symbol.is_extern =
     false; // TODO: hard coded for now, may need to change later
   symbol.file_local = false;
+  symbol.static_lifetime = true;
 
   // 10. Add symbol into the context
   symbolt &added_symbol = *move_symbol_to_context(symbol);
@@ -2251,6 +2252,10 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
       return true;
 
     added_symbol.value = body_exprt;
+  }
+  else
+  {
+    assert(!"No body found in function?");
   }
 
   //assert(!"done - finished all expr stmt in function?");

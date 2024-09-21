@@ -16,7 +16,9 @@ void clarity_gen_typecast(const namespacet &ns, exprt &dest, const typet &type)
 
 void clarity_typecast_response(exprt &source_val, const typet &dest_type)
 {
-  if (source_val.type().id() == typet::id_struct)    
+  //if (source_val.type().id() == typet::id_struct)    
+  // [TODO]Temporarily disable function for struct conversion
+  if (false)    
     {
       
       if (source_val.type().get("#clar_type") == "response")
