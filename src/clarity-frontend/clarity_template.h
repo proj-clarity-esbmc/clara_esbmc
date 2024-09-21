@@ -19,7 +19,6 @@ const std::string clar_header = R"(
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
-#include <stdio.h>
 // #include <stdbool.h>
 
 )";
@@ -426,10 +425,7 @@ void map_set_int(map_int_t *m, const char *key, const int value)
 void map_set_uint(map_uint_t *m, const char *key, const unsigned int value)
 {
 	(m)->tmp = value;
-	int len = strlen(key);
 	map_set_(&(m)->base, key, &(m)->tmp, sizeof((m)->tmp));
-	
-	unsigned int *ret = map_get_uint(m, key);
 }
 void map_set_string(map_string_t *m, const char *key, char *value)
 {

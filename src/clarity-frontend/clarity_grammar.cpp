@@ -384,7 +384,7 @@ bool operation_is_binary(const nlohmann::json &ast_node)
   const std::vector<std::string> binary_operators{
     "+",  "-",  "*",   "/",   "%",  "<<", ">>", "&",  "|",  ">",
     "<",  ">=", "<=",  "!=",  "==", "&&", "||", "+=", "-=", "*=",
-    "/=", "%=", "<<=", ">>=", "&=", "|=", "^=", "**", "map-insert"};
+    "/=", "%=", "<<=", ">>=", "&=", "|=", "^=", "**"};
 
   if (
     std::find(
@@ -1380,7 +1380,7 @@ ExpressionT get_unary_expr_operator_t(const nlohmann::json &expr, bool uo_pre)
 
 ExpressionT get_expr_operator_t(const nlohmann::json &expr)
 {
-  if ((expr["identifier"] == "=") || (expr["identifier"] == "map-insert"))
+  if (expr["identifier"] == "=")
   {
     return BO_Assign;
   }
