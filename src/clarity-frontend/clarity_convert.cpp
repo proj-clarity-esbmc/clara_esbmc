@@ -1394,63 +1394,13 @@ bool clarity_convertert::convert()
   return false; // 'false' indicates successful completion.
 }
 
-bool clarity_convertert::convert_ast_nodes(const nlohmann::json &contract_def)
+// translates a map-insert call using the map_set defined in clarity template
+// input : expression node of native-function call map-insert
+// output : exprt node of the map_set function call
+// ToDo : only works for uint and string-ascii types for now.
+bool clarity_convertert::get_map_insert_call(const nlohmann::json &ast_expression_node, exprt &new_expr)
 {
-  size_t index = 0;
-
-  nlohmann::json ast_node = contract_def;
-  nlohmann::json expression_node = ClarityGrammar::get_expression_node(ast_node);
-  
-  std::string identifier_name = ClarityGrammar::get_expression_identifier(expression_node);
-  std::string identifier_type = ClarityGrammar::get_expression_type(expression_node);
-
-  
-  
-
-  // get_objtype_type_name(
-  //   ast_node
-  //     [1]["objtype"]); //std::string(ast_node[1]["objtype"][0]; //.type_name());
-  log_debug(
-    "clarity",
-    "@@ Converting node[{}]: name={}, nodeType={} ...",
-    index,
-    identifier_name.c_str(),
-    identifier_type.c_str());
-  exprt dummy_decl;
-  if (get_decl(ast_node, dummy_decl))
-    return true;
-
-  // After converting all AST nodes, current_functionDecl should be restored to nullptr.
-  assert(current_functionDecl == nullptr);
-
-  return false;
-}
-
-bool clarity_convertert::get_decl(
-  const nlohmann::json &ast_node,
-  exprt &new_expr)
-{
-  new_expr = code_skipt();
-
-  nlohmann::json ast_expression_node = ClarityGrammar::get_expression_node(ast_node);
-  
-  ClarityGrammar::ContractBodyElementT type =
-    ClarityGrammar::get_contract_body_element_t(ast_expression_node);
-
-  // based on each element as in Solidty grammar "rule contract-body-element"
-  switch (type)
-  {
-  case ClarityGrammar::ContractBodyElementT::VarDecl:
-  {
-    return get_var_decl(ast_node, new_expr); // rule state-variable-declaration
-  }
-  case ClarityGrammar::ContractBodyElementT::FunctionDef:
-  {
-    return get_function_definition(ast_node); // rule function-definition
-  }
-  case ClarityGrammar::ContractBodyElementT::TopLevelNativeFunction:
-  {
-    std::string function_identifier = ClarityGrammar::get_expression_identifier(ast_expression_node);
+  std::string function_identifier = ClarityGrammar::get_expression_identifier(ast_expression_node);
     if (function_identifier == "map-insert")
     {
       nlohmann::json args = ClarityGrammar::get_expression_args(ast_expression_node);
@@ -1535,7 +1485,7 @@ bool clarity_convertert::get_decl(
       std::string func_id = "c:@F@map_set_" + value_type;
       side_effect_expr_function_callt call_expr;
       locationt l;
-      get_location_from_decl(ast_node, l);
+      get_location_from_decl(ast_expression_node, l);
 
       if (context.find_symbol(func_id) == nullptr)
         return true;
@@ -1566,14 +1516,74 @@ bool clarity_convertert::get_decl(
       
       map_init_block.operands().push_back(_block.operands()[3]);
       
-      exprt assert_expr = code_assertt(false_exprt());
-      convert_expression_to_code(assert_expr);
-      map_init_block.operands().push_back(assert_expr);
+      // this is just adding a dummy assert to the init block for testing
+      // disable it for normal cases.
+      // exprt assert_expr = code_assertt(false_exprt());
+      // convert_expression_to_code(assert_expr);
+      // map_init_block.operands().push_back(assert_expr);
 
       new_expr = _block;
       return false;
 
     }
+}
+bool clarity_convertert::convert_ast_nodes(const nlohmann::json &contract_def)
+{
+  size_t index = 0;
+
+  nlohmann::json ast_node = contract_def;
+  nlohmann::json expression_node = ClarityGrammar::get_expression_node(ast_node);
+  
+  std::string identifier_name = ClarityGrammar::get_expression_identifier(expression_node);
+  std::string identifier_type = ClarityGrammar::get_expression_type(expression_node);
+
+  
+  
+
+  // get_objtype_type_name(
+  //   ast_node
+  //     [1]["objtype"]); //std::string(ast_node[1]["objtype"][0]; //.type_name());
+  log_debug(
+    "clarity",
+    "@@ Converting node[{}]: name={}, nodeType={} ...",
+    index,
+    identifier_name.c_str(),
+    identifier_type.c_str());
+  exprt dummy_decl;
+  if (get_decl(ast_node, dummy_decl))
+    return true;
+
+  // After converting all AST nodes, current_functionDecl should be restored to nullptr.
+  assert(current_functionDecl == nullptr);
+
+  return false;
+}
+
+bool clarity_convertert::get_decl(
+  const nlohmann::json &ast_node,
+  exprt &new_expr)
+{
+  new_expr = code_skipt();
+
+  nlohmann::json ast_expression_node = ClarityGrammar::get_expression_node(ast_node);
+  
+  ClarityGrammar::ContractBodyElementT type =
+    ClarityGrammar::get_contract_body_element_t(ast_expression_node);
+
+  // based on each element as in Solidty grammar "rule contract-body-element"
+  switch (type)
+  {
+  case ClarityGrammar::ContractBodyElementT::VarDecl:
+  {
+    return get_var_decl(ast_node, new_expr); // rule state-variable-declaration
+  }
+  case ClarityGrammar::ContractBodyElementT::FunctionDef:
+  {
+    return get_function_definition(ast_node); // rule function-definition
+  }
+  case ClarityGrammar::ContractBodyElementT::TopLevelNativeFunction:
+  {
+    return get_map_insert_call(ast_expression_node, new_expr); // rule top-level-native-function
     
   }
   default:

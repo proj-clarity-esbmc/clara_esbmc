@@ -236,6 +236,7 @@ protected:
     // mapping functions 
   bool is_child_mapping(const nlohmann::json &ast_node);
   bool get_mapping_definition(const nlohmann::json &ast_node, exprt &new_expr);
+  bool get_map_insert_call(const nlohmann::json &ast_node, exprt &new_expr);
   bool get_mapping_value_type(const typet &val_type, std::string &_val);
   bool get_mapping_key(const nlohmann::json &ast_node, exprt &new_expr);
   void get_library_function_call(
