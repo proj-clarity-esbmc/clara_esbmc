@@ -1526,6 +1526,7 @@ bool clarity_convertert::get_map_insert_call(const nlohmann::json &ast_expressio
       return false;
 
     }
+    return true;
 }
 bool clarity_convertert::convert_ast_nodes(const nlohmann::json &contract_def)
 {
