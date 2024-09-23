@@ -103,10 +103,10 @@ command -v make > /dev/null || error_exit "Make not found. Please ensure it is i
 # Step 11: Configure ESBMC build using CMake
 if xcodebuild -version &> /dev/null; then
   echo "Xcode is installed. Using the Xcode SDK for building ESBMC."
-  cmake .. -DENABLE_Z3=1 -DENABLE_SOLIDITY_FRONTEND=On -DENABLE_CLARITY_FRONTEND=On -DC2GOTO_SYSROOT=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk || error_exit "CMake configuration failed."
+  cmake .. -DENABLE_Z3=1 -DENABLE_SOLIDITY_FRONTEND=On -DENABLE_CLARITY_FRONTEND=On -DCMAKE_BUILD_TYPE=Debug -DC2GOTO_SYSROOT=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk || error_exit "CMake configuration failed."
 else
   echo "Using Command Line Tools SDK for building ESBMC."
-  cmake .. -DENABLE_Z3=1 -DENABLE_SOLIDITY_FRONTEND=On -DENABLE_CLARITY_FRONTEND=On -DC2GOTO_SYSROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk || error_exit "CMake configuration failed."
+  cmake .. -DENABLE_Z3=1 -DENABLE_SOLIDITY_FRONTEND=On -DENABLE_CLARITY_FRONTEND=On -DCMAKE_BUILD_TYPE=Debug -DC2GOTO_SYSROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk || error_exit "CMake configuration failed."
 fi
 
 # Step 12: Build ESBMC
