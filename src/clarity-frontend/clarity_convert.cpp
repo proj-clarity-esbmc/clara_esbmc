@@ -4690,12 +4690,56 @@ bool clarity_convertert::get_unwrap_operator_expr(
     
     return true;
   }
+
+  log_debug(
+      "clarity",
+      "	@@@ get_unwrap_operator_expr response expression {}",
+      response_to_check.pretty());
     
 
   // ml- expression must be a response
-  assert((response_to_check.type().id() == typet::id_struct) && 
-         (response_to_check.type().get("#clar_type") == "response"));
-  
+  // assert((response_to_check.type().id() == typet::id_struct) && 
+  //        (response_to_check.type().get("#clar_type") == "response"));
+  typet response_to_check_type;
+  if (response_to_check.type().get("#clar_type") == "response")
+  {
+    response_to_check_type = response_to_check.type(); 
+    log_debug(
+          "clarity",
+          "	@@@ get_unwrap_operator_expr normal {}",
+          response_to_check_type.pretty());
+  }
+  else if (to_code_type(response_to_check.type()).return_type().get("#clar_type") == "response")
+  {
+    
+    response_to_check_type = to_code_type(response_to_check.type()).return_type();
+    
+
+    symbol_exprt result_expr("function_response", response_to_check_type);
+    code_assignt assign_result_src(result_expr, response_to_check);
+    
+    code_blockt _block;
+    _block.operands().push_back(assign_result_src);
+    side_effect_exprt stmt_expr("statement_expression", response_to_check_type);
+    stmt_expr.copy_to_operands(_block);
+    response_to_check = stmt_expr;
+    
+    
+    log_debug(
+          "clarity",
+          "	@@@ get_unwrap_operator_expr return_type \n{}\n{}",
+          response_to_check_type.pretty(),
+          response_to_check.pretty());
+
+  }
+  else 
+  {
+    log_debug(
+          "clarity",
+          "	@@@ get_unwrap_operator_expr *********MESSED UP {}",
+          response_to_check.pretty());
+  }
+
   member_exprt response_struct_is_ok;
   member_exprt response_struct_ok_val;
   member_exprt response_struct_err_val;
@@ -4704,9 +4748,13 @@ bool clarity_convertert::get_unwrap_operator_expr(
 
   member_exprt *response_struct_to_process = use_ok ? &response_struct_ok_val : &response_struct_err_val; 
   typet        *response_struct_type_to_process = use_ok ? &response_struct_ok_type : &response_struct_err_type; 
-  for (const auto &comp : to_struct_type(response_to_check.type()).components()) {
+  for (const auto &comp : to_struct_type(response_to_check_type).components()) {
       // Get and print the name of the component
       std::string component_name = id2string(comp.get_name());
+      log_debug(
+          "clarity",
+          "	@@@ get_unwrap_operator_expr going through the struct objects {}",
+          component_name);
       //std::cout << "Component name: " << component_name << std::endl;
       if (component_name == "is_ok")
       {

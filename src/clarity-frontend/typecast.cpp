@@ -20,31 +20,44 @@ void clarity_typecast_response(exprt &source_val, const typet &dest_type)
   // [TODO]Temporarily disable function for struct conversion
   if (false)    
     {
-      
-      if (source_val.type().get("#clar_type") == "response")
+      typet source_type;
+      if (source_val.type().id() == typet::id_struct && source_val.type().get("#clar_type") == "response")
+      {
+        source_type = source_val.type(); 
+      }
+      else if (source_val.type().id() == typet::id_code && to_code_type(source_val.type()).return_type().get("#clar_type") == "response")
+      {
+        source_type = to_code_type(source_val.type()).return_type();
+      }
+      else
+      {
+        return;
+      }
+
+      if (!source_type.is_empty())
       {
         exprt inits;
         inits = gen_zero(dest_type);
 
         exprt::operandst val_operands = source_val.operands();
         
-        symbol_exprt result_expr("src_struct", source_val.type());
+        symbol_exprt result_expr("src_struct", source_type);
         code_assignt assign_result_src(result_expr, source_val);
         code_blockt _block;
-        code_declt decl_tmp(result_expr);
-        _block.operands().push_back(decl_tmp);
+        // code_declt decl_tmp(result_expr);
+        // _block.operands().push_back(decl_tmp);
         _block.operands().push_back(assign_result_src);
 
         irep_idt another_struct_name = "dest_struct";
         symbol_exprt another_struct(another_struct_name, dest_type);  // Another variable of the same struct type
         //exprt another_struct = gen_zero(dest_type);
-        code_declt decl(another_struct);
-        _block.operands().push_back(decl);
+        // code_declt decl(another_struct);
+        // _block.operands().push_back(decl);
         // inits.operands().at(0) = val_operands.at(0);
         // member_exprt(val, "ok_val", signedbv_typet(32)));
         // Step 2: Iterate through the struct_typet components and print their names
         int index = 0;
-        for (const auto &comp : to_struct_type(source_val.type()).components()) {
+        for (const auto &comp : to_struct_type(source_type).components()) {
             // Get and print the name of the component
             std::string component_name = id2string(comp.get_name());
             //std::cout << "Component name: " << component_name << std::endl;
