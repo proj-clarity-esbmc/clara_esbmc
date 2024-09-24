@@ -14,7 +14,9 @@ enum ContractBodyElementT
 {
   VarDecl = 0, // rule variable-declaration
   FunctionDef, // rule function-definition
-  ContractBodyElementTError
+  TopLevelNativeFunction, //native functions used at global state (map-insert)
+  ContractBodyElementTError,
+
 };
 ContractBodyElementT get_contract_body_element_t(const nlohmann::json &element);
 const char *contract_body_element_to_str(ContractBodyElementT type);
@@ -85,9 +87,6 @@ enum TypeNameT
   // tuple
   TupleTypeName,
 
-  // mapping
-  MappingTypeName,
-
   // built-in member
   BuiltinTypeName,
 
@@ -96,6 +95,9 @@ enum TypeNameT
 
   // clarity response Type
   ResponseTypeName,
+
+  // define-map
+  MapTypeName,
 
   TypeNameTError
 };
