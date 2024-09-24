@@ -132,16 +132,33 @@ bool clarity_convertert::convert_string_literal(
   std::string the_value,
   exprt &dest)
 {
-  size_t string_size = the_value.size() + 1; //to accommodate \0
+  // size_t string_size = the_value.size() + 1; //to accommodate \0
+  // typet type = array_typet(
+  //   signed_char_type(),
+  //   constant_exprt(
+  //     integer2binary(string_size, bv_width(int_type())),
+  //     integer2string(string_size),
+  //     int_type()));
+  // // ToDo : Handle null terminator byte --> completed by catenating '\0' to the string
+  // string_constantt string(the_value + '\0', type, string_constantt::k_default);
+  // dest.swap(string);
+
+  // return false;
+
+  //No need to add extra null terminator, C-style string literals already include it
+  size_t string_size = the_value.size() + 1; // +1 for the implicit null terminator
+
+  // Create the array type
   typet type = array_typet(
-    signed_char_type(),
-    constant_exprt(
-      integer2binary(string_size, bv_width(int_type())),
-      integer2string(string_size),
-      int_type()));
-  // ToDo : Handle null terminator byte --> completed by catenating '\0' to the string
-  string_constantt string(the_value + '\0', type, string_constantt::k_default);
+    char_type(), // Use char_type() instead of signed_char_type()
+    from_integer(string_size, size_type()));
+
+  // Create the string constant
+  // No need to add '\0' explicitly, it's handled by string_constantt
+  string_constantt string(the_value, type,string_constantt::k_default);
+
   dest.swap(string);
+
 
   return false;
 }
@@ -242,6 +259,14 @@ bool clarity_convertert::get_literal_type_from_typet(
       auto width = type.width().as_string();
       expression_node =
         nlohmann::json::array({"string-ascii", "string-ascii", width});
+    }
+  }
+  else if (type.id() == typet::t_symbol)
+  {
+    // check if type name contains "map"
+    if (type.get("#clar_type").as_string() == "mapping")
+    {
+      expression_node = nlohmann::json::array({"map", "map", "1"});
     }
   }
   else
