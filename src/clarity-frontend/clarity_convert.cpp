@@ -4701,6 +4701,9 @@ bool clarity_convertert::get_unwrap_operator_expr(
   // assert((response_to_check.type().id() == typet::id_struct) && 
   //        (response_to_check.type().get("#clar_type") == "response"));
   typet response_to_check_type;
+  symbol_exprt response_copy_expr;
+  code_blockt _block;
+  
   if (response_to_check.type().get("#clar_type") == "response")
   {
     response_to_check_type = response_to_check.type(); 
@@ -4715,21 +4718,30 @@ bool clarity_convertert::get_unwrap_operator_expr(
     response_to_check_type = to_code_type(response_to_check.type()).return_type();
     
 
-    symbol_exprt result_expr("function_response", response_to_check_type);
-    code_assignt assign_result_src(result_expr, response_to_check);
+    //_block.operands().push_back(result_expr);
+    // _block.operands().push_back(assign_result_src);
+    // symbol_exprt result_expr_is_ok_err("is_ok_err", bool_typet());
+    // code_assignt assign_result_is_ok_err(result_expr_is_ok_err, result_expr);    
+    // _block.operands().push_back(assign_result_is_ok_err);
+    // //_block.operands().push_back(member_exprt(assign_result_src,  "is_ok", bool_typet()));
+    // side_effect_exprt stmt_expr("statement_expression", response_to_check_type);
+    // stmt_expr.copy_to_operands(_block);
+    // new_expr = stmt_expr;
+    // return false;
+    // response_to_check.swap(stmt_expr);
     
-    code_blockt _block;
-    _block.operands().push_back(assign_result_src);
-    side_effect_exprt stmt_expr("statement_expression", response_to_check_type);
-    stmt_expr.copy_to_operands(_block);
-    response_to_check = stmt_expr;
     
-    
-    log_debug(
-          "clarity",
-          "	@@@ get_unwrap_operator_expr return_type \n{}\n{}",
-          response_to_check_type.pretty(),
-          response_to_check.pretty());
+    // side_effect_exprt tmp_obj("temporary_object", response_to_check_type);
+    // codet code_expr("expression");
+    // code_expr.operands().push_back(assign_result_src);
+    // tmp_obj.initializer(code_expr);
+    // tmp_obj.location() = assign_result_src.location();
+    // response_to_check.swap(tmp_obj);
+    // log_debug(
+    //       "clarity",
+    //       "	@@@ get_unwrap_operator_expr return_type \n{}\n{}",
+    //       response_to_check_type.pretty(),
+    //       response_to_check.pretty());
 
   }
   else 
@@ -4738,8 +4750,15 @@ bool clarity_convertert::get_unwrap_operator_expr(
           "clarity",
           "	@@@ get_unwrap_operator_expr *********MESSED UP {}",
           response_to_check.pretty());
+    return true;
   }
 
+  response_copy_expr = symbol_exprt("response_copy", response_to_check_type);
+  code_assignt assign_response_src(response_copy_expr, response_to_check);
+  _block.operands().push_back(assign_response_src);
+  // convert_expression_to_code(result_expr);
+  
+  
   member_exprt response_struct_is_ok;
   member_exprt response_struct_ok_val;
   member_exprt response_struct_err_val;
@@ -4758,24 +4777,37 @@ bool clarity_convertert::get_unwrap_operator_expr(
       //std::cout << "Component name: " << component_name << std::endl;
       if (component_name == "is_ok")
       {
-        response_struct_is_ok = member_exprt(response_to_check,  "is_ok", comp.type());
+        response_struct_is_ok = member_exprt(response_copy_expr,  "is_ok", comp.type());
       }
       if (component_name == "ok_val")
       {
         response_struct_ok_type = comp.type();
-        response_struct_ok_val = member_exprt(response_to_check, "ok_val", response_struct_ok_type);
+        response_struct_ok_val = member_exprt(response_copy_expr, "ok_val", response_struct_ok_type);
       }
       if (component_name == "err_val")
       {
         response_struct_err_type = comp.type();
-        response_struct_err_val = member_exprt(response_to_check, "err_val", response_struct_ok_type);
+        response_struct_err_val = member_exprt(response_copy_expr, "err_val", response_struct_ok_type);
       }
   }
         
   
-  symbol_exprt result_expr("is_ok_err", bool_typet());
-  code_assignt assign_result(result_expr, response_struct_is_ok);    
+  symbol_exprt result_expr_is_ok_err("is_ok_err", bool_typet());
+  code_assignt assign_result_is_ok_err(result_expr_is_ok_err, response_struct_is_ok);    
+  _block.operands().push_back(assign_result_is_ok_err);
+  
+  // side_effect_exprt tmp_obj("temporary_object", bool_typet());
+  // codet code_expr("expression");
+  // code_expr.operands().push_back(assign_result_is_ok_err);
+  // tmp_obj.initializer(code_expr);
+  // tmp_obj.location() = assign_result_is_ok_err.location();
+  // assign_result_is_ok_err.swap(tmp_obj);
 
+  log_debug(
+          "clarity",
+          "	@@@ get_unwrap_operator_expr assigning is_ok_err \n{}",
+          assign_result_is_ok_err.pretty()
+          );
   // Figure out the else or throw part
   exprt else_expr;
   if (!should_panic)
@@ -4857,10 +4889,11 @@ bool clarity_convertert::get_unwrap_operator_expr(
       symbol_exprt ok_val_expr("ok_err_val_result", t);
       code_assignt ok_val_assign_result(ok_val_expr, (*response_struct_to_process));    
 
-      
-      code_blockt _block;
-      _block.operands().push_back(code_assertt(assign_result));
+      //code_blockt _block;
+  
+      _block.operands().push_back(code_assertt(result_expr_is_ok_err));
       _block.operands().push_back(ok_val_assign_result);
+      
       side_effect_exprt stmt_expr("statement_expression", t);
       stmt_expr.copy_to_operands(_block);
       new_expr = stmt_expr;      
@@ -4868,10 +4901,28 @@ bool clarity_convertert::get_unwrap_operator_expr(
     else
     {
       t = (*response_struct_type_to_process);
+      
+      
       exprt if_expr("if", t);
-      if_expr.copy_to_operands(assign_result, (*response_struct_to_process), else_expr);
-      new_expr = if_expr;
+      if_expr.copy_to_operands(result_expr_is_ok_err, (*response_struct_to_process), else_expr);
+      log_debug(
+          "clarity",
+          "	@@@ get_unwrap_operator_expr return_type \n*****{}\n*****{}\n*****{}\n*****{}",
+          if_expr.pretty(),
+          assign_result_is_ok_err.pretty(),
+          (*response_struct_to_process).pretty(),
+          else_expr.pretty());
+      
+      symbol_exprt if_condition_expr("if_result", t);
+      code_assignt if_condition_assign_result(if_condition_expr, if_expr);    
+      _block.operands().push_back(if_condition_assign_result);
+      side_effect_exprt stmt_expr("statement_expression", t);
+      stmt_expr.copy_to_operands(_block);
+      new_expr = stmt_expr;    
+      // new_expr = if_expr;
+      
     }
+    
     
   }
   
