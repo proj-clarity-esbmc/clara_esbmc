@@ -261,6 +261,53 @@ bool clarity_convertert::get_literal_type_from_typet(
         nlohmann::json::array({"string-ascii", "string-ascii", width});
     }
   }
+  else if (type.id() == typet::t_struct)
+  {
+    auto struct_type = type.get("#clar_type").as_string();
+    if (struct_type == "response")
+    {
+      nlohmann::json ok_val_json;
+      nlohmann::json err_val_json;
+      // get the ok_type if it exists
+      for (const auto &comp : to_struct_type(type).components()) 
+      {
+        std::string component_name = id2string(comp.get_name());
+        if (component_name == "ok_val")
+        {
+          if (get_literal_type_from_typet(comp.type(), ok_val_json)) 
+          {
+            return true;
+          }
+        }
+        if (component_name == "err_val")
+        {
+          if (get_literal_type_from_typet(comp.type(), err_val_json)) 
+          {
+            return true;
+          }
+        }
+                
+      }
+
+      if (ok_val_json.empty())
+      {
+        ok_val_json = nlohmann::json::array({"none", "none", "1"});
+      }
+      if (err_val_json.empty())
+      {
+        err_val_json = nlohmann::json::array({"none", "none", "1"});
+      }
+      nlohmann::json ok_err_array = nlohmann::json::array();
+      ok_err_array.push_back(ok_val_json);
+      ok_err_array.push_back(err_val_json);
+        
+      expression_node = nlohmann::json::array();
+      expression_node.push_back("response");
+      expression_node.push_back("response");
+      expression_node.push_back("2");
+      expression_node.push_back(ok_err_array);
+    }    
+  }
   else if (type.id() == typet::t_symbol)
   {
     // check if type name contains "map"

@@ -59,6 +59,7 @@ bool operation_is_binary(const nlohmann::json &ast_node);
 bool operation_is_multiop(const nlohmann::json &ast_node);
 bool operation_is_optional_decl(const nlohmann::json &ast_node);
 bool operation_is_let_begin(const nlohmann::json &ast_node);
+bool operation_is_error_handling(const nlohmann::json &ast_node);
 nlohmann::json get_optional_type(const nlohmann::json &objtype);
 std::string get_optional_symbolId(const nlohmann::json &optional_type);
 
@@ -283,6 +284,9 @@ enum ExpressionT
 
   // LetBeginStatements
   LetBeginDeclaration,
+
+  // asserts, try and unwrap functions
+  ErrorHandlingClass,
 
   // LetVariable
   LetVariableDecl,

@@ -84,6 +84,7 @@ protected:
   symbolt* create_symbol(const nlohmann::json &expr, std::string name, std::string id, typet &t);
   std::string get_struct_symbol_type(const nlohmann::json &expr);
   symbolt* create_struct_symbol(const nlohmann::json &expr, typet &t);
+  symbolt* add_response_symbol_table(const nlohmann::json &expr, typet &t);
   bool get_map_type_definition(const nlohmann::json &expr, const nlohmann::json &parent_objtype, exprt &new_expr);
   bool get_response_type_definition(const nlohmann::json &expr, const nlohmann::json &parent_objtype, exprt &new_expr);
   bool get_response_type_instance(const nlohmann::json &expr, const nlohmann::json &parent_objtype, exprt &new_expr);
@@ -141,6 +142,24 @@ protected:
     exprt &new_expr);
   bool
   get_conditional_operator_expr(const nlohmann::json &expr, exprt &new_expr);
+  bool get_assert_operator_expr(
+    const nlohmann::json &expr,
+    exprt &new_expr);
+  bool get_is_ok_err_operator_expr(
+    const nlohmann::json &expr,
+    bool check_is_ok,
+    exprt &new_expr);
+  bool get_unwrap_operator_expr(
+    const nlohmann::json &expr,
+    bool should_panic,
+    bool use_ok,
+    bool use_err_val,
+    exprt &new_expr);
+  
+  bool get_response_operator_expr(
+    const nlohmann::json &expr,
+    exprt &new_expr);
+    
   bool get_cast_expr(
     const nlohmann::json &cast_expr,
     exprt &new_expr,
