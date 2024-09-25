@@ -16,6 +16,8 @@ bool clarity_convertert::convert_integer_literal(
 {
   // clarity only supports 128 bit signed integers
   typet type = signedbv_typet(128);
+  type.set("#clar_type", "int");
+  type.set("#clar_lit_type", "INT")
 
   exprt the_val;
   // extract the value: signed
@@ -36,6 +38,8 @@ bool clarity_convertert::convert_unsigned_integer_literal(
 {
   // clarity only supports 128 bit unsigned integers
   typet type = unsignedbv_typet(128);
+  type.set("#clar_type", "uint");
+  type.set("#clar_lit_type", "UINT")
 
   exprt the_val;
   // extract the value: signed
@@ -153,9 +157,18 @@ bool clarity_convertert::convert_string_literal(
     char_type(), // Use char_type() instead of signed_char_type()
     from_integer(string_size, size_type()));
 
+  // ascii and utf8 strings 
+  const bool is_utf8 = !the_value.compare("utf8-str") ? true : false;
+  const std::string encoding = is_utf8 ? "string_utf8" : "string_ascii";
+
   // Create the string constant
   // No need to add '\0' explicitly, it's handled by string_constantt
-  string_constantt string(the_value, type,string_constantt::k_default);
+  type.set("#clar_type", encoding);
+  type.set("#clar_lit_type", [] (std::string s) {
+    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::toupper(c); });
+    return s;
+}(encoding));
+  string_constantt string(the_value, type, is_utf8 ? string_constantt::k_unicode : string_constantt::k_default);
 
   dest.swap(string);
 
@@ -251,8 +264,9 @@ bool clarity_convertert::get_literal_type_from_typet(
     }
     else if (buffer_type == "STRING_UTF8")
     {
+      auto width = type.width().as_string();
       expression_node =
-        nlohmann::json::array({"string-utf8", "string-utf8", "16"});
+        nlohmann::json::array({"string-utf8", "string-utf8", width});
     }
     else if (buffer_type == "STRING_ASCII")
     {

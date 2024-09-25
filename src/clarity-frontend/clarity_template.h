@@ -271,8 +271,45 @@ const std::string clar_byte = R"(
 void byte_concat();
 )";
 
+/**
+ * clarity var_get function mappings
+ * This implements primitives only
+ */
+const std::string clar_var_get = R"(
+	#define var_get_t(T) \
+		typedef struct T##_t{	\
+			T ref;	\
+		} T##_t;
+
+	// TODO: support for buffers and lists 
+
+	uint128_t uint_var_get(uint128_t v) {
+		return v;
+	}
+
+	int128_t int_var_get(int128_t v) {
+		return v;
+	}
+
+	bool bool_var_get(bool v) {
+		return v ? true : false;
+	}
+	
+	char * string_utf8_var_get(char *v) {
+		return v;
+	}
+	
+	char * string_ascii_var_get(char *v) {
+		return v;
+	}
+
+	principal principal_var_get(principal v) {
+		return v;
+	}
+)";
+
 const std::string clar_funcs =
-  blockhash + gasleft + clar_abi + clar_math + clar_string + clar_byte;
+  blockhash + gasleft + clar_abi + clar_math + clar_string + clar_byte + clar_var_get;
 
 /// data structure
 

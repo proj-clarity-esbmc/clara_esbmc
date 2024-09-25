@@ -1334,11 +1334,11 @@ bool clarity_convertert::convert()
             if (annotate_ast_node(expr))
               return true;
           
-          // for each element in expressions array
-          // check if valid expression array
-         log_status("Parsing {} {} ", decl_decorator, identifier);
-          if (convert_ast_nodes(expr))
-            return true;
+            // for each element in expressions array
+            // check if valid expression array
+            log_status("Parsing {} {} ", decl_decorator, identifier);
+            if (convert_ast_nodes(expr))
+              return true;
 
           }
           
@@ -1853,7 +1853,8 @@ bool clarity_convertert::get_var_decl(
       return true;
 
     //std::cout <<val.pretty()<<std::endl;
-    clarity_gen_typecast(ns, val, t);
+    // TODO: ss -- confirm if this is needed after adding clar_type and clar_lit_type
+    // clarity_gen_typecast(ns, val, t);
 
     added_symbol.type = val.type();
     added_symbol.value = val;
@@ -3526,6 +3527,9 @@ bool clarity_convertert::get_expr(
           // Buffer is sort of an array of bytes
           typet type = array_typet(
             unsigned_char_type(), from_integer(buff_size, size_type()));
+          type.set("#clar_type", "buff");
+          type.set("#clar_lit_type", "BUFF");
+          // TODO: ss -- check , will this hold after gen_zero?
           exprt buff_inits = gen_zero(type);
 
           // the string value should be 2xbuff_size long
@@ -3775,6 +3779,12 @@ bool clarity_convertert::get_expr(
       call.type() = type;
 
       new_expr = call;
+      // adds in constructor ... can be removed after initial testings 
+      std::string id = ClarityGrammar::get_expression_identifier(expr);
+      if (id == "var-get" || id == "var-set") {
+        convert_expression_to_code(call);
+        map_init_block.operands().push_back(call);  
+      }
       break;
     }
 
@@ -5043,6 +5053,8 @@ bool clarity_convertert::get_clar_builtin_ref(
       // replace the - with _
       std::string type_qualifier = expr_type[0];
       std::replace( type_qualifier.begin(), type_qualifier.end(), '-', '_'); 
+      // functions like var-get and others which use snake case
+      std::replace( name.begin(), name.end(), '-', '_'); 
       std::string id_qualifier = "c:@F@" + type_qualifier + "_" + name;
 
       if (context.find_symbol(id_qualifier) != nullptr) {
@@ -6144,7 +6156,9 @@ bool clarity_convertert::get_principal_instance(
       log_error("Something went wrong... check logs.");
       abort();
     }
+  // TODO: ss -- check if value is correct ?? 
   t.set("#clar_type", "principal_instance");
+  t.set("#clar_lit_type", "PRINCIPAL");
 
   nlohmann::json expression_value_node = ast_node;
   size_t i = 0;
@@ -7370,6 +7384,17 @@ void clarity_convertert::convert_expression_to_code(exprt &expr)
 {
   if (expr.is_code())
     return;
+
+  // Special handling for side_effect_expr_function_callt
+  if (expr.id() == "sideeffect" && expr.get("statement") == "function_call")
+  {
+    code_function_callt function_call;
+    function_call.function() = to_side_effect_expr_function_call(expr).function();
+    function_call.arguments() = to_side_effect_expr_function_call(expr).arguments();
+    function_call.location() = expr.location();
+    expr.swap(function_call);
+    return;
+  }
 
   codet code("expression");
   code.location() = expr.location();
