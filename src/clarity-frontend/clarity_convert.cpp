@@ -1328,8 +1328,6 @@ bool clarity_convertert::convert()
           }
           else
           {
-            log_status("Processing {} ", expr.dump());
-              
             decl_decorator = ClarityGrammar::get_declaration_decorator(expr);
             expression_node = ClarityGrammar::get_expression_node(expr);
             identifier = ClarityGrammar::get_expression_identifier(expression_node);
@@ -5818,6 +5816,18 @@ bool clarity_convertert::get_type_description(
     name = "err_val";
     struct_typet::componentt response_err_val(name, name, response_err_type);
     to_struct_type(new_type).components().push_back(response_err_val);
+
+    break;
+  }
+  case ClarityGrammar::TypeNameT::MapTypeName:
+  {
+
+    // define-map
+    // map data type of clarity language
+    new_type = struct_typet();
+    new_type.set("#cpp_type", "void");
+    new_type.set("#clar_type", "map");
+
 
     break;
   }
