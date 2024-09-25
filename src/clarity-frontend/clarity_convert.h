@@ -33,6 +33,8 @@ protected:
   bool process_define_constant(nlohmann::json &ast_node);
   bool process_define_map(nlohmann::json &ast_node);
 
+  void set_top_objtype(nlohmann::json &objtype);
+
   std::string get_objtype_type_name(const nlohmann::json &objtype_node);
   std::string get_objtype_type_identifier(const nlohmann::json &objtype_node);
   std::string get_objtype_type_size(const nlohmann::json &objtype_node);
@@ -83,6 +85,7 @@ protected:
   std::string get_struct_symbol_type(const nlohmann::json &expr);
   symbolt* create_struct_symbol(const nlohmann::json &expr, typet &t);
   symbolt* add_response_symbol_table(const nlohmann::json &expr, typet &t);
+  bool get_map_type_definition(const nlohmann::json &expr, const nlohmann::json &parent_objtype, exprt &new_expr);
   bool get_response_type_definition(const nlohmann::json &expr, const nlohmann::json &parent_objtype, exprt &new_expr);
   bool get_response_type_instance(const nlohmann::json &expr, const nlohmann::json &parent_objtype, exprt &new_expr);
   std::string get_list_struct_id(const nlohmann::json &objtype);
@@ -104,6 +107,7 @@ protected:
   bool get_error_definition(const nlohmann::json &ast_node);
 
   // handle the implicit constructor
+  bool move_mapping_to_ctor();
   bool add_implicit_constructor();
   bool get_implicit_ctor_ref(exprt &new_expr, const std::string &contract_name);
   bool
@@ -248,7 +252,18 @@ protected:
   nlohmann::json add_dyn_array_size_expr(
     const nlohmann::json &type_descriptor,
     const nlohmann::json &dyn_array_node);
+    // mapping functions 
   bool is_child_mapping(const nlohmann::json &ast_node);
+  bool get_mapping_definition(const nlohmann::json &ast_node, exprt &new_expr);
+  bool get_map_insert_call(const nlohmann::json &ast_node, exprt &new_expr);
+  bool get_mapping_value_type(const typet &val_type, std::string &_val);
+  bool get_mapping_key(const nlohmann::json &ast_node, exprt &new_expr);
+  void get_library_function_call(
+  const std::string &func_name,
+  const std::string &func_id,
+  const typet &t,
+  const locationt &l,
+  exprt &new_expr);
 
   void get_default_symbol(
     symbolt &symbol,
@@ -350,6 +365,10 @@ protected:
   // this is to avoid reference to stack memory associated with local variable returned
   const nlohmann::json empty_json;
 
+  // this block stores the map_init function calls and
+  // will merge to the constructor later on
+  code_blockt map_init_block;
+
   // --function
   std::string tgt_func;
   // --contract
@@ -357,6 +376,9 @@ protected:
 
   // --reference of the latest symbol added to the symbol table
   symbolt *latest_symbol;
+
+  // -- objtype available in the top most s-expression
+  nlohmann::json top_objtype;
 
 private:
   bool get_elementary_type_name_uint(
