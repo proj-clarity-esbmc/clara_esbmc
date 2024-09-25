@@ -2236,10 +2236,18 @@ bool clarity_convertert::get_error_definition(const nlohmann::json &ast_node)
   return false;
 }
 
-//#define START_DEBUG_FUNCTION
+
 bool clarity_convertert::move_mapping_to_ctor()
 {
   // no mapping
+  // This section has been added to call a function 
+  // named "debug-function"  in the clar file inside of the
+  // constructor
+  // 1. enable this define
+  // 2. build ESBMC
+  // 3. in the AST find the function definition "debug-function" 
+  //    and change its cid to 10000 
+//#define START_DEBUG_FUNCTION
 #ifdef START_DEBUG_FUNCTION
   exprt start_debug_function;
   auto debug_function_expr = nlohmann::json::parse(
@@ -2252,7 +2260,7 @@ bool clarity_convertert::move_mapping_to_ctor()
                 "start_column": 4,
                 "start_line": 211
               },
-              "identifier": "call-response-functions",
+              "identifier": "debug-function",
               "cid": 10000
             })");;
   get_expr(debug_function_expr, start_debug_function);
@@ -2574,12 +2582,6 @@ bool clarity_convertert::process_function_body_expr(
       if (get_expr(rtn_expr, return_objtype, val))
         return true;
 
-      // std::string val_dump = val.pretty();
-      // log_debug(
-      //   "clarity",
-      //   "	@@@ got Function Body value: ClarityGrammar::FuncBodyT::{}",
-      //   val_dump);
-      
       clarity_typecast_response(val, return_type);
       clarity_gen_typecast(ns, val, return_type);
       ret_expr.return_value() = val;
@@ -4949,7 +4951,7 @@ bool clarity_convertert::get_assert_operator_expr(
   nlohmann::json condition_expr;
   nlohmann::json throw_expr;
   
-  // ml- for conditional operation the args[0] contains the
+  // ml- for error checking  operation the args[0] contains the
   //     conditions expression
   args = ClarityGrammar::get_expression_args(expr);
   
@@ -4985,11 +4987,8 @@ bool clarity_convertert::get_assert_operator_expr(
   // empty expression
   else_expr = nil_exprt();
   
-  // ml-[TODO] check that the two if and else types are same
   typet t = then.type();
-  // if (get_type_description(then_type, t))
-  //   return true;
-
+  
   // For the assert, we negate the condition as test and 
   not_exprt not_condition(cond);
 
@@ -5022,7 +5021,7 @@ bool clarity_convertert::get_is_ok_err_operator_expr(
   nlohmann::json args;
   nlohmann::json response_expr;
   
-  // ml- for conditional operation the args[0] contains the
+  // ml- for error checking operation the args[0] contains the
   //     conditions expression
   args = ClarityGrammar::get_expression_args(expr);
   
@@ -5050,11 +5049,6 @@ bool clarity_convertert::get_is_ok_err_operator_expr(
   
   // get the is_ok expression from the structure
   member_exprt response_struct_is_ok(response_to_check,  "is_ok", bool_typet());
-  log_debug(
-      "clarity",
-      "	@@@ get_is_ok_err_operator_expr converting to check response {} {}",
-      response_to_check.pretty(),
-      response_struct_is_ok.pretty());
     
   if (check_is_ok) 
   {
@@ -5074,7 +5068,14 @@ bool clarity_convertert::get_is_ok_err_operator_expr(
   return false;
 }
 
-
+/// @brief This function creates expression for handling the 
+/// error checking functions unwrap-XXXXX
+/// @param expr             : expression node 
+/// @param should_panic     : flag to indicate that this is a panic function
+/// @param use_ok           : flag to indicate if ok_val should be returned or err_val
+/// @param throw_err_val    : flag to indicate if only the error value should be returned. used for try!
+/// @param new_expr         : output expression
+/// @return False if success, True otherwise
 bool clarity_convertert::get_unwrap_operator_expr(
     const nlohmann::json &expr,
     bool should_panic,
@@ -5090,7 +5091,7 @@ bool clarity_convertert::get_unwrap_operator_expr(
   //     conditions expression
   args = ClarityGrammar::get_expression_args(expr);
   
-  // check that there should be exact 2 element in args for non panic
+  // check that there should be exact at least 1 element in args for non panic
   if (args.is_array() && args.size() >= 1)
   {
     response_expr = args[0];
@@ -5117,58 +5118,23 @@ bool clarity_convertert::get_unwrap_operator_expr(
     return true;
   }
 
-  log_debug(
-      "clarity",
-      "	@@@ get_unwrap_operator_expr response expression {}",
-      response_to_check.pretty());
-    
-
-  // ml- expression must be a response
-  // assert((response_to_check.type().id() == typet::id_struct) && 
-  //        (response_to_check.type().get("#clar_type") == "response"));
+  
+  // ml- expression must be a response object or a function call
+  // that returns a response
   typet response_to_check_type;
   symbol_exprt response_copy_expr;
+
+  // Need to use code block for the temporary variable assignments
   code_blockt _block;
   
+  // get the type of the response being checked
   if (response_to_check.type().get("#clar_type") == "response")
   {
     response_to_check_type = response_to_check.type(); 
-    log_debug(
-          "clarity",
-          "	@@@ get_unwrap_operator_expr normal {}",
-          response_to_check_type.pretty());
   }
   else if (to_code_type(response_to_check.type()).return_type().get("#clar_type") == "response")
   {
-    
     response_to_check_type = to_code_type(response_to_check.type()).return_type();
-    
-
-    //_block.operands().push_back(result_expr);
-    // _block.operands().push_back(assign_result_src);
-    // symbol_exprt result_expr_is_ok_err("is_ok_err", bool_typet());
-    // code_assignt assign_result_is_ok_err(result_expr_is_ok_err, result_expr);    
-    // _block.operands().push_back(assign_result_is_ok_err);
-    // //_block.operands().push_back(member_exprt(assign_result_src,  "is_ok", bool_typet()));
-    // side_effect_exprt stmt_expr("statement_expression", response_to_check_type);
-    // stmt_expr.copy_to_operands(_block);
-    // new_expr = stmt_expr;
-    // return false;
-    // response_to_check.swap(stmt_expr);
-    
-    
-    // side_effect_exprt tmp_obj("temporary_object", response_to_check_type);
-    // codet code_expr("expression");
-    // code_expr.operands().push_back(assign_result_src);
-    // tmp_obj.initializer(code_expr);
-    // tmp_obj.location() = assign_result_src.location();
-    // response_to_check.swap(tmp_obj);
-    // log_debug(
-    //       "clarity",
-    //       "	@@@ get_unwrap_operator_expr return_type \n{}\n{}",
-    //       response_to_check_type.pretty(),
-    //       response_to_check.pretty());
-
   }
   else 
   {
@@ -5179,28 +5145,27 @@ bool clarity_convertert::get_unwrap_operator_expr(
     return true;
   }
 
+  // Create a copy and push it to block
   response_copy_expr = symbol_exprt("response_copy", response_to_check_type);
   code_assignt assign_response_src(response_copy_expr, response_to_check);
   _block.operands().push_back(assign_response_src);
-  // convert_expression_to_code(result_expr);
   
   
+  // Extract the is_ok, ok_val and err_val parts of the response
   member_exprt response_struct_is_ok;
   member_exprt response_struct_ok_val;
   member_exprt response_struct_err_val;
   typet response_struct_ok_type;
   typet response_struct_err_type;
 
+  // Point towards the response type (ok_val, err_val based on xxx-err!)
   member_exprt *response_struct_to_process = use_ok ? &response_struct_ok_val : &response_struct_err_val; 
   typet        *response_struct_type_to_process = use_ok ? &response_struct_ok_type : &response_struct_err_type; 
+
+  // iterate through the response types and assign the member_exprts
   for (const auto &comp : to_struct_type(response_to_check_type).components()) {
-      // Get and print the name of the component
+      // Get the name of the component
       std::string component_name = id2string(comp.get_name());
-      log_debug(
-          "clarity",
-          "	@@@ get_unwrap_operator_expr going through the struct objects {}",
-          component_name);
-      //std::cout << "Component name: " << component_name << std::endl;
       if (component_name == "is_ok")
       {
         response_struct_is_ok = member_exprt(response_copy_expr,  "is_ok", comp.type());
@@ -5217,28 +5182,15 @@ bool clarity_convertert::get_unwrap_operator_expr(
       }
   }
         
-  
+  // create a copy of the is_ok val
   symbol_exprt result_expr_is_ok_err("is_ok_err", bool_typet());
   code_assignt assign_result_is_ok_err(result_expr_is_ok_err, response_struct_is_ok);    
   _block.operands().push_back(assign_result_is_ok_err);
   
-  // side_effect_exprt tmp_obj("temporary_object", bool_typet());
-  // codet code_expr("expression");
-  // code_expr.operands().push_back(assign_result_is_ok_err);
-  // tmp_obj.initializer(code_expr);
-  // tmp_obj.location() = assign_result_is_ok_err.location();
-  // assign_result_is_ok_err.swap(tmp_obj);
-
-  log_debug(
-          "clarity",
-          "	@@@ get_unwrap_operator_expr assigning is_ok_err \n{}",
-          assign_result_is_ok_err.pretty()
-          );
-  // Figure out the else or throw part
+  // Figure out the else or throw part in case of non panic functions
   exprt else_expr;
   if (!should_panic)
   {
-    
     exprt throw_val;
     
     if (throw_err_val)
@@ -5297,6 +5249,7 @@ bool clarity_convertert::get_unwrap_operator_expr(
   typet t;
   if ((*response_struct_type_to_process).is_empty())
   {
+    // For panic just assert
     if (should_panic)
     {
       new_expr = code_assertt(false_exprt());
@@ -5310,46 +5263,33 @@ bool clarity_convertert::get_unwrap_operator_expr(
   {
     if (should_panic)
     {
-      // Force an assert in the else
+      // create a copy of the response data
       typet t = (*response_struct_type_to_process);
       symbol_exprt ok_val_expr("ok_err_val_result", t);
       code_assignt ok_val_assign_result(ok_val_expr, (*response_struct_to_process));    
 
-      //code_blockt _block;
-  
+      // Add an assert on the is_ok and push the (ok/err)_val to the block
       _block.operands().push_back(code_assertt(result_expr_is_ok_err));
       _block.operands().push_back(ok_val_assign_result);
       
-      side_effect_exprt stmt_expr("statement_expression", t);
-      stmt_expr.copy_to_operands(_block);
-      new_expr = stmt_expr;      
+      
     }
     else
     {
       t = (*response_struct_type_to_process);
       
-      
+      // generate an if condition based on is_ok vale
+      //  and return the result accordingly      
       exprt if_expr("if", t);
       if_expr.copy_to_operands(result_expr_is_ok_err, (*response_struct_to_process), else_expr);
-      log_debug(
-          "clarity",
-          "	@@@ get_unwrap_operator_expr return_type \n*****{}\n*****{}\n*****{}\n*****{}",
-          if_expr.pretty(),
-          assign_result_is_ok_err.pretty(),
-          (*response_struct_to_process).pretty(),
-          else_expr.pretty());
-      
       symbol_exprt if_condition_expr("if_result", t);
       code_assignt if_condition_assign_result(if_condition_expr, if_expr);    
       _block.operands().push_back(if_condition_assign_result);
-      side_effect_exprt stmt_expr("statement_expression", t);
-      stmt_expr.copy_to_operands(_block);
-      new_expr = stmt_expr;    
-      // new_expr = if_expr;
-      
     }
     
-    
+    side_effect_exprt stmt_expr("statement_expression", t);
+    stmt_expr.copy_to_operands(_block);
+    new_expr = stmt_expr;      
   }
   
   return false;
@@ -5835,19 +5775,6 @@ bool clarity_convertert::get_type_description(
     new_type = struct_typet();
     new_type.set("#cpp_type", "void");
     new_type.set("#clar_type", "map");
-
-
-    break;
-  }
-  case ClarityGrammar::TypeNameT::MapTypeName:
-  {
-
-    // define-map
-    // map data type of clarity language
-    new_type = struct_typet();
-    new_type.set("#cpp_type", "void");
-    new_type.set("#clar_type", "map");
-
 
     break;
   }
