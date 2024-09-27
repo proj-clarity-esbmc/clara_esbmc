@@ -5979,7 +5979,7 @@ bool clarity_convertert::get_list_of_entry_type(
       val_size = parent_objtype[2];
       
     }
-
+    
     nlohmann::json list_args = ClarityGrammar::get_expression_args(ast_node); 
     int args_size = list_args.size();
 
@@ -5988,10 +5988,9 @@ bool clarity_convertert::get_list_of_entry_type(
     const std::string mem_name = key;
 
     // get type
-    typet subtype = opds.type();
+    typet subtype = opds.type().subtype();
     typet type = array_typet(
       subtype, from_integer(std::stoi(val_size), size_type())); //opds.type();
-    // is array_typet(entryType as subtype, from_integer(size of list, size_type()))
     exprt buff_inits = gen_zero(type);
 
     nlohmann::json objtype = {val_type, val_type, val_size};
@@ -6000,15 +5999,9 @@ bool clarity_convertert::get_list_of_entry_type(
     int value_length = std::stoi(val_size);
     for (entry_indx = 0; entry_indx < value_length; entry_indx++)
     {
-      nlohmann::json temp_expression_node = list_args[entry_indx];
-      //temp_expression_node["expressionType"] = "Literal";
-      //temp_expression_node["span"] = ast_node[1]["span"];
-      //temp_expression_node["identifier"] = mem_name;
-      //temp_expression_node["cid"] = ast_node[1]["cid"];
+      nlohmann::json temp_expression_node = list_args[entry_indx];     
       temp_expression_node["objtype"] = objtype;
-      //temp_expression_node["value"] = ast_node[1]["value"][entry_indx +1]; //+1 because [0] index contains "list" identifier
-
-      //std::cout <<temp_expression_node.dump()<<std::endl;
+      
       exprt init;
       if (get_expr(temp_expression_node, objtype, init))
         return true;
