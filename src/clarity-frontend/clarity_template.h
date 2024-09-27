@@ -173,30 +173,49 @@ uint128_t msg_value;
 #  endif
 
 const std::string clar_tx = R"(
-address_t tx_sender;
-address_t contract_caller;
-address_t tx_sponsorM;
+// address_t tx_sender;
+// address_t contract_caller;
+// address_t tx_sponsorM;
 
 
 )";
 
-#  if 0
-TODO: some of this is in https://docs.stacks.co/clarity/functions#get-block-info
+
+// https://docs.stacks.co/reference/keywords
 
 const std::string clar_block = R"(
-uint128_t block_basefee;
-uint128_t block_chainid;
-address_t block_coinbase;
-uint128_t block_difficulty;
-uint128_t block_gaslimit;
-uint128_t block_number;
-uint128_t block_prevrandao;
-uint128_t block_timestamp;
+const uint128_t block_height = 1000;
+const uint128_t burn_block_height = 800;
+
+const uint128_t chain_id= 1; // u1 for mainnet, u2147483648 for testnet
+
+principal contract_caller; // we have to set this programmatically to some value or can hardcode. issuer_principal init
+
+const bool is_in_mainnet = true;	//assuming always true for formal verif
+const bool is_in_regtest = false; //assuming always false 
+
+const uint128_t stx_liquid_supply = 1000;
+
+principal tx_sender ; // we need to set this accordingly . issuer_principal init . will need to update when "as_contract" is called
+principal prev_tx_sender; // a temp principal to hold prev value of tx sender to revert when as-contract scope is finished.
+optional_principal tx_sponsor;
+
+void as_contract (principal new_principal)
+{	//always remember to call "undo_as_contract" to revert back to original tx-sender value
+	prev_tx_sender = tx_sender;
+	tx_sender = new_principal;
+}
+
+void undo_as_contract ()
+{
+	tx_sender = prev_tx_sender;
+}
+
 )";
-#  endif
+
 
 // const std::string clar_vars = clar_msg + clar_tx + clar_block;
-const std::string clar_vars = clar_tx;
+const std::string clar_vars = clar_tx + clar_block;
 
 /// functions
 // if the function does not currently have an actual implement,

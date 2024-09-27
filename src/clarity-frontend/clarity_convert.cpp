@@ -1329,7 +1329,7 @@ bool clarity_convertert::convert()
           else
           {
             decl_decorator = ClarityGrammar::get_declaration_decorator(expr);
-            expression_node = { ClarityGrammar::get_expression_node(expr) };
+            expression_node = ClarityGrammar::get_expression_node(expr);
             identifier = ClarityGrammar::get_expression_identifier(expression_node);
             if (annotate_ast_node(expr))
               return true;
@@ -5961,6 +5961,14 @@ bool clarity_convertert::get_list_of_entry_type(
     if (key == "size")
     {
       // there is no need to translate size for list because there is no way to "get-size" of the list
+      val_size = parent_objtype[2];
+      exprt size_val ;
+      convert_integer_literal(ast_node,val_size, size_val);
+      const struct_typet::componentt *c_temp = &to_struct_type(t).components().at(0);
+      typet elem_type_temp = c_temp->type();
+      clarity_gen_typecast(ns, size_val, elem_type_temp);
+      inits.operands().at(i) = size_val;
+      
       i++;
       continue;
     }
