@@ -6,6 +6,7 @@
 #include <util/ieee_float.h>
 #include <util/string_constant.h>
 #include <util/std_expr.h>
+#include <iostream>
 
 // Integer literal
 // first argument : integer_literal is not used in Clarity frontend, but left for compatibility with other frontends
@@ -17,7 +18,7 @@ bool clarity_convertert::convert_integer_literal(
   // clarity only supports 128 bit signed integers
   typet type = signedbv_typet(128);
   type.set("#clar_type", "int");
-  type.set("#clar_lit_type", "INT")
+  type.set("#clar_lit_type", "INT");
 
   exprt the_val;
   // extract the value: signed
@@ -39,7 +40,7 @@ bool clarity_convertert::convert_unsigned_integer_literal(
   // clarity only supports 128 bit unsigned integers
   typet type = unsignedbv_typet(128);
   type.set("#clar_type", "uint");
-  type.set("#clar_lit_type", "UINT")
+  type.set("#clar_lit_type", "UINT");
 
   exprt the_val;
   // extract the value: signed
@@ -133,9 +134,23 @@ bool clarity_convertert::convert_bool_literal(
  * @return false Only if the function successfully converts the literal
  */
 bool clarity_convertert::convert_string_literal(
+  const nlohmann::json &string_literal_type,
   std::string the_value,
   exprt &dest)
 {
+  ClarityGrammar::ElementaryTypeNameT elementary_type =
+      ClarityGrammar::get_elementary_type_name_t(string_literal_type);
+
+  if (elementary_type != ClarityGrammar::ElementaryTypeNameT::STRING_ASCII && \
+      elementary_type != ClarityGrammar::ElementaryTypeNameT::STRING_ASCII_LITERAL && \
+      elementary_type != ClarityGrammar::ElementaryTypeNameT::STRING_UTF8 && \
+      elementary_type != ClarityGrammar::ElementaryTypeNameT::STRING_UTF8_LITERAL)
+  {
+    // abort -- not a string literal
+    std::cout << "Not a string" << std::endl;
+    return true;
+  }
+  
   // size_t string_size = the_value.size() + 1; //to accommodate \0
   // typet type = array_typet(
   //   signed_char_type(),
@@ -158,7 +173,8 @@ bool clarity_convertert::convert_string_literal(
     from_integer(string_size, size_type()));
 
   // ascii and utf8 strings 
-  const bool is_utf8 = !the_value.compare("utf8-str") ? true : false;
+  const bool is_utf8 = ((elementary_type == ClarityGrammar::ElementaryTypeNameT::STRING_UTF8) ||\
+                       (elementary_type == ClarityGrammar::ElementaryTypeNameT::STRING_UTF8_LITERAL)) ? true : false;
   const std::string encoding = is_utf8 ? "string_utf8" : "string_ascii";
 
   // Create the string constant
@@ -281,6 +297,38 @@ bool clarity_convertert::get_literal_type_from_typet(
     if (type.get("#clar_type").as_string() == "mapping")
     {
       expression_node = nlohmann::json::array({"map", "map", "1"});
+    }
+  }
+  else if (type.id() == typet::t_struct)
+  {
+    // check if type name contains "map"
+    if (type.get("#clar_type").as_string() == "principal")
+    {
+      expression_node = nlohmann::json::array({"principal", "principal", "1"});
+    }
+    else if (type.get("#clar_type").as_string() == "list_bool")
+    {
+      auto list_size = type.get("#clar_list_size").as_string();
+      expression_node = nlohmann::json::array({"list", "list", list_size, {"bool", "bool", "1"}});
+    }
+    else if (type.get("#clar_type").as_string() == "list_uint128_t")
+    {
+      auto list_size = type.get("#clar_list_size").as_string();
+      expression_node = nlohmann::json::array({"list", "list", list_size, {"uint", "uint128_t", "128"}});
+    }
+    else if (type.get("#clar_type").as_string() == "list_int128_t")
+    {
+      auto list_size = type.get("#clar_list_size").as_string();
+      expression_node = nlohmann::json::array({"list", "list", list_size, {"int", "int128_t", "128"}});
+    }
+    else if (type.get("#clar_type").as_string() == "list_principal")
+    {
+      auto list_size = type.get("#clar_list_size").as_string();
+      expression_node = nlohmann::json::array({"list", "list", list_size, {"principal", "principal", "149"}});
+    }
+    else 
+    {
+      return true;  
     }
   }
   else

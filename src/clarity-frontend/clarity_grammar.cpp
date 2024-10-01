@@ -450,6 +450,47 @@ bool operation_is_conditional(const nlohmann::json &ast_node)
     return false;
 }
 
+std::string get_clarity_mapped_types(const nlohmann::json &objtype) {
+  ElementaryTypeNameT nested_type = get_elementary_type_name_t(objtype);
+  std::string type;
+  switch (nested_type) 
+  {
+    case ElementaryTypeNameT::INT:
+      type = "int128_t";
+      break;
+    case ElementaryTypeNameT::UINT:
+      type = "uint128_t";
+      break;
+    case ElementaryTypeNameT::BOOL:
+      type = "bool";
+      break;
+    case ElementaryTypeNameT::STRING_ASCII:
+    case ElementaryTypeNameT::STRING_UTF8:
+      type = "string";
+      break;
+    case ElementaryTypeNameT::BUFF:
+      type = "buff";
+      break; 
+    case ElementaryTypeNameT::PRINCIPAL:
+      type = "principal";
+      break;
+    default:
+      log_error("Missing type implementation in mapping");
+      abort();
+  }
+  return type;
+}
+
+// get the symbolId of struct 
+// takes parent objtype node as input
+// NOTE: @dev -- optionals are not integrated here 
+// NOTE: @dev -- for now use get_optional_symolId for optionals
+std::string get_struct_symbolId (const nlohmann::json &objtype) {
+  // get the nested type
+  nlohmann::json nested_objtype = get_nested_objtype(objtype);
+  return "tag-struct " + objtype[0].get<std::string>() + "_" + get_clarity_mapped_types(nested_objtype);
+}
+
 // takes objtype node as input
 // returns symbolid of the optional struct w.r.t to the objtype passed
 std::string get_optional_symbolId(const nlohmann::json &optional_type)

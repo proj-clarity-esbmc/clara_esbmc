@@ -609,8 +609,10 @@ void clarity_convertert::convert_dummy_string_literal()
 
   symbolt &addedSymbol = *move_symbol_to_context(symbol);
 
+  size_t len = strlen(literalValue.c_str());
+  const nlohmann::json &literal_type = nlohmann::json::array({"string-ascii","string-ascii", std::to_string(len)});
   exprt val;
-  convert_string_literal(literalValue, val);
+  convert_string_literal(literal_type, literalValue, val);
 
   clarity_gen_typecast(ns, val, symbolType);
   addedSymbol.value = val;
@@ -884,8 +886,12 @@ void clarity_convertert::add_dummy_builtin_functionCall()
   exprt arg1, arg2;
 
   // convert string literals to exprt nodes which are irept nodes.
-  convert_string_literal(literalA, arg1);
-  convert_string_literal(literalB, arg2);
+  size_t lenA = strlen(literalA.c_str());
+  size_t lenB = strlen(literalB.c_str());
+  const nlohmann::json &literal_typeA = nlohmann::json::array({"string-ascii", "string-ascii", std::to_string(lenA)});
+  const nlohmann::json &literal_typeB = nlohmann::json::array({"string-ascii", "string-ascii", std::to_string(lenB)});  
+  convert_string_literal(literal_typeA, literalA, arg1);
+  convert_string_literal(literal_typeB, literalB, arg2);
 
   call.arguments().push_back(arg1);
   call.arguments().push_back(arg2);
@@ -1838,8 +1844,6 @@ bool clarity_convertert::get_var_decl(
   {
     nlohmann::json init_value = ClarityGrammar::get_expression_value_node(ast_expression_node);
     nlohmann::json objtype = ClarityGrammar::get_expression_objtype(ast_expression_node);
-    
-    
 
     //this might cause issue
     nlohmann::json literal_type = get_objtype_type_name(objtype);
@@ -1852,14 +1856,12 @@ bool clarity_convertert::get_var_decl(
     if (get_expr(init_value, objtype, val))
       return true;
 
-    //std::cout <<val.pretty()<<std::endl;
     // TODO: ss -- confirm if this is needed after adding clar_type and clar_lit_type
     // clarity_gen_typecast(ns, val, t);
 
     added_symbol.type = val.type();
     added_symbol.value = val;
 
-    
     decl.operands().push_back(val);
   }
 
@@ -3586,16 +3588,10 @@ bool clarity_convertert::get_expr(
       }
       case ClarityGrammar::ElementaryTypeNameT::STRING_ASCII:
       case ClarityGrammar::ElementaryTypeNameT::STRING_ASCII_LITERAL:
-      {
-        // TODO: figure out how to handle ascii/utf8 strings
-        if (convert_string_literal(the_value, new_expr))
-          return true;
-        break;
-      }
       case ClarityGrammar::ElementaryTypeNameT::STRING_UTF8:
       case ClarityGrammar::ElementaryTypeNameT::STRING_UTF8_LITERAL:
       {
-        if (convert_string_literal(the_value, new_expr))
+        if (convert_string_literal(literal_type_expr, the_value, new_expr))
           return true;
         break;
       }
@@ -3768,7 +3764,16 @@ bool clarity_convertert::get_expr(
       !get_clar_builtin_ref(expr, new_expr, first_arg_expr_type) &&
       !check_intrinsic_function(callee_expr_json))
     {
-      
+
+      for (int i = 0; i < ClarityGrammar::get_expression_args(expr).size(); i++)
+      {
+        // TODO: ss -- verify generalized handling ... 
+        typet arg_type = to_code_type(new_expr.type()).arguments()[i].type();
+        exprt arg_zero = call.arguments()[i];
+        clarity_gen_typecast(ns, arg_zero, arg_type);
+        call.arguments()[i] = arg_zero; 
+      }
+
       // ml- for builtin functions we need the type of the args
       // so we process them first
       
@@ -5045,15 +5050,22 @@ bool clarity_convertert::get_clar_builtin_ref(
     std::string name_identifier = ClarityGrammar::get_expression_identifier(expr); 
     std::string name = name_identifier;
     bool identifier_found = false;
-    
+
     std::string id = "c:@F@" + name;
     if (!expr_type.empty())
     {
       // check builtin function with qualifiers
       // replace the - with _
-      std::string type_qualifier = expr_type[0];
+      std::string type_qualifier;
+      if(std::size(expr_type) > 3) {
+        nlohmann::json nested_type = ClarityGrammar::get_nested_objtype(expr_type);
+        type_qualifier = expr_type[0].get<std::string>() + "_" + ClarityGrammar::get_clarity_mapped_types(nested_type);
+      } else {
+        type_qualifier = expr_type[0].get<std::string>();
+      }
+
       std::replace( type_qualifier.begin(), type_qualifier.end(), '-', '_'); 
-      // functions like var-get and others which use snake case
+      // functions like var-get and others which use kebab case
       std::replace( name.begin(), name.end(), '-', '_'); 
       std::string id_qualifier = "c:@F@" + type_qualifier + "_" + name;
 
@@ -5973,6 +5985,14 @@ bool clarity_convertert::get_list_of_entry_type(
     if (key == "size")
     {
       // there is no need to translate size for list because there is no way to "get-size" of the list
+      val_size = parent_objtype[2];
+      exprt size_val ;
+      convert_integer_literal(ast_node,val_size, size_val);
+      const struct_typet::componentt *c_temp = &to_struct_type(t).components().at(0);
+      typet elem_type_temp = c_temp->type();
+      clarity_gen_typecast(ns, size_val, elem_type_temp);
+      inits.operands().at(i) = size_val;
+      
       i++;
       continue;
     }
@@ -5992,7 +6012,7 @@ bool clarity_convertert::get_list_of_entry_type(
     const std::string mem_name = key;
 
     // get type
-    typet subtype = opds.type();
+    typet subtype = opds.type().subtype();
     typet type = array_typet(
       subtype, from_integer(std::stoi(val_size), size_type())); //opds.type();
     // is array_typet(entryType as subtype, from_integer(size of list, size_type()))
@@ -6023,7 +6043,8 @@ bool clarity_convertert::get_list_of_entry_type(
     const struct_typet::componentt *c = &to_struct_type(t).components().at(i);
     typet elem_type = c->type();
 
-    clarity_gen_typecast(ns, buff_inits, elem_type);
+    // clarity_gen_typecast(ns, buff_inits, elem_type);
+    buff_inits = gen_address_of(buff_inits);
     inits.operands().at(i) = buff_inits;
 
     // update
@@ -6156,8 +6177,7 @@ bool clarity_convertert::get_principal_instance(
       log_error("Something went wrong... check logs.");
       abort();
     }
-  // TODO: ss -- check if value is correct ?? 
-  t.set("#clar_type", "principal_instance");
+  t.set("#clar_type", "principal");
   t.set("#clar_lit_type", "PRINCIPAL");
 
   nlohmann::json expression_value_node = ast_node;
@@ -6193,13 +6213,13 @@ bool clarity_convertert::get_principal_instance(
     nlohmann::json temp_expression_node;
 
     // adjust value node accordingly.
-    if (key == "contract_is_principal")
+    if (key == "is_contract_principal")
     {
       temp_expression_node["identifier"] = (ClarityGrammar::is_expression_standard_principal(expression_value_node)?"false":"true");
       value_type = "bool";
       node_type = "lit_bool";
     }
-    else if (key == "contract_is_standard")
+    else if (key == "is_standard_principal")
     {
       temp_expression_node["identifier"] = (ClarityGrammar::is_expression_standard_principal(expression_value_node)?"true":"false");
       value_type = "bool";
@@ -6267,6 +6287,10 @@ bool clarity_convertert::get_principal_instance(
   //added_symbol.value = inits;
   //new_expr = added_symbol.value;
   new_expr = inits;
+  typet t2 = new_expr.type();
+  t2.set("#clar_type", "principal");
+  t2.set("#clar_lit_type", "PRINCIPAL");
+  new_expr.type() = t2;
   //new_expr.identifier(id);
   return false;
 }
@@ -6575,10 +6599,8 @@ clarity_convertert::get_list_struct_id(const nlohmann::json &objtype)
 {
   // get the id of the struct that represents the list
   // e.g. list_uint128_t
-  nlohmann::json child_objtype = ClarityGrammar::get_nested_objtype(objtype);
-  return "tag-struct " + objtype[0].get<std::string>() + "_" +
-        child_objtype[0].get<std::string>();
 
+  return ClarityGrammar::get_struct_symbolId(objtype);
 }
 
 bool clarity_convertert::get_list_type(
@@ -6606,6 +6628,18 @@ bool clarity_convertert::get_list_type(
 
   const symbolt &sym = *context.find_symbol(id);
   out = sym.type;
+
+  nlohmann::json child_objtype = ClarityGrammar::get_nested_objtype(parent_objtype);
+  const std::string struct_type = parent_objtype[0].get<std::string>() + "_" +
+        ClarityGrammar::get_clarity_mapped_types(child_objtype);
+
+  std::string list_sz = parent_objtype[2].get<std::string>();
+  out.set("#clar_type", struct_type);
+  out.set("#clar_lit_type", [] (std::string s) {
+    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::toupper(c); });
+    return s;
+  }(struct_type));
+  out.set("#clar_list_size", list_sz);
 
   return false;
   // is array_typet(entryType as subtype, from_integer(size of list, size_type()))
@@ -6686,6 +6720,7 @@ bool clarity_convertert::get_elementary_type_name(
     c_type = "bool";
     new_type.set("#cpp_type", c_type);
     new_type.set("#clar_type", "bool");
+    new_type.set("#clar_lit_type", "BOOL");
     break;
   }
   case ClarityGrammar::ElementaryTypeNameT::STRING_ASCII:
@@ -6713,11 +6748,8 @@ bool clarity_convertert::get_elementary_type_name(
     size_t value_length = std::stoi(str_value_length) + 1;
 
     new_type = array_typet(
-      signed_char_type(),
-      constant_exprt(
-        integer2binary(value_length, bv_width(int_type())),
-        integer2string(value_length),
-        int_type()));
+    char_type(),
+    from_integer(value_length, size_type()));
     // ml- set the clar_lit_type so that parsing can figure
     // out the array type
     new_type.set("#clar_lit_type", "STRING_UTF8");
@@ -6740,6 +6772,7 @@ bool clarity_convertert::get_elementary_type_name(
       new_type = sym.type;
       new_type.set("#cpp_type", "void");
       new_type.set("#clar_type", "principal");
+      new_type.set("#clar_lit_type", "PRINCIPAL");
     }
     break;
   }

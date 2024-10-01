@@ -55,10 +55,9 @@ typedef struct {
 typedef struct principal principal;
 struct principal
 {
-    bool contract_is_principal;
-    bool contract_is_standard;
-    char issuer_principal_str[149];
-  
+    bool is_contract_principal;			// contract principal -- is_contract_principal
+    bool is_standard_principal;			// standard principal -- is_standard_principal
+    char issuer_principal_str[149]; 
 };
 
 
@@ -124,6 +123,7 @@ TYPEDEF_OPTIONAL(int128_t);
 TYPEDEF_OPTIONAL(uint128_t);
 TYPEDEF_OPTIONAL(bool);
 TYPEDEF_OPTIONAL(principal);
+// TODO: ss -- test strings and uint128, int28
 
 
 DEFINE_OPTIONAL(int128_t);
@@ -276,35 +276,68 @@ void byte_concat();
  * This implements primitives only
  */
 const std::string clar_var_get = R"(
-	#define var_get_t(T) \
-		typedef struct T##_t{	\
-			T ref;	\
-		} T##_t;
+	#define ASSERT_BOOL(var, val) assert((var) == val)
+	#define ASSERT_BOOL_TRUE(var) assert((var) == true)
+	#define ASSERT_BOOL_FALSE(var) assert((var) == false)
+	#define ASSERT_STRING(str, cmp, size) assert(strncmp(str, cmp, size) == 0);
 
-	// TODO: support for buffers and lists 
+	// TODO: ss -- support for buffers 
+	// TODO: ss -- remove asserts in final version
 
 	uint128_t uint_var_get(uint128_t v) {
+		assert(v == (uint128_t)5);
 		return v;
 	}
 
 	int128_t int_var_get(int128_t v) {
+		assert(v == (int128_t)100);
 		return v;
 	}
 
 	bool bool_var_get(bool v) {
-		return v ? true : false;
+		bool res = v ? true : false;
+		ASSERT_BOOL_TRUE(res);
+		return res;
 	}
 	
-	char * string_utf8_var_get(char *v) {
-		return v;
-	}
-	
-	char * string_ascii_var_get(char *v) {
+	unsigned char *string_utf8_var_get(unsigned char *v) {
+		ASSERT_STRING(v, "rick prime", 10);
 		return v;
 	}
 
-	principal principal_var_get(principal v) {
+	char* string_ascii_var_get(char *v) {
+		ASSERT_STRING(v, "rickest rick", 10);
 		return v;
+	}
+
+	char* principal_var_get(principal v) {
+		ASSERT_BOOL_TRUE(v.is_standard_principal);
+		ASSERT_BOOL_FALSE(v.is_contract_principal);
+		ASSERT_STRING(v.issuer_principal_str, "ST1HTBVD3JG9C05J7HBJTHGR0GGW7KXW28M5JS8QE", 30);
+		return v.issuer_principal_str;
+	}
+
+	uint128_t *list_uint128_t_var_get(list_uint128_t v) {
+		assert(v.size == 2);
+		assert(v.items[0] == (uint128_t)10);
+		assert(v.items[1] == (uint128_t)20);
+		return v.items;
+	}
+
+	int128_t *list_int128_t_var_get(list_int128_t v) {
+		assert(v.size == 3);
+		assert(v.items[0] == (int128_t)30);
+		assert(v.items[1] == (int128_t)40);
+		assert(v.items[2] == (int128_t)50);
+		return v.items;
+	}
+
+	bool *list_bool_var_get(list_bool v) {
+		assert(v.size == 3);
+		ASSERT_BOOL_FALSE(v.items[0]);
+		ASSERT_BOOL_TRUE(v.items[1]);
+		ASSERT_BOOL_TRUE(v.items[2]);
+		return v.items;
 	}
 )";
 
