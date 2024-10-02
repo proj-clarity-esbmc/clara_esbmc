@@ -33,7 +33,6 @@ const std::string clar_header = R"(
 	see https://docs.stacks.co/clarity/functions#principal-destruct
 */
 
-
 const std::string clar_typedef = R"(
 typedef signed _BitInt(128) int128_t;
 typedef unsigned _BitInt(128) uint128_t;
@@ -285,64 +284,65 @@ const std::string clar_var_get = R"(
 	// TODO: ss -- remove asserts in final version
 
 	uint128_t uint_var_get(uint128_t v) {
-		assert(v == (uint128_t)5);
+		// assert(v == (uint128_t)5);
 		return v;
 	}
 
 	int128_t int_var_get(int128_t v) {
-		assert(v == (int128_t)100);
+		// assert(v == (int128_t)100);
 		return v;
 	}
 
 	bool bool_var_get(bool v) {
 		bool res = v ? true : false;
-		ASSERT_BOOL_TRUE(res);
+		// ASSERT_BOOL_TRUE(res);
 		return res;
 	}
 	
 	unsigned char *string_utf8_var_get(unsigned char *v) {
-		ASSERT_STRING(v, "rick prime", 10);
+		// ASSERT_STRING(v, "smile \u{1F600}", 10);
+		// ASSERT_STRING(v, "smile \u{1F620}", 10);
 		return v;
 	}
 
 	char* string_ascii_var_get(char *v) {
-		ASSERT_STRING(v, "rickest rick", 10);
+		// ASSERT_STRING(v, "rickest rick", 10);
 		return v;
 	}
 
 	char* principal_var_get(principal v) {
-		ASSERT_BOOL_TRUE(v.is_standard_principal);
-		ASSERT_BOOL_FALSE(v.is_contract_principal);
-		ASSERT_STRING(v.issuer_principal_str, "ST1HTBVD3JG9C05J7HBJTHGR0GGW7KXW28M5JS8QE", 30);
+		// ASSERT_BOOL_TRUE(v.is_standard_principal);
+		// ASSERT_BOOL_FALSE(v.is_contract_principal);
+		// ASSERT_STRING(v.issuer_principal_str, "ST1HTBVD3JG9C05J7HBJTHGR0GGW7KXW28M5JS8QE", 30);
 		return v.issuer_principal_str;
 	}
 
 	uint128_t *list_uint128_t_var_get(list_uint128_t v) {
-		assert(v.size == 2);
-		assert(v.items[0] == (uint128_t)10);
-		assert(v.items[1] == (uint128_t)20);
+		// assert(v.size == 2);
+		// assert(v.items[0] == (uint128_t)10);
+		// assert(v.items[1] == (uint128_t)20);
 		return v.items;
 	}
 
 	int128_t *list_int128_t_var_get(list_int128_t v) {
-		assert(v.size == 3);
-		assert(v.items[0] == (int128_t)30);
-		assert(v.items[1] == (int128_t)40);
-		assert(v.items[2] == (int128_t)50);
+		// assert(v.size == 3);
+		// assert(v.items[0] == (int128_t)30);
+		// assert(v.items[1] == (int128_t)40);
+		// assert(v.items[2] == (int128_t)50);
 		return v.items;
 	}
 
 	bool *list_bool_var_get(list_bool v) {
-		assert(v.size == 3);
-		ASSERT_BOOL_FALSE(v.items[0]);
-		ASSERT_BOOL_TRUE(v.items[1]);
-		ASSERT_BOOL_TRUE(v.items[2]);
+		// assert(v.size == 3);
+		// ASSERT_BOOL_FALSE(v.items[0]);
+		// ASSERT_BOOL_TRUE(v.items[1]);
+		// ASSERT_BOOL_TRUE(v.items[2]);
 		return v.items;
 	}
 )";
 
-const std::string clar_funcs =
-  blockhash + gasleft + clar_abi + clar_math + clar_string + clar_byte + clar_var_get;
+const std::string clar_funcs = blockhash + gasleft + clar_abi + clar_math +
+                               clar_string + clar_byte + clar_var_get;
 
 /// data structure
 
@@ -682,9 +682,9 @@ void map_remove_(map_base_t *m, const char *key)
 )";
 
 // combination
-const std::string clar_library = clar_header + clar_typedef + clar_optionals + clar_preprocessed +
-                                 clar_lists + clar_vars + clar_funcs +
-                                 clar_mapping;
+const std::string clar_library = clar_header + clar_typedef + clar_optionals +
+                                 clar_preprocessed + clar_lists + clar_vars +
+                                 clar_funcs + clar_mapping;
 
 }; // namespace ClarityTemplate
 
