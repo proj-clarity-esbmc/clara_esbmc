@@ -61,7 +61,8 @@ bool operation_is_optional_decl(const nlohmann::json &ast_node);
 bool operation_is_let_begin(const nlohmann::json &ast_node);
 nlohmann::json get_optional_type(const nlohmann::json &objtype);
 std::string get_optional_symbolId(const nlohmann::json &optional_type);
-
+std::string get_clarity_mapped_types(const nlohmann::json &objtype);
+std::string get_struct_symbolId (const nlohmann::json &objtype);
 /* end m-ali*/
 
 // rule type-name

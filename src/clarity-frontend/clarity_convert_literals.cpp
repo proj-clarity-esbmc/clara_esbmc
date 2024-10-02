@@ -1,4 +1,5 @@
 #include <clarity-frontend/clarity_convert.h>
+#include <boost/algorithm/string.hpp>
 #include <util/arith_tools.h>
 #include <util/bitvector.h>
 #include <util/c_types.h>
@@ -6,6 +7,7 @@
 #include <util/ieee_float.h>
 #include <util/string_constant.h>
 #include <util/std_expr.h>
+#include <iostream>
 
 // Integer literal
 // first argument : integer_literal is not used in Clarity frontend, but left for compatibility with other frontends
@@ -16,6 +18,8 @@ bool clarity_convertert::convert_integer_literal(
 {
   // clarity only supports 128 bit signed integers
   typet type = signedbv_typet(128);
+  type.set("#clar_type", "int");
+  type.set("#clar_lit_type", "INT");
 
   exprt the_val;
   // extract the value: signed
@@ -36,6 +40,8 @@ bool clarity_convertert::convert_unsigned_integer_literal(
 {
   // clarity only supports 128 bit unsigned integers
   typet type = unsignedbv_typet(128);
+  type.set("#clar_type", "uint");
+  type.set("#clar_lit_type", "UINT");
 
   exprt the_val;
   // extract the value: signed
@@ -119,6 +125,71 @@ bool clarity_convertert::convert_bool_literal(
   return true;
 }
 
+// Helper function to convert a Unicode code point to UTF-8
+std::string unicode_to_utf8(uint32_t codepoint)
+{
+  std::string result;
+  if (codepoint <= 0x7F)
+  {
+    // 1-byte sequence
+    result.push_back(static_cast<char>(codepoint));
+  }
+  else if (codepoint <= 0x7FF)
+  {
+    // 2-byte sequence
+    result.push_back(static_cast<char>(0xC0 | ((codepoint >> 6) & 0x1F)));
+    result.push_back(static_cast<char>(0x80 | (codepoint & 0x3F)));
+  }
+  else if (codepoint <= 0xFFFF)
+  {
+    // 3-byte sequence
+    result.push_back(static_cast<char>(0xE0 | ((codepoint >> 12) & 0x0F)));
+    result.push_back(static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F)));
+    result.push_back(static_cast<char>(0x80 | (codepoint & 0x3F)));
+  }
+  else if (codepoint <= 0x10FFFF)
+  {
+    // 4-byte sequence
+    result.push_back(static_cast<char>(0xF0 | ((codepoint >> 18) & 0x07)));
+    result.push_back(static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F)));
+    result.push_back(static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F)));
+    result.push_back(static_cast<char>(0x80 | (codepoint & 0x3F)));
+  }
+  return result;
+}
+
+// Function to convert string with \u{...} to UTF-8
+std::string convert_to_utf8(const std::string &input)
+{
+  std::ostringstream output;
+  size_t i = 0;
+
+  while (i < input.size())
+  {
+    if (input[i] == '\\' && input[i + 1] == 'u' && input[i + 2] == '{')
+    {
+      // Found a \u{...} escape sequence, process it
+      i += 3; // Skip \u{
+      std::string unicode_str;
+      while (i < input.size() && input[i] != '}')
+      {
+        unicode_str += input[i++];
+      }
+      i++; // Skip closing '}'
+
+      uint32_t codepoint = std::stoul(unicode_str, nullptr, 16);
+      output << unicode_to_utf8(codepoint);
+    }
+    else
+    {
+      // Regular character, just copy it
+      output << input[i++];
+    }
+  }
+
+  return output.str();
+}
+
 // TODO: Character literal
 /**
  * @brief Converts the string literal to a string_constt
@@ -129,37 +200,55 @@ bool clarity_convertert::convert_bool_literal(
  * @return false Only if the function successfully converts the literal
  */
 bool clarity_convertert::convert_string_literal(
+  const nlohmann::json &string_literal_type,
   std::string the_value,
   exprt &dest)
 {
-  // size_t string_size = the_value.size() + 1; //to accommodate \0
-  // typet type = array_typet(
-  //   signed_char_type(),
-  //   constant_exprt(
-  //     integer2binary(string_size, bv_width(int_type())),
-  //     integer2string(string_size),
-  //     int_type()));
-  // // ToDo : Handle null terminator byte --> completed by catenating '\0' to the string
-  // string_constantt string(the_value + '\0', type, string_constantt::k_default);
-  // dest.swap(string);
+  ClarityGrammar::ElementaryTypeNameT elementary_type =
+    ClarityGrammar::get_elementary_type_name_t(string_literal_type);
 
-  // return false;
+  if (
+    elementary_type != ClarityGrammar::ElementaryTypeNameT::STRING_ASCII &&
+    elementary_type !=
+      ClarityGrammar::ElementaryTypeNameT::STRING_ASCII_LITERAL &&
+    elementary_type != ClarityGrammar::ElementaryTypeNameT::STRING_UTF8 &&
+    elementary_type != ClarityGrammar::ElementaryTypeNameT::STRING_UTF8_LITERAL)
+  {
+    // abort -- not a string literal
+    std::cout << "Not a string" << std::endl;
+    return true;
+  }
 
-  //No need to add extra null terminator, C-style string literals already include it
-  size_t string_size = the_value.size() + 1; // +1 for the implicit null terminator
+  // No need to add extra null terminator, C-style string literals already include it
+  size_t string_size =
+    the_value.size() + 1; // +1 for the implicit null terminator
 
   // Create the array type
   typet type = array_typet(
     char_type(), // Use char_type() instead of signed_char_type()
     from_integer(string_size, size_type()));
 
+  // ascii and utf8 strings
+  const bool is_utf8 =
+    ((elementary_type == ClarityGrammar::ElementaryTypeNameT::STRING_UTF8) ||
+     (elementary_type ==
+      ClarityGrammar::ElementaryTypeNameT::STRING_UTF8_LITERAL))
+      ? true
+      : false;
+  std::string encoding = is_utf8 ? "string_utf8" : "string_ascii";
+  const irep_idt kind =
+    is_utf8 ? string_constantt::k_unicode : string_constantt::k_default;
+  // convert to utf8
+  std::string value = is_utf8 ? convert_to_utf8(the_value) : the_value;
+
+  // set custom attributes
+  type.set("#clar_type", encoding);
+  type.set("#clar_lit_type", boost::algorithm::to_upper_copy(encoding));
+
   // Create the string constant
-  // No need to add '\0' explicitly, it's handled by string_constantt
-  string_constantt string(the_value, type,string_constantt::k_default);
+  string_constantt string(value, type, kind);
 
   dest.swap(string);
-
-
   return false;
 }
 
@@ -219,7 +308,7 @@ bool clarity_convertert::convert_uint_literal(
 // input    : The typet from which the objtype has to be created
 // output   : The objtype json from the functions type
 // returns  : false if succesful, or true if failed.
-// 
+//
 // This function assumes that for the array types there
 // will be a clar_lit_type field that describes which
 // subtype of an array it is
@@ -251,8 +340,9 @@ bool clarity_convertert::get_literal_type_from_typet(
     }
     else if (buffer_type == "STRING_UTF8")
     {
+      auto width = type.width().as_string();
       expression_node =
-        nlohmann::json::array({"string-utf8", "string-utf8", "16"});
+        nlohmann::json::array({"string-utf8", "string-utf8", width});
     }
     else if (buffer_type == "STRING_ASCII")
     {
@@ -267,6 +357,42 @@ bool clarity_convertert::get_literal_type_from_typet(
     if (type.get("#clar_type").as_string() == "mapping")
     {
       expression_node = nlohmann::json::array({"map", "map", "1"});
+    }
+  }
+  else if (type.id() == typet::t_struct)
+  {
+    // check if type name contains "map"
+    if (type.get("#clar_type").as_string() == "principal")
+    {
+      expression_node = nlohmann::json::array({"principal", "principal", "1"});
+    }
+    else if (type.get("#clar_type").as_string() == "list_bool")
+    {
+      auto list_size = type.get("#clar_list_size").as_string();
+      expression_node = nlohmann::json::array(
+        {"list", "list", list_size, {"bool", "bool", "1"}});
+    }
+    else if (type.get("#clar_type").as_string() == "list_uint128_t")
+    {
+      auto list_size = type.get("#clar_list_size").as_string();
+      expression_node = nlohmann::json::array(
+        {"list", "list", list_size, {"uint", "uint128_t", "128"}});
+    }
+    else if (type.get("#clar_type").as_string() == "list_int128_t")
+    {
+      auto list_size = type.get("#clar_list_size").as_string();
+      expression_node = nlohmann::json::array(
+        {"list", "list", list_size, {"int", "int128_t", "128"}});
+    }
+    else if (type.get("#clar_type").as_string() == "list_principal")
+    {
+      auto list_size = type.get("#clar_list_size").as_string();
+      expression_node = nlohmann::json::array(
+        {"list", "list", list_size, {"principal", "principal", "149"}});
+    }
+    else
+    {
+      return true;
     }
   }
   else

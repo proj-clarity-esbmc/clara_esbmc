@@ -12,8 +12,8 @@
 /**
  * struct principal
   {
-    bool contract_is_principal;
-    bool contract_is_standard;      //if contract_is_principal is true, then contract_is_standard will be false
+    bool is_contract_principal;
+    bool is_standard_principal;      //if is_contract_principal is true, then is_standard_principal will be false
     char contract_name[128];        //128 bytes long contract name
     char issuer_principal_bytes[20];//20 bytes long issuer principal
     char version;
@@ -55,8 +55,8 @@ bool clarity_convertert::define_principal_struct()
   /*
 struct principal
 {
-    bool contract_is_principal;
-    bool contract_is_standard;
+    bool is_contract_principal;
+    bool is_standard_principal;
     char contract_name[128]; //128 bytes long contract name
     char issuer_principal_bytes[20];
     char version;
@@ -65,8 +65,8 @@ struct principal
   }
 */
   std::unordered_map<std::string, nlohmann::json> principal_struct_members = {
-    {"contract_is_principal", {"bool", "bool", "1"}},
-    {"contract_is_standard", {"bool", "bool", "1"}},
+    {"is_contract_principal", {"bool", "bool", "1"}},
+    {"is_standard_principal", {"bool", "bool", "1"}},
     {"contract_name", {"string-ascii", "string-ascii", "128"}},
     {"issuer_principal_bytes", {"string-utf8", "string-utf8", "20"}},
     {"version", {"string-utf8", "string-utf8", "1"}},
