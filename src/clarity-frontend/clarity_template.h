@@ -156,6 +156,13 @@ const std::string clar_lists = R"(
 	DEFINE_LIST(bool);
 	DEFINE_LIST(principal);
 
+	// TODO: ss -- test me
+	typedef struct list_string_ascii list_string_ascii;
+	typedef struct list_string_utf8 list_string_utf8;
+
+	struct list_string_ascii { int size; char** items; };
+	struct list_string_utf8 { int size; unsigned char** items; };
+
 )";
 
 /// Variables
@@ -275,68 +282,93 @@ void byte_concat();
  * This implements primitives only
  */
 const std::string clar_var_get = R"(
-	#define ASSERT_BOOL(var, val) assert((var) == val)
-	#define ASSERT_BOOL_TRUE(var) assert((var) == true)
-	#define ASSERT_BOOL_FALSE(var) assert((var) == false)
-	#define ASSERT_STRING(str, cmp, size) assert(strncmp(str, cmp, size) == 0);
+	#define ENABLE_ASSERTS 0
+
+	#if ENABLE_ASSERTS
+			#define ASSERT(expr) assert(expr)
+	#else
+			#define ASSERT(expr) ((void)0)
+	#endif
+
+	#define ASSERT_VAL(var, val) ASSERT((var) == (val))
+	#define ASSERT_BOOL(var, val) ASSERT((var) == (val))
+	#define ASSERT_BOOL_TRUE(var) ASSERT((var) == true)
+	#define ASSERT_BOOL_FALSE(var) ASSERT((var) == false)
+	#define ASSERT_STRING(str, cmp, size) ASSERT(strncmp(str, cmp, size) == 0);
+	
 
 	// TODO: ss -- support for buffers 
 	// TODO: ss -- remove asserts in final version
 
 	uint128_t uint_var_get(uint128_t v) {
-		// assert(v == (uint128_t)5);
+		ASSERT_VAL(v, (uint128_t)5);
 		return v;
 	}
 
 	int128_t int_var_get(int128_t v) {
-		// assert(v == (int128_t)100);
+		ASSERT_VAL(v, (int128_t)100);
 		return v;
 	}
 
 	bool bool_var_get(bool v) {
 		bool res = v ? true : false;
-		// ASSERT_BOOL_TRUE(res);
+		ASSERT_BOOL_TRUE(res);
 		return res;
 	}
 	
 	unsigned char *string_utf8_var_get(unsigned char *v) {
-		// ASSERT_STRING(v, "smile \u{1F600}", 10);
+		ASSERT_STRING(v, "smile \u{1F600}", 10);
 		// ASSERT_STRING(v, "smile \u{1F620}", 10);
 		return v;
 	}
 
 	char* string_ascii_var_get(char *v) {
-		// ASSERT_STRING(v, "rickest rick", 10);
+		ASSERT_STRING(v, "rickest rick", 10);
 		return v;
 	}
 
 	char* principal_var_get(principal v) {
-		// ASSERT_BOOL_TRUE(v.is_standard_principal);
-		// ASSERT_BOOL_FALSE(v.is_contract_principal);
-		// ASSERT_STRING(v.issuer_principal_str, "ST1HTBVD3JG9C05J7HBJTHGR0GGW7KXW28M5JS8QE", 30);
+		ASSERT_BOOL_TRUE(v.is_standard_principal);
+		ASSERT_BOOL_FALSE(v.is_contract_principal);
+		ASSERT_STRING(v.issuer_principal_str, "ST1HTBVD3JG9C05J7HBJTHGR0GGW7KXW28M5JS8QE", 30);
 		return v.issuer_principal_str;
 	}
 
 	uint128_t *list_uint128_t_var_get(list_uint128_t v) {
-		// assert(v.size == 2);
-		// assert(v.items[0] == (uint128_t)10);
-		// assert(v.items[1] == (uint128_t)20);
+		ASSERT_VAL(v.size, 2);
+		ASSERT_VAL(v.items[0], (uint128_t)10);
+		ASSERT_VAL(v.items[1], (uint128_t)20);
 		return v.items;
 	}
 
 	int128_t *list_int128_t_var_get(list_int128_t v) {
-		// assert(v.size == 3);
-		// assert(v.items[0] == (int128_t)30);
-		// assert(v.items[1] == (int128_t)40);
-		// assert(v.items[2] == (int128_t)50);
+		ASSERT_VAL(v.size, 3);
+		ASSERT_VAL(v.items[0], (int128_t)30);
+		ASSERT_VAL(v.items[1], (int128_t)40);
+		ASSERT_VAL(v.items[2], (int128_t)50);
 		return v.items;
 	}
 
 	bool *list_bool_var_get(list_bool v) {
-		// assert(v.size == 3);
-		// ASSERT_BOOL_FALSE(v.items[0]);
-		// ASSERT_BOOL_TRUE(v.items[1]);
-		// ASSERT_BOOL_TRUE(v.items[2]);
+		ASSERT_VAL(v.size, 3);
+		ASSERT_BOOL_FALSE(v.items[0]);
+		ASSERT_BOOL_TRUE(v.items[1]);
+		ASSERT_BOOL_TRUE(v.items[2]);
+		return v.items;
+	}
+
+	unsigned char** list_string_utf8_var_get(list_string_utf8 v) {
+		ASSERT_VAL(v.size, 3);
+		ASSERT_STRING(v.items[0], "smile", 5);
+		ASSERT_STRING(v.items[1], "\u{1F600}", 4);
+		ASSERT_STRING(v.items[2], "not", 3);
+		return v.items;
+	}
+
+	char** list_string_ascii_var_get(list_string_ascii v) {
+		ASSERT_VAL(v.size, 2);
+		ASSERT_STRING(v.items[0], "monty", 5);
+		ASSERT_STRING(v.items[1], "python", 5);
 		return v.items;
 	}
 )";
