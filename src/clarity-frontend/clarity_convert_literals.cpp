@@ -244,6 +244,7 @@ bool clarity_convertert::convert_string_literal(
   // set custom attributes
   type.set("#clar_type", encoding);
   type.set("#clar_lit_type", boost::algorithm::to_upper_copy(encoding));
+  type.set("#clar_string_size", std::to_string(string_size));
 
   // Create the string constant
   string_constantt string(value, type, kind);
@@ -340,13 +341,13 @@ bool clarity_convertert::get_literal_type_from_typet(
     }
     else if (buffer_type == "STRING_UTF8")
     {
-      auto width = type.width().as_string();
+      auto width = type.get("#clar_string_size").as_string();
       expression_node =
         nlohmann::json::array({"string-utf8", "string-utf8", width});
     }
     else if (buffer_type == "STRING_ASCII")
     {
-      auto width = type.width().as_string();
+      auto width = type.get("#clar_string_size").as_string();
       expression_node =
         nlohmann::json::array({"string-ascii", "string-ascii", width});
     }
@@ -389,6 +390,28 @@ bool clarity_convertert::get_literal_type_from_typet(
       auto list_size = type.get("#clar_list_size").as_string();
       expression_node = nlohmann::json::array(
         {"list", "list", list_size, {"principal", "principal", "149"}});
+    }
+    else if (type.get("#clar_type").as_string() == "list_string_ascii")
+    {
+      auto list_size = type.get("#clar_list_size").as_string();
+      auto list_item_size = type.get("#clar_list_item_size").as_string();
+      expression_node = nlohmann::json::array(
+        // TODO: ss -- fix string length
+        {"list",
+         "list",
+         list_size,
+         {"string-ascii", "string-ascii", list_item_size}});
+    }
+    else if (type.get("#clar_type").as_string() == "list_string_utf8")
+    {
+      auto list_size = type.get("#clar_list_size").as_string();
+      auto list_item_size = type.get("#clar_list_item_size").as_string();
+      expression_node = nlohmann::json::array(
+        // TODO: ss -- fix string length
+        {"list",
+         "list",
+         list_size,
+         {"string-utf8", "string-utf8", list_item_size}});
     }
     else
     {

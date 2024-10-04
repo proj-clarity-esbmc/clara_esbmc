@@ -5,7 +5,7 @@ Clarity frontend
 ```sh
 # configure
 source ~/.profile
-cmake .. -DENABLE_Z3=1 -DENABLE_SOLIDITY_FRONTEND=On -DENABLE_CLARITY_FRONTEND=On -DCMAKE_BUILD_TYPE=Debug -DC2GOTO_SYSROOT=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
+cmake .. -DENABLE_Z3=1 -DENABLE_CLARITY_FRONTEND=On -DCMAKE_BUILD_TYPE=Debug -DC2GOTO_SYSROOT=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
 
 # build
 make -j8

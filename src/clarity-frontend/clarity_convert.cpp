@@ -1861,8 +1861,8 @@ bool clarity_convertert::get_var_decl(
     added_symbol.type = val.type();
     added_symbol.value = val;
 
-    std::cout << "Added Symbol: " << std::endl;
-    added_symbol.dump();
+    // std::cout << "Added Symbol: " << std::endl;
+    // added_symbol.dump();
 
     decl.operands().push_back(val);
   }
@@ -6021,9 +6021,8 @@ bool clarity_convertert::get_list_of_entry_type(
 
     // get type
     typet subtype = opds.type().subtype();
-    typet type = array_typet(
-      subtype, from_integer(std::stoi(val_size), size_type())); //opds.type();
-    // is array_typet(entryType as subtype, from_integer(size of list, size_type()))
+    typet type =
+      array_typet(subtype, from_integer(std::stoi(val_size), size_type()));
     exprt buff_inits = gen_zero(type);
 
     nlohmann::json objtype = {val_type, val_type, val_size};
@@ -6033,17 +6032,13 @@ bool clarity_convertert::get_list_of_entry_type(
     for (entry_indx = 0; entry_indx < value_length; entry_indx++)
     {
       nlohmann::json temp_expression_node = list_args[entry_indx];
-      //temp_expression_node["expressionType"] = "Literal";
-      //temp_expression_node["span"] = ast_node[1]["span"];
-      //temp_expression_node["identifier"] = mem_name;
-      //temp_expression_node["cid"] = ast_node[1]["cid"];
       temp_expression_node["objtype"] = objtype;
-      //temp_expression_node["value"] = ast_node[1]["value"][entry_indx +1]; //+1 because [0] index contains "list" identifier
 
-      //std::cout <<temp_expression_node.dump()<<std::endl;
       exprt init;
       if (get_expr(temp_expression_node, objtype, init))
         return true;
+
+      clarity_gen_typecast(ns, init, subtype);
 
       buff_inits.operands().at(entry_indx) = init;
     }
@@ -6051,8 +6046,8 @@ bool clarity_convertert::get_list_of_entry_type(
     const struct_typet::componentt *c = &to_struct_type(t).components().at(i);
     typet elem_type = c->type();
 
-    // clarity_gen_typecast(ns, buff_inits, elem_type);
-    buff_inits = gen_address_of(buff_inits);
+    clarity_gen_typecast(ns, buff_inits, elem_type);
+    // buff_inits = gen_address_of(buff_inits);
     inits.operands().at(i) = buff_inits;
 
     // update
@@ -6661,6 +6656,7 @@ bool clarity_convertert::get_list_type(
     ClarityGrammar::get_clarity_mapped_types(child_objtype);
 
   std::string list_sz = parent_objtype[2].get<std::string>();
+  std::string list_item_sz = child_objtype[2].get<std::string>();
   out.set("#clar_type", struct_type);
   out.set(
     "#clar_lit_type",
@@ -6674,6 +6670,7 @@ bool clarity_convertert::get_list_type(
       return s;
     }(struct_type));
   out.set("#clar_list_size", list_sz);
+  out.set("#clar_list_item_size", list_item_sz);
 
   return false;
   // is array_typet(entryType as subtype, from_integer(size of list, size_type()))
@@ -6773,6 +6770,7 @@ bool clarity_convertert::get_elementary_type_name(
     // out the array type
     new_type.set("#clar_lit_type", "STRING_ASCII");
     new_type.set("#clar_type", "string_ascii");
+    new_type.set("#clar_string_size", std::to_string(value_length));
     break;
   }
   case ClarityGrammar::ElementaryTypeNameT::STRING_UTF8:
@@ -6787,6 +6785,7 @@ bool clarity_convertert::get_elementary_type_name(
     // out the array type
     new_type.set("#clar_lit_type", "STRING_UTF8");
     new_type.set("#clar_type", "string_utf8");
+    new_type.set("#clar_string_size", std::to_string(value_length));
     break;
   }
   case ClarityGrammar::ElementaryTypeNameT::PRINCIPAL:
