@@ -2347,7 +2347,7 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
   if (type.return_type().get("#clar_type") == "response")
   {
     // Add this response type to symbols
-    add_response_symbol_table(expression_node, type.return_type());
+    create_response_symbol(expression_node, type.return_type());
   }
 
 // special handling for return_type:
@@ -4053,9 +4053,8 @@ bool clarity_convertert::get_expr(
  * @param t The type to be updated as a struct type.
  * @return The created response symbol for the struct.
  */
-symbolt *clarity_convertert::add_response_symbol_table(
-  const nlohmann::json &expr,
-  typet &t)
+symbolt *
+clarity_convertert::create_response_symbol(const nlohmann::json &expr, typet &t)
 {
   std::string struct_name =
     "response_" + std::to_string(ClarityGrammar::get_expression_cid(expr));
@@ -4160,7 +4159,7 @@ bool clarity_convertert::get_response_operator_expr(
   exprt second_val = gen_zero(second_comp_type);
 
   // add the response symbol
-  symbolt *struct_sym = add_response_symbol_table(expr, response_type);
+  symbolt *struct_sym = create_response_symbol(expr, response_type);
 
   // push the values
   exprt response_object = struct_exprt(response_type);

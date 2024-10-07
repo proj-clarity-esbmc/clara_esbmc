@@ -90,7 +90,7 @@ protected:
     typet &t);
   std::string get_struct_symbol_type(const nlohmann::json &expr);
   symbolt *create_struct_symbol(const nlohmann::json &expr, typet &t);
-  symbolt *add_response_symbol_table(const nlohmann::json &expr, typet &t);
+  symbolt *create_response_symbol(const nlohmann::json &expr, typet &t);
   bool get_map_type_definition(
     const nlohmann::json &expr,
     const nlohmann::json &parent_objtype,
