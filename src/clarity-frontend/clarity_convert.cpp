@@ -2424,8 +2424,6 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
 
   NewFunction(type);
 
-  added_symbol.type = type;
-
   // 12. Convert body and embed the body into the same symbol
   if (expression_node.contains("body"))
   {
@@ -2433,12 +2431,17 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
     if (process_function_body_expr(
           ClarityGrammar::get_expression_body(expression_node),
           body_exprt,
-          type,
+          type.return_type(),
           ClarityGrammar::get_expression_return_type(expression_node)))
       return true;
 
     added_symbol.value = body_exprt;
+
+    const irep_idt tag = body_exprt.return_type().tag();
+    if (tag.as_string().length())
+      type.return_type().tag(tag);
   }
+  added_symbol.type = type;
 
   //assert(!"done - finished all expr stmt in function?");
 
@@ -2556,7 +2559,7 @@ bool clarity_convertert::process_function_body_expr(
 
     clarity_gen_typecast(ns, val, return_type);
     ret_expr.return_value() = val;
-
+    ret_expr.return_type(val.type());
     new_expr = ret_expr;
     break;
   }
@@ -6896,6 +6899,7 @@ bool clarity_convertert::get_elementary_type_name(
   }
 
   case ClarityGrammar::ElementaryTypeNameT::BOOL:
+  case ClarityGrammar::ElementaryTypeNameT::NONE:
   {
     // ml-[TODO] improve this. Copied shamelessly from solidity code
     new_type = bool_type();
