@@ -2388,7 +2388,7 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
   symbolt symbol;
   get_default_symbol(symbol, debug_modulename, type, name, id, location_begin);
 
-  symbol.lvalue = true;
+  symbol.lvalue = false;
   symbol.is_extern =
     false; // TODO: hard coded for now, may need to change later
   symbol.file_local = false;
