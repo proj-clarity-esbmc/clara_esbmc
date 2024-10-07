@@ -2342,6 +2342,14 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
         type.return_type())))
     return true;
 
+  // [TODO] will deel with tuples and optionals later
+  // Add the functions return response type to the symbol table
+  if (type.return_type().get("#clar_type") == "response")
+  {
+    // Add this response type to symbols
+    add_response_symbol_table(expression_node, type.return_type());
+  }
+
 // special handling for return_type:
 #if 0
   // [TODO] will deel with return types later as these are complex
@@ -2424,6 +2432,8 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
 
   NewFunction(type);
 
+  added_symbol.type = type;
+
   // 12. Convert body and embed the body into the same symbol
   if (expression_node.contains("body"))
   {
@@ -2436,13 +2446,7 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
       return true;
 
     added_symbol.value = body_exprt;
-
-    const irep_idt tag = body_exprt.return_type().tag();
-    if (tag.as_string().length())
-      type.return_type().tag(tag);
   }
-  added_symbol.type = type;
-
   //assert(!"done - finished all expr stmt in function?");
 
   // 13. Restore current_functionDecl
