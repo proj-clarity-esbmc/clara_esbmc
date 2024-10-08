@@ -12,8 +12,8 @@ namespace ClarityGrammar
 // rule contract-body-element
 enum ContractBodyElementT
 {
-  VarDecl = 0, // rule variable-declaration
-  FunctionDef, // rule function-definition
+  VarDecl = 0,            // rule variable-declaration
+  FunctionDef,            // rule function-definition
   TopLevelNativeFunction, //native functions used at global state (map-insert)
   ContractBodyElementTError,
 
@@ -35,7 +35,8 @@ nlohmann::json get_expression_args(const nlohmann::json &expression_node);
 nlohmann::json get_expression_objtype(const nlohmann::json &expression_node);
 nlohmann::json get_nested_objtype(const nlohmann::json &objtype);
 nlohmann::json get_expression_body(const nlohmann::json &expression_node);
-nlohmann::json get_expression_return_type(const nlohmann::json &expression_node);
+nlohmann::json
+get_expression_return_type(const nlohmann::json &expression_node);
 nlohmann::json get_location_info(const nlohmann::json &expression_node);
 bool is_expression_standard_principal(const nlohmann::json &expression_node);
 std::string get_expression_optional_expr(const nlohmann::json &expression_node);
@@ -62,7 +63,7 @@ bool operation_is_let_begin(const nlohmann::json &ast_node);
 nlohmann::json get_optional_type(const nlohmann::json &objtype);
 std::string get_optional_symbolId(const nlohmann::json &optional_type);
 std::string get_clarity_mapped_types(const nlohmann::json &objtype);
-std::string get_struct_symbolId (const nlohmann::json &objtype);
+std::string get_struct_symbolId(const nlohmann::json &objtype);
 /* end m-ali*/
 
 // rule type-name
@@ -116,6 +117,7 @@ enum ElementaryTypeNameT
 
   // rule bool
   BOOL,
+  NONE,
 
   // rule address
   PRINCIPAL,
@@ -211,7 +213,7 @@ enum ExpressionT
   // BinaryOperator
   BinaryOperatorClass =
     0, // This type covers all binary operators in Clarity, such as =, +, - .etc
-  MultiOperatorClass, 
+  MultiOperatorClass,
   BO_Assign, // =
   BO_Add,    // +
   BO_Sub,    // -

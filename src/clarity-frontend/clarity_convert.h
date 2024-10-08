@@ -63,7 +63,8 @@ protected:
   bool define_principal_struct();
   bool define_optional_type(std::string optional_type);
   bool annotate_ast_node(nlohmann::json &expr);
-  std::string get_response_symbolId(const nlohmann::json &expr , std::string &name);
+  std::string
+  get_response_symbolId(const nlohmann::json &expr, std::string &name);
   // end-m-ali
 
   bool convert_ast_nodes(const nlohmann::json &contract_def);
@@ -79,18 +80,41 @@ protected:
   void NewFunction(code_typet &type);
   bool get_function_params(const nlohmann::json &pd, exprt &param);
   bool get_default_function(const std::string name, const std::string id);
-  
-  std::string get_struct_symbol_id(const nlohmann::json &expr, std::string &name);
-  symbolt* create_symbol(const nlohmann::json &expr, std::string name, std::string id, typet &t);
+
+  std::string
+  get_struct_symbol_id(const nlohmann::json &expr, std::string &name);
+  symbolt *create_symbol(
+    const nlohmann::json &expr,
+    std::string name,
+    std::string id,
+    typet &t);
   std::string get_struct_symbol_type(const nlohmann::json &expr);
-  symbolt* create_struct_symbol(const nlohmann::json &expr, typet &t);
-  bool get_map_type_definition(const nlohmann::json &expr, const nlohmann::json &parent_objtype, exprt &new_expr);
-  bool get_response_type_definition(const nlohmann::json &expr, const nlohmann::json &parent_objtype, exprt &new_expr);
-  bool get_response_type_instance(const nlohmann::json &expr, const nlohmann::json &parent_objtype, exprt &new_expr);
+  symbolt *create_struct_symbol(const nlohmann::json &expr, typet &t);
+  symbolt *create_response_symbol(const nlohmann::json &expr, typet &t);
+  bool get_map_type_definition(
+    const nlohmann::json &expr,
+    const nlohmann::json &parent_objtype,
+    exprt &new_expr);
+  bool get_response_type_definition(
+    const nlohmann::json &expr,
+    const nlohmann::json &parent_objtype,
+    exprt &new_expr);
+  bool get_response_type_instance(
+    const nlohmann::json &expr,
+    const nlohmann::json &parent_objtype,
+    exprt &new_expr);
+  bool get_response_operator_expr(
+    const nlohmann::json &literal_type,
+    const nlohmann::json &expr,
+    exprt &new_expr);
   std::string get_list_struct_id(const nlohmann::json &objtype);
   bool get_list_type(const nlohmann::json &parent_objtype, typet &out);
-  bool get_list_of_entry_type(const nlohmann::json &ast_node, const nlohmann::json &parent_objtype, exprt &new_expr);
-  std::string get_list_instance_id(const nlohmann::json &ast_node, std::string name);
+  bool get_list_of_entry_type(
+    const nlohmann::json &ast_node,
+    const nlohmann::json &parent_objtype,
+    exprt &new_expr);
+  std::string
+  get_list_instance_id(const nlohmann::json &ast_node, std::string name);
   // handle the non-contract definition, including struct/enum/error/event/abstract/...
   bool process_c_defined_structs(
     std::string &id,
@@ -132,7 +156,11 @@ protected:
     exprt &new_expr,
     nlohmann::json &inferred_type);
   bool get_binary_operator_expr(const nlohmann::json &expr, exprt &new_expr);
-  bool get_multiple_operator_expr(const nlohmann::json &expr, exprt &new_expr, nlohmann::json &inferred_type, int args_starting_index);
+  bool get_multiple_operator_expr(
+    const nlohmann::json &expr,
+    exprt &new_expr,
+    nlohmann::json &inferred_type,
+    int args_starting_index);
   bool get_multiple_operator_expr(const nlohmann::json &expr, exprt &new_expr);
   bool get_compound_assign_expr(const nlohmann::json &expr, exprt &new_expr);
   bool get_unary_operator_expr(
@@ -173,8 +201,14 @@ protected:
   bool get_empty_array_ref(const nlohmann::json &ast_node, exprt &new_expr);
   bool is_nested_response(const nlohmann::json &ast_node);
   bool is_nested_tuple(const nlohmann::json &ast_node);
-  bool get_tuple_definition(const nlohmann::json &ast_node, const nlohmann::json &parent_objtype, exprt &new_expr);
-  bool get_tuple_instance(const nlohmann::json &ast_node,const nlohmann::json &parent_objtype, exprt &new_expr);
+  bool get_tuple_definition(
+    const nlohmann::json &ast_node,
+    const nlohmann::json &parent_objtype,
+    exprt &new_expr);
+  bool get_tuple_instance(
+    const nlohmann::json &ast_node,
+    const nlohmann::json &parent_objtype,
+    exprt &new_expr);
   void get_tuple_name(
     const nlohmann::json &ast_node,
     std::string &name,
@@ -191,7 +225,10 @@ protected:
   void get_tuple_assignment(code_blockt &_block, const exprt &lop, exprt rop);
   void get_tuple_function_call(code_blockt &_block, const exprt &op);
 
-  bool get_optional_instance(const nlohmann::json &ast_node, const nlohmann::json &parent_objtype, exprt &new_expr);
+  bool get_optional_instance(
+    const nlohmann::json &ast_node,
+    const nlohmann::json &parent_objtype,
+    exprt &new_expr);
 
   bool get_principal_instance(const nlohmann::json &ast_node, exprt &new_expr);
   // line number and locations
@@ -233,18 +270,18 @@ protected:
   nlohmann::json add_dyn_array_size_expr(
     const nlohmann::json &type_descriptor,
     const nlohmann::json &dyn_array_node);
-    // mapping functions 
+  // mapping functions
   bool is_child_mapping(const nlohmann::json &ast_node);
   bool get_mapping_definition(const nlohmann::json &ast_node, exprt &new_expr);
   bool get_map_insert_call(const nlohmann::json &ast_node, exprt &new_expr);
   bool get_mapping_value_type(const typet &val_type, std::string &_val);
   bool get_mapping_key(const nlohmann::json &ast_node, exprt &new_expr);
   void get_library_function_call(
-  const std::string &func_name,
-  const std::string &func_id,
-  const typet &t,
-  const locationt &l,
-  exprt &new_expr);
+    const std::string &func_name,
+    const std::string &func_id,
+    const typet &t,
+    const locationt &l,
+    exprt &new_expr);
 
   void get_default_symbol(
     symbolt &symbol,
@@ -256,7 +293,10 @@ protected:
 
   std::string get_ctor_call_id(const std::string &contract_name);
   bool get_clar_builtin_ref(const nlohmann::json expr, exprt &new_expr);
-  bool get_clar_builtin_ref(const nlohmann::json expr, exprt &new_expr, const nlohmann::json &expr_type);
+  bool get_clar_builtin_ref(
+    const nlohmann::json expr,
+    exprt &new_expr,
+    const nlohmann::json &expr_type);
   // literal conversion functions
   bool convert_integer_literal(
     const nlohmann::json &integer_literal,
@@ -281,7 +321,10 @@ protected:
     const nlohmann::json &bool_literal,
     std::string the_value,
     exprt &dest);
-  bool convert_string_literal(const nlohmann::json &string_literal_type, std::string the_value, exprt &dest);
+  bool convert_string_literal(
+    const nlohmann::json &string_literal_type,
+    std::string the_value,
+    exprt &dest);
   void convert_type_expr(const namespacet &ns, exprt &dest, const typet &type);
   bool
   convert_hex_literal(std::string the_value, exprt &dest, const int n = 128);

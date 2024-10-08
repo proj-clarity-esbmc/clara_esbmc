@@ -1857,6 +1857,7 @@ bool clarity_convertert::get_var_decl(
 
     // TODO: ss -- confirm if this is needed after adding clar_type and clar_lit_type
     // clarity_gen_typecast(ns, val, t);
+    clarity_typecast_response(context, val, t);
 
     added_symbol.type = val.type();
     added_symbol.value = val;
@@ -2342,6 +2343,14 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
         type.return_type())))
     return true;
 
+  // [TODO] will deel with tuples and optionals later
+  // Add the functions return response type to the symbol table
+  if (type.return_type().get("#clar_type") == "response")
+  {
+    // Add this response type to symbols
+    create_response_symbol(expression_node, type.return_type());
+  }
+
 // special handling for return_type:
 #if 0
   // [TODO] will deel with return types later as these are complex
@@ -2380,7 +2389,7 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
   symbolt symbol;
   get_default_symbol(symbol, debug_modulename, type, name, id, location_begin);
 
-  symbol.lvalue = true;
+  symbol.lvalue = false;
   symbol.is_extern =
     false; // TODO: hard coded for now, may need to change later
   symbol.file_local = false;
@@ -2433,13 +2442,12 @@ bool clarity_convertert::get_function_definition(const nlohmann::json &ast_node)
     if (process_function_body_expr(
           ClarityGrammar::get_expression_body(expression_node),
           body_exprt,
-          type,
+          type.return_type(),
           ClarityGrammar::get_expression_return_type(expression_node)))
       return true;
 
     added_symbol.value = body_exprt;
   }
-
   //assert(!"done - finished all expr stmt in function?");
 
   // 13. Restore current_functionDecl
@@ -2554,6 +2562,7 @@ bool clarity_convertert::process_function_body_expr(
     if (get_expr(rtn_expr, return_objtype, val))
       return true;
 
+    clarity_typecast_response(context, val, return_type);
     clarity_gen_typecast(ns, val, return_type);
     ret_expr.return_value() = val;
 
@@ -3647,13 +3656,9 @@ bool clarity_convertert::get_expr(
   }
   case ClarityGrammar::ExpressionT::Response:
   {
-    // build component
-    // expr , new_expr, literal_type (parent_objtype)
-    get_response_type_definition(expr, literal_type, new_expr);
-
-    // assign values to the component
-    get_response_type_instance(expr, literal_type, new_expr);
-
+    // build component from response
+    // NOTE: @dev -- literal_type shouldn't be null
+    get_response_operator_expr(literal_type, expr, new_expr);
     break;
   }
 
@@ -4037,6 +4042,116 @@ bool clarity_convertert::get_expr(
   }
 
   new_expr.location() = location;
+  return false;
+}
+
+/**
+ * @brief Creates a response struct symbol based on the given JSON expression and updates the provided type.
+ *
+ * This function is different from create_struct_symbol in that it uses a 
+ * simplistic struct name and id using the expression nodes cid
+ *
+ * @param expr The JSON expression representing the struct.
+ * @param t The type to be updated as a struct type.
+ * @return The created response symbol for the struct.
+ */
+symbolt *
+clarity_convertert::create_response_symbol(const nlohmann::json &expr, typet &t)
+{
+  std::string struct_name =
+    "response_" + std::to_string(ClarityGrammar::get_expression_cid(expr));
+  std::string struct_id =
+    prefix + "struct " + struct_name; //get_struct_symbol_id(expr, struct_name);
+  t.tag("struct " + struct_name);
+  symbolt *s = create_symbol(expr, struct_name, struct_id, t);
+  s->is_type = true;
+  return s;
+}
+
+/// @brief Creates a response struct type, from a response expression
+/// and on the fly adds the response struct type to the symbol table
+/// and then creates the instance of it and assigns the instance the
+/// values
+/// @param expr             : expression node
+/// @param new_expr         : output expression
+/// @return False if success, True otherwise
+bool clarity_convertert::get_response_operator_expr(
+  const nlohmann::json &literal_type,
+  const nlohmann::json &expr,
+  exprt &new_expr)
+{
+  nlohmann::json args;
+  nlohmann::json response_data;
+  nlohmann::json response_err_ok_identifier;
+
+  // ml- for conditional operation the args[0] contains the
+  //     conditions expression
+  args = ClarityGrammar::get_expression_args(expr);
+  response_err_ok_identifier = ClarityGrammar::get_expression_identifier(expr);
+  // check that there should be exact 1 element in args
+  if (args.is_array() && args.size() == 1)
+  {
+    response_data = args[0];
+  }
+  else
+  {
+    log_debug(
+      "clarity",
+      "	@@@ get_response_operator_expr args are not array or does not have one "
+      "arguments {}",
+      args.dump());
+    return true;
+  }
+
+  // Extracts the response data
+  exprt response;
+  if (get_expr(response_data, response))
+    return true;
+
+  // For the symbol table add the cid to the params if searching
+  // is needed
+  typet response_type = struct_typet();
+  response_type.set("#cpp_type", "void");
+  response_type.set("#clar_type", "response");
+  response_type.set(
+    "#clar_response_id",
+    std::to_string(ClarityGrammar::get_expression_cid(expr)));
+
+  // setup the is_ok flag in type
+  typet response_flag_type = bool_typet();
+  response_flag_type.set("#cpp_type", "bool");
+  std::string name = "is_ok";
+  struct_typet::componentt comp_is_ok(name, name, response_flag_type);
+  to_struct_type(response_type).components().push_back(comp_is_ok);
+
+  // Set the is_ok flag based on the response data
+  exprt is_ok;
+  typet response_data_type = response.type();
+
+  if (response_err_ok_identifier == "ok")
+  {
+    name = "ok_val";
+    is_ok = true_exprt();
+  }
+  else if (response_err_ok_identifier == "err")
+  {
+    name = "err_val";
+    is_ok = false_exprt();
+  }
+  // Add the response data type to the type and add it to the
+  // symbol table
+  struct_typet::componentt response_ok_err_vall(name, name, response_data_type);
+  to_struct_type(response_type).components().push_back(response_ok_err_vall);
+
+  // add the response symbol
+  symbolt *struct_sym = create_response_symbol(expr, response_type);
+
+  // push the values
+  exprt response_object = struct_exprt(response_type);
+  response_object.copy_to_operands(is_ok);
+  response_object.copy_to_operands(response);
+  new_expr = response_object;
+
   return false;
 }
 
@@ -5248,6 +5363,32 @@ bool clarity_convertert::get_type_description(
     new_type = struct_typet();
     new_type.set("#cpp_type", "void");
     new_type.set("#clar_type", "response");
+
+    typet response_flag_type = bool_typet();
+    response_flag_type.set("#cpp_type", "bool");
+    std::string name = "is_ok";
+    struct_typet::componentt comp_is_ok(name, name, response_flag_type);
+    to_struct_type(new_type).components().push_back(comp_is_ok);
+
+    nlohmann::json response_ok_err_objtypes =
+      ClarityGrammar::get_nested_objtype(type_name);
+
+    // get the type of the ok
+    typet response_ok_type;
+    if (get_type_description(response_ok_err_objtypes[0], response_ok_type))
+      return true;
+
+    name = "ok_val";
+    struct_typet::componentt response_ok_val(name, name, response_ok_type);
+    to_struct_type(new_type).components().push_back(response_ok_val);
+
+    typet response_err_type;
+    if (get_type_description(response_ok_err_objtypes[1], response_err_type))
+      return true;
+
+    name = "err_val";
+    struct_typet::componentt response_err_val(name, name, response_err_type);
+    to_struct_type(new_type).components().push_back(response_err_val);
 
     break;
   }
@@ -6745,6 +6886,7 @@ bool clarity_convertert::get_elementary_type_name(
   }
 
   case ClarityGrammar::ElementaryTypeNameT::BOOL:
+  case ClarityGrammar::ElementaryTypeNameT::NONE:
   {
     // ml-[TODO] improve this. Copied shamelessly from solidity code
     new_type = bool_type();

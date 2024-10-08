@@ -853,7 +853,7 @@ TypeNameT get_type_name_t(const nlohmann::json &type_name)
       uint_string_to_type_map.count(typeString) ||
       int_string_to_type_map.count(typeString) || typeString == "bool" ||
       typeString == "string-ascii" || typeString == "string-utf8" ||
-      typeString == "principal")
+      typeString == "principal" || typeString == "none")
     {
       // For state var declaration,
       return ElementaryTypeName;
@@ -949,6 +949,10 @@ ElementaryTypeNameT get_elementary_type_name_t(const nlohmann::json &type_name)
   if (typeString == "bool")
   {
     return BOOL;
+  }
+  if (typeString == "none")
+  {
+    return NONE;
   }
   if (typeString.find("uint_const") != std::string::npos)
   {
