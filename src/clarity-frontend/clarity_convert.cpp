@@ -1857,6 +1857,7 @@ bool clarity_convertert::get_var_decl(
 
     // TODO: ss -- confirm if this is needed after adding clar_type and clar_lit_type
     // clarity_gen_typecast(ns, val, t);
+    clarity_typecast_response(context, val, t);
 
     added_symbol.type = val.type();
     added_symbol.value = val;
@@ -2561,9 +2562,10 @@ bool clarity_convertert::process_function_body_expr(
     if (get_expr(rtn_expr, return_objtype, val))
       return true;
 
+    clarity_typecast_response(context, val, return_type);
     clarity_gen_typecast(ns, val, return_type);
     ret_expr.return_value() = val;
-    ret_expr.return_type(val.type());
+
     new_expr = ret_expr;
     break;
   }
@@ -4126,37 +4128,20 @@ bool clarity_convertert::get_response_operator_expr(
   exprt is_ok;
   typet response_data_type = response.type();
 
-  // setup the ok and error value
-  std::string second_comp_name = "err_val";
-  typet second_comp_type;
-  nlohmann::json nested_objtype =
-    ClarityGrammar::get_nested_objtype(literal_type);
-
   if (response_err_ok_identifier == "ok")
   {
     name = "ok_val";
     is_ok = true_exprt();
-    // get the type of second component from leteral type
-    get_type_description(nested_objtype[1], second_comp_type);
   }
   else if (response_err_ok_identifier == "err")
   {
     name = "err_val";
-    second_comp_name = "ok_val";
     is_ok = false_exprt();
-    // get the type of second component from leteral type
-    get_type_description(nested_objtype[0], second_comp_type);
   }
   // Add the response data type to the type and add it to the
   // symbol table
   struct_typet::componentt response_ok_err_vall(name, name, response_data_type);
   to_struct_type(response_type).components().push_back(response_ok_err_vall);
-
-  // Add the second component to the type and init with zero
-  struct_typet::componentt second_comp_response(
-    second_comp_name, second_comp_name, second_comp_type);
-  to_struct_type(response_type).components().push_back(second_comp_response);
-  exprt second_val = gen_zero(second_comp_type);
 
   // add the response symbol
   symbolt *struct_sym = create_response_symbol(expr, response_type);
@@ -4165,7 +4150,6 @@ bool clarity_convertert::get_response_operator_expr(
   exprt response_object = struct_exprt(response_type);
   response_object.copy_to_operands(is_ok);
   response_object.copy_to_operands(response);
-  response_object.copy_to_operands(second_val);
   new_expr = response_object;
 
   return false;
