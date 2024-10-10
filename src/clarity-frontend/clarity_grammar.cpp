@@ -351,6 +351,9 @@ bool operation_is_optional_decl(const nlohmann::json &ast_node)
     return false;
 }
 
+// TODO: ss -- not and bit-not are unary operators
+// TODO: ss -- think about secp* and sha utils of clarity
+
 bool operation_is_multiop(const nlohmann::json &ast_node)
 {
   const std::vector<std::string> multiop_operators{
@@ -369,8 +372,16 @@ bool operation_is_multiop(const nlohmann::json &ast_node)
 bool operation_is_binary(const nlohmann::json &ast_node)
 {
   const std::vector<std::string> binary_operators{
-    "mod", "<<", ">>", "&",  "|",  ">",  "<",   ">=",  "<=", "!=", "==", "&&",
-    "||",  "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "|=", "^=", "**"};
+    "mod",
+    "xor",
+    "bit-shift-left",
+    "bit-shift-right",
+    "pow"
+    ">",
+    "<",
+    ">=",
+    "<=",
+  };
 
   if (
     std::find(

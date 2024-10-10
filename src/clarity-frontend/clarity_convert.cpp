@@ -2568,7 +2568,6 @@ bool clarity_convertert::process_function_body_expr(
     // for code blocks the return statement is the return value
     if (val.type().id() == "code" && val.statement() == "block")
     {
-      // TODO: ss -- fix me for codet vs code block with return statement
       new_expr = val;
     }
     else
@@ -3721,30 +3720,17 @@ bool clarity_convertert::get_expr(
       if (get_expr(body_expr, statement))
         return true;
 
-      // create a symbol for assigning the expression output
-      locationt location = statement.find_location();
-      symbolt assign_var_sym;
-      get_default_symbol(
-        assign_var_sym,
-        current_functionName,
-        statement.type(),
-        "tmp_result_" + std::to_string(ctr),
-        "clar:@C@counter@F@" + current_functionName + "@tmp_result_" +
-          std::to_string(ctr),
-        location);
-
-      // set lvalue for assignment variable
-      assign_var_sym.lvalue = true;
-
-      // move symbol to context and create a codet to assign it
-      symbolt &returned_sym = *move_symbol_to_context(assign_var_sym);
-      exprt assign_var_expr = symbol_exprt(returned_sym.id, returned_sym.type);
+      const std::string name = "tmp_result_" + std::to_string(ctr);
+      const std::string id =
+        "clar:@C@counter@F@" + current_functionName + "@" + name;
+      exprt assign_var_expr;
+      // get assignment variable
+      creat_variable_symbol(statement, name, id, assign_var_expr);
+      // create assignment code statement
       code_assignt assign_result(assign_var_expr, statement);
-
       // declare variable for assignemnt symbol & push to code block
       code_declt assign_var_decl(assign_var_expr);
       _block.move_to_operands(assign_var_decl);
-
       // move codet to code block
       _block.move_to_operands(assign_result);
 
@@ -5272,6 +5258,27 @@ symbolt *clarity_convertert::create_symbol(
   get_default_symbol(symbol, debug_modulename, t, name, id, location_begin);
 
   return move_symbol_to_context(symbol);
+}
+
+/**
+ * craetea a variable's symbol, adds in context
+ * also creates its expression and returns it
+ */
+bool clarity_convertert::creat_variable_symbol(
+  exprt expr,
+  std::string name,
+  std::string id,
+  exprt &var_expr)
+{
+  symbolt symbol;
+  locationt location = expr.find_location();
+  get_default_symbol(
+    symbol, current_functionName, expr.type(), name, id, location);
+  symbol.lvalue = true;
+  symbolt &added_sym = *move_symbol_to_context(symbol);
+  var_expr = symbol_exprt(added_sym.id, added_sym.type);
+  // TODO: ss -- can we cleanly add code_decl here ?
+  return false;
 }
 
 /* Returns the type of struct symbol we need to create

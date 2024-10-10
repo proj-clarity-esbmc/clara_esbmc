@@ -88,6 +88,11 @@ protected:
     std::string name,
     std::string id,
     typet &t);
+  bool creat_variable_symbol(
+    exprt expr,
+    std::string name,
+    std::string id,
+    exprt &var_expr);
   std::string get_struct_symbol_type(const nlohmann::json &expr);
   symbolt *create_struct_symbol(const nlohmann::json &expr, typet &t);
   symbolt *create_response_symbol(const nlohmann::json &expr, typet &t);
