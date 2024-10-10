@@ -2564,9 +2564,18 @@ bool clarity_convertert::process_function_body_expr(
 
     clarity_typecast_response(context, val, return_type);
     clarity_gen_typecast(ns, val, return_type);
-    ret_expr.return_value() = val;
 
-    new_expr = ret_expr;
+    // for code blocks the return statement is the return value
+    if (val.type().id() == "code" && val.statement() == "block")
+    {
+      // TODO: ss -- fix me for codet vs code block with return statement
+      new_expr = val;
+    }
+    else
+    {
+      ret_expr.return_value() = val;
+      new_expr = ret_expr;
+    }
     break;
   }
   case ClarityGrammar::FuncBodyT::MultipleStatement:
@@ -3712,25 +3721,50 @@ bool clarity_convertert::get_expr(
       if (get_expr(body_expr, statement))
         return true;
 
-      // ml- Need to create a temporary result so that all body elements
-      // are treated as expression or assignment. Otherwise the
-      // later side_effect_exprt of statement_expression will not
-      // handle it
-      symbol_exprt result_expr(
-        "tmp_result_" + std::to_string(ctr), statement.type());
-      code_assignt assign_result(result_expr, statement);
-      _block.operands().push_back(assign_result);
+      // create a symbol for assigning the expression output
+      locationt location = statement.find_location();
+      symbolt assign_var_sym;
+      get_default_symbol(
+        assign_var_sym,
+        current_functionName,
+        statement.type(),
+        "tmp_result_" + std::to_string(ctr),
+        "clar:@C@counter@F@" + current_functionName + "@tmp_result_" +
+          std::to_string(ctr),
+        location);
+
+      // set lvalue for assignment variable
+      assign_var_sym.lvalue = true;
+
+      // move symbol to context and create a codet to assign it
+      symbolt &returned_sym = *move_symbol_to_context(assign_var_sym);
+      exprt assign_var_expr = symbol_exprt(returned_sym.id, returned_sym.type);
+      code_assignt assign_result(assign_var_expr, statement);
+
+      // declare variable for assignemnt symbol & push to code block
+      code_declt assign_var_decl(assign_var_expr);
+      _block.move_to_operands(assign_var_decl);
+
+      // move codet to code block
+      _block.move_to_operands(assign_result);
+
       ++ctr;
-      last_expr = statement;
+      last_expr = assign_var_expr;
     }
 
-    // ml- side_effect_exprt type can handle a block as statement expression
-    // It needs to be initialized with "statement_expression" and the
-    // block is passed as the operand
-    typet t = last_expr.type();
-    side_effect_exprt stmt_expr("statement_expression", t);
-    stmt_expr.copy_to_operands(_block);
-    new_expr = stmt_expr;
+    // clarity function's last statement will always be a return statement
+    // TODO: ss -- handle response type casting here if needed
+    // NOTE: @dev -- if this last expression is of type struct response,
+    // then the assignment cariable created above will also need
+    // type casting.
+    // clarity_typecast_response(context, last_expr, expr.type());
+    code_returnt return_expr = code_returnt();
+    return_expr.return_value() = last_expr;
+
+    // push return statement to code block
+    _block.move_to_operands(return_expr);
+
+    new_expr = _block;
     break;
   }
   case ClarityGrammar::ExpressionT::CallExprClass:
